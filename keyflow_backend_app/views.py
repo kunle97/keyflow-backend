@@ -10,6 +10,13 @@ from rest_framework.permissions import IsAuthenticated
 from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest
 from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer
 from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly
+from rest_framework.pagination import PageNumberPagination
+from rest_framework import filters
+
+class CustomPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -33,13 +40,35 @@ class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = PropertySerializer
     # permission_classes = [IsAuthenticated, IsLandlordOrReadOnly]
+    pagination_class = CustomPagination
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'address']
+
+
 
 
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
     serializer_class = UnitSerializer
     # permission_classes = [IsAuthenticated, IsLandlordOrReadOnly]
+    pagination_class = CustomPagination
 
+    #manage leases (mianly used by landlords)
+    @action(detail=True, methods=['post'])
+    def assign_lease(self, request, pk=None):
+        unit = self.get_object()
+        lease_id = request.data.get('lease_id')
+        lease = LeaseAgreement.objects.get(id=lease_id)
+        unit.lease_agreement = lease
+        unit.save()
+        return Response({'message': 'Lease assigned successfully.'})
+
+    @action(detail=True, methods=['post'])
+    def remove_lease(self, request, pk=None):
+        unit = self.get_object()
+        unit.lease_agreement = None
+        unit.save()
+        return Response({'message': 'Lease removed successfully.'})    
 
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
@@ -67,12 +96,18 @@ class TenantViewSet(viewsets.ModelViewSet):
     def renew_lease(self, request, pk=None):
         tenant = self.get_object()
         # Logic for renewing lease
+        lease = LeaseAgreement.objects.create(...)
+        # Update tenant's unit lease
+        tenant.unit.lease_agreement = lease
+        tenant.unit.save()
         return Response({'message': 'Lease renewed successfully.'})
 
     @action(detail=True, methods=['post'])
     def request_cancellation(self, request, pk=None):
         tenant = self.get_object()
         # Logic for requesting lease cancellation
+        tenant.unit.lease_agreement = None
+        tenant.unit.save()
         return Response({'message': 'Lease cancellation requested.'})
 
     #Handle Payments (Stripe Concept)    

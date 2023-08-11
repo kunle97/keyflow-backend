@@ -22,7 +22,7 @@ class User(AbstractUser):
 class RentalProperty(models.Model):
     name = models.CharField(max_length=100, blank=True)
     address = models.TextField()
-    units = models.ManyToManyField('RentalUnit')
+    units = models.ManyToManyField('RentalUnit', blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
     class Meta:
@@ -51,6 +51,7 @@ class LeaseAgreement(models.Model):
     end_date = models.DateField()
     monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
     security_deposit = models.DecimalField(max_digits=10, decimal_places=2)
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None)
     terms = models.TextField()
     signed_date = models.DateField()
     is_active = models.BooleanField(default=True)
