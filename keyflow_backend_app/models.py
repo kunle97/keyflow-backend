@@ -12,6 +12,10 @@ class User(AbstractUser):
     password = models.CharField(max_length=100)
     account_type = models.CharField(max_length=10, choices=ACCOUNT_TYPE_CHOICES)
     stripe_account_id = models.CharField(max_length=100)
+    
+    class Meta:
+        db_table = 'users'
+
     def __str__(self):
         return self.email
 
@@ -20,6 +24,10 @@ class RentalProperty(models.Model):
     address = models.TextField()
     units = models.ManyToManyField('RentalUnit')
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = 'rental_properties'
+
     def __str__(self):
         return f"Property {self.name} at {self.address}"
 
@@ -29,6 +37,10 @@ class RentalUnit(models.Model):
     baths = models.PositiveIntegerField()
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
     lease_agreement = models.ForeignKey('LeaseAgreement', blank=True, null=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        db_table = 'rental_units'
+
     def __str__(self):
         return f"Unit {self.name} at {self.rental_property.address}"
     
@@ -43,6 +55,9 @@ class LeaseAgreement(models.Model):
     signed_date = models.DateField()
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        db_table = 'lease_agreements'
+
     def __str__(self):
         return f"Lease Agreement for RentalUnit {self.rental_unit} at {self.rental_property}"
 
@@ -50,5 +65,9 @@ class MaintenanceRequest(models.Model):
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     description = models.TextField()
     resolved = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'maintenance_requests'
+
     def __str__(self):
-        return f"Request for Unit {self.rental_unit.name} at {self.rental_unit.rental_property.address}"
+        return f"Maintenance Request for Unit {self.rental_unit.name} at {self.rental_unit.rental_property.address}"
