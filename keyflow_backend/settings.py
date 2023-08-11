@@ -31,6 +31,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'rest_framework',
+    'django_extensions',
     'keyflow_backend_app.apps.KeyflowBackendAppConfig',
     'django.contrib.admin',
     'django.contrib.auth',

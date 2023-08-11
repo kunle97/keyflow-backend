@@ -16,7 +16,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from keyflow_backend_app.views import UserViewSet, PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet
+from keyflow_backend_app.views import UserViewSet, PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -28,5 +28,6 @@ router.register(r'maintenance-requests', MaintenanceRequestViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
+    path('api/register/', UserRegistrationView.as_view(), name='register'),
 ]
