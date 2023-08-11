@@ -72,3 +72,12 @@ class MaintenanceRequest(models.Model):
 
     def __str__(self):
         return f"Maintenance Request for Unit {self.rental_unit.name} at {self.rental_unit.rental_property.address}"
+    
+class LeaseCancellationRequest(models.Model):
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE)
+    unit = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
+    request_date = models.DateTimeField()
+    is_approved = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Cancellation Request for {self.tenant} on Unit {self.unit}"

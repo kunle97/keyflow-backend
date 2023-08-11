@@ -1,3 +1,4 @@
+from datetime import timedelta, timezone
 from rest_framework import viewsets
 from django.contrib.auth.hashers import make_password
 from rest_framework.decorators import action
@@ -7,11 +8,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from rest_framework.permissions import IsAuthenticated
-from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest
-from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer
+from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest
+from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer
 from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly
 from rest_framework.pagination import PageNumberPagination
-from rest_framework import filters
+from rest_framework import filters, serializers
 
 class CustomPagination(PageNumberPagination):
     page_size = 10
@@ -44,6 +45,20 @@ class PropertyViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'address']
 
+    @action(detail=True, methods=['get'])
+    def units(self, request, pk=None):
+        property = self.get_object()
+        units = property.units.all()
+        serializer = UnitSerializer(units, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def tenants(self, request, pk=None):
+        property = self.get_object()
+        tenants = User.objects.filter(unit__property=property, account_type='tenant')
+        serializer = UserSerializer(tenants, many=True)
+        return Response(serializer.data)
+
 
 
 
@@ -68,7 +83,7 @@ class UnitViewSet(viewsets.ModelViewSet):
         unit = self.get_object()
         unit.lease_agreement = None
         unit.save()
-        return Response({'message': 'Lease removed successfully.'})    
+        return Response({'message': 'Lease removed successfully.'})  
 
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
@@ -95,21 +110,50 @@ class TenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def renew_lease(self, request, pk=None):
         tenant = self.get_object()
+        if tenant.user != request.user:
+            return Response({'detail': 'You do not have permission to renew this lease.'}, status=status.HTTP_403_FORBIDDEN)
+
         # Logic for renewing lease
-        lease = LeaseAgreement.objects.create(...)
-        # Update tenant's unit lease
+        lease = LeaseAgreement.objects.create(
+            property=tenant.unit.property,
+            unit=tenant.unit,
+            start_date=timezone.now(),
+            end_date=timezone.now() + timedelta(days=365),  # Example: Renew for one year
+            monthly_rent=tenant.unit.monthly_rent,
+            security_deposit=tenant.unit.security_deposit,
+            terms="Renewed lease terms",
+            signed_date=timezone.now(),
+            is_active=True,
+        )
         tenant.unit.lease_agreement = lease
         tenant.unit.save()
-        return Response({'message': 'Lease renewed successfully.'})
+        return Response({'detail': 'Lease renewed successfully.'}, status=status.HTTP_200_OK)
+
 
     @action(detail=True, methods=['post'])
     def request_cancellation(self, request, pk=None):
         tenant = self.get_object()
-        # Logic for requesting lease cancellation
-        tenant.unit.lease_agreement = None
-        tenant.unit.save()
-        return Response({'message': 'Lease cancellation requested.'})
+        if tenant.user != request.user:
+            return Response({'detail': 'You do not have permission to request lease cancellation.'}, status=status.HTTP_403_FORBIDDEN)
 
+        if tenant.unit.lease_agreement is None:
+            return Response({'detail': 'No active lease to cancel.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate the remaining lease period
+        remaining_days = (tenant.unit.lease_agreement.end_date - timezone.now()).days
+
+        if remaining_days <= 30:
+            # If there's less than 30 days remaining, the lease can't be cancelled
+            return Response({'detail': 'Lease cannot be cancelled with less than 30 days remaining.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create a cancellation request
+        cancellation_request = LeaseCancellationRequest.objects.create(
+            tenant=tenant,
+            unit=tenant.unit,
+            request_date=timezone.now(),
+        )
+
+        return Response({'detail': 'Lease cancellation request submitted successfully.'}, status=status.HTTP_200_OK)
     #Handle Payments (Stripe Concept)    
     # @action(detail=True, methods=['post'])
     # def make_payment(self, request, pk=None):
@@ -124,3 +168,16 @@ class TenantViewSet(viewsets.ModelViewSet):
     #         customer=tenant.stripe_account_id,
     #     )
     #     return Response({'client_secret': payment_intent.client_secret})
+
+
+class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
+    queryset = LeaseCancellationRequest.objects.all()
+    serializer_class = LeaseCancellationRequestSerializer
+    permission_classes = [IsAuthenticated, IsTenantOrReadOnly]
+
+    def perform_create(self, serializer):
+        tenant = self.request.user
+        unit = tenant.unit
+        if unit.lease_agreement and not unit.lease_agreement.is_active:
+            raise serializers.ValidationError("Cannot request cancellation for an inactive lease.")
+        serializer.save(tenant=tenant, unit=unit, request_date=timezone.now())
