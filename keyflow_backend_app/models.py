@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth import get_user_model
 
 class User(AbstractUser):
     ACCOUNT_TYPE_CHOICES = (
@@ -81,3 +82,51 @@ class LeaseCancellationRequest(models.Model):
 
     def __str__(self):
         return f"Cancellation Request for {self.tenant} on Unit {self.unit}"
+
+
+
+class TenantApplication(models.Model):
+    # Existing fields
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50)
+    email = models.EmailField(unique=True)
+    phone_number = models.CharField(max_length=15)
+    desired_move_in_date = models.DateField()
+    additional_comments = models.TextField(blank=True, null=True)
+    is_approved = models.BooleanField(default=False)
+
+    # New fields
+    # paystubs = models.FileField(upload_to='tenant_paystubs/', blank=True, null=True)
+    # bank_statements = models.FileField(upload_to='tenant_bank_statements/', blank=True, null=True)
+    # references = models.TextField(blank=True, null=True)
+
+    # New field: Landlord association
+    landlord = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='tenant_applications')
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} Application"
+
+
+class TenantApplication(models.Model):
+    # Existing fields
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50)
+    email = models.EmailField(unique=True)
+    phone_number = models.CharField(max_length=15)
+    desired_move_in_date = models.DateField()
+    additional_comments = models.TextField(blank=True, null=True)
+    is_approved = models.BooleanField(default=False)
+
+    # New fields
+    paystubs = models.FileField(upload_to='tenant_paystubs/', blank=True, null=True)
+    bank_statements = models.FileField(upload_to='tenant_bank_statements/', blank=True, null=True)
+    references = models.TextField(blank=True, null=True)
+
+    # New field: Landlord association
+    landlord = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='tenant_applications')
+
+    class Meta:
+        db_table = 'tenant_applications'
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} Application"
