@@ -1,3 +1,4 @@
+from datetime import timedelta, timezone
 from rest_framework import viewsets, permissions
 from django.contrib.auth.hashers import make_password
 from rest_framework.decorators import action, authentication_classes, permission_classes, api_view
@@ -8,10 +9,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.permissions import IsAuthenticated
 from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest
 from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer
-from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly
+from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters, serializers
 from rest_framework import status
@@ -24,75 +25,6 @@ class CustomPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
-
-class CustomUpdatePermission(BasePermission):
-    """
-    Permission class to check that a user can update his own resource only
-    """
-
-    # check that its an update request and user is modifying his resource only
-    def has_permission(self, request, view):
-        request_id = request.user.id #id of the user making the request
-        #check if view.kwargs.get('pk', None) is a string
-        if type(view.kwargs.get('pk', None)) is str: 
-            url_id = int(view.kwargs.get('pk', None)) #id in the url
-        else:
-            url_id = view.kwargs.get('pk', None) #id in the url converted to int
-        if (request.method  == 'PUT' or request.method =='PATCH') and url_id != request_id:
-            return False # not grant access
-        return True # grant access otherwise
-
-
-#create a custom permission class that does not allow the creation of a User
-class DisallowUserCreatePermission(BasePermission):
-    """
-    Permission class to check that a user can create his own resource only
-    """
-
-    def has_permission(self, request, view):
-        # check that its a create request and user is creating a resource only
-        if request.method  == 'CREATE':
-            return False # not grant access
-
-#create a custom permission class for creating a resource
-class CustomCreatePermission(BasePermission):
-    """
-    Permission class to check that a user can create his own resource only
-    """
-
-    def has_permission(self, request, view):
-        # check that its a create request and user is creating a resource only
-        request_id = request.user.id #id of the user making the request
-        #create variable for request body
-        request_body_user = request.data.get('user')
-         #check if view.kwargs.get('pk', None) is a string
-
-        if type(request_body_user) is str: 
-            user_id = int(request_body_user) #id in the url converted from string to int
-        else:
-            user_id = view.kwargs.get('pk', None) #id in the url as an int
-
-
-        if request.method  == 'POST' and (user_id != int(request_id)):
-            return False # not grant access
-        return True # grant access otherwise
-
-class CustomDeletePermission(BasePermission):
-    """
-    Permission class to check that a user can delete his own resource only
-    """
-        
-    def has_permission(self, request, view):
-        request_id = request.user.id #id of the user making the request
-        #check if view.kwargs.get('pk', None) is a string
-        if type(view.kwargs.get('pk', None)) is str: 
-            url_id = int(view.kwargs.get('pk', None)) #id in the url
-        else:
-            url_id = view.kwargs.get('pk', None) #id in the url converted to int
-        if (request.method == 'DELETE' and url_id != request_id):
-            if not request.user.is_authenticated:
-                return False
-        return True
 
 
 #create a login endpoint
@@ -133,25 +65,36 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated, CustomUpdatePermission, CustomDeletePermission, DisallowUserCreatePermission]
+    permission_classes = [IsAuthenticated, DisallowUserCreatePermission]
 
+    #GET: api/users/{id}/properties
+    @action(detail=True, methods=['get'])
+    def properties(self, request, pk=None): 
+        user = self.get_object()
+        properties = RentalProperty.objects.filter(user_id=user.id)
+        serializer = PropertySerializer(properties, many=True)
+        if user.id == request.user.id:
+            return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = PropertySerializer
-    permission_classes = [CustomUpdatePermission, IsAuthenticated, IsLandlordOrReadOnly,CustomCreatePermission]
+    permission_classes = [ IsAuthenticated, IsResourceOwner, PropertyCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     pagination_class = CustomPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'address']
 
+    #GET: api/properties/{id}/units
     @action(detail=True, methods=['get'])
-    def units(self, request, pk=None):
+    def units(self, request, pk=None): 
         property = self.get_object()
         units = property.units.all()
         serializer = UnitSerializer(units, many=True)
         return Response(serializer.data)
-
+   
+    #GET: api/properties/{id}/tenants
     @action(detail=True, methods=['get'])
     def tenants(self, request, pk=None):
         property = self.get_object()
@@ -162,7 +105,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
     serializer_class = UnitSerializer
-    permission_classes = [CustomUpdatePermission, IsAuthenticated, IsLandlordOrReadOnly,CustomCreatePermission, CustomDeletePermission]
+    permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     pagination_class = CustomPagination
 
@@ -186,13 +129,15 @@ class UnitViewSet(viewsets.ModelViewSet):
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
     serializer_class = LeaseAgreementSerializer
-    permission_classes = [IsAuthenticated, IsLandlordOrReadOnly]
-
+    permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner, ResourceCreatePermission]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
     serializer_class = MaintenanceRequestSerializer
-    permission_classes = [IsAuthenticated, IsTenantOrReadOnly]
-    
+    permission_classes = [IsAuthenticated, IsTenantOrReadOnly,  IsResourceOwner, ResourceCreatePermission]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+
     @action(detail=True, methods=['post'])
     def mark_resolved(self, request, pk=None):
         maintenance_request = self.get_object()
@@ -269,7 +214,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseCancellationRequest.objects.all()
     serializer_class = LeaseCancellationRequestSerializer
-    permission_classes = [IsAuthenticated, IsTenantOrReadOnly]
+    permission_classes = [IsAuthenticated, IsTenantOrReadOnly, IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
 
     def perform_create(self, serializer):

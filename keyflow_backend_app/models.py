@@ -24,7 +24,7 @@ class RentalProperty(models.Model):
     name = models.CharField(max_length=100, blank=True)
     address = models.TextField()
     units = models.ManyToManyField('RentalUnit', blank=True, null=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None)
 
     class Meta:
         db_table = 'rental_properties'
@@ -38,6 +38,7 @@ class RentalUnit(models.Model):
     baths = models.PositiveIntegerField()
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
     lease_agreement = models.ForeignKey('LeaseAgreement', blank=True, null=True, on_delete=models.SET_NULL)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
 
     class Meta:
         db_table = 'rental_units'
@@ -52,10 +53,12 @@ class LeaseAgreement(models.Model):
     end_date = models.DateField()
     monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
     security_deposit = models.DecimalField(max_digits=10, decimal_places=2)
-    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None)
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant')
     terms = models.TextField()
     signed_date = models.DateField()
     is_active = models.BooleanField(default=True)
+    rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
 
     class Meta:
         db_table = 'lease_agreements'
@@ -67,6 +70,9 @@ class MaintenanceRequest(models.Model):
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     description = models.TextField()
     resolved = models.BooleanField(default=False)
+    landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #related landlord
+    rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_maintenance_request') #related tenant that created the request
 
     class Meta:
         db_table = 'maintenance_requests'
@@ -75,10 +81,15 @@ class MaintenanceRequest(models.Model):
         return f"Maintenance Request for Unit {self.rental_unit.name} at {self.rental_unit.rental_property.address}"
     
 class LeaseCancellationRequest(models.Model):
-    tenant = models.ForeignKey(User, on_delete=models.CASCADE)
-    unit = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #tenant that created the lease cancellation request
+    unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
+    lease_agreement = models.ForeignKey(LeaseAgreement, on_delete=models.CASCADE, default=None)
     request_date = models.DateTimeField()
     is_approved = models.BooleanField(default=False)
+    rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
+
+    class Meta:
+        db_table = 'lease_cancellation_requests'
 
     def __str__(self):
         return f"Cancellation Request for {self.tenant} on Unit {self.unit}"
@@ -94,39 +105,17 @@ class TenantApplication(models.Model):
     desired_move_in_date = models.DateField()
     additional_comments = models.TextField(blank=True, null=True)
     is_approved = models.BooleanField(default=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #landlord that created the application
 
     # New fields
     # paystubs = models.FileField(upload_to='tenant_paystubs/', blank=True, null=True)
     # bank_statements = models.FileField(upload_to='tenant_bank_statements/', blank=True, null=True)
     # references = models.TextField(blank=True, null=True)
-
-    # New field: Landlord association
-    landlord = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='tenant_applications')
-
-    def __str__(self):
-        return f"{self.first_name} {self.last_name} Application"
-
-
-class TenantApplication(models.Model):
-    # Existing fields
-    first_name = models.CharField(max_length=50)
-    last_name = models.CharField(max_length=50)
-    email = models.EmailField(unique=True)
-    phone_number = models.CharField(max_length=15)
-    desired_move_in_date = models.DateField()
-    additional_comments = models.TextField(blank=True, null=True)
-    is_approved = models.BooleanField(default=False)
-
-    # New fields
-    paystubs = models.FileField(upload_to='tenant_paystubs/', blank=True, null=True)
-    bank_statements = models.FileField(upload_to='tenant_bank_statements/', blank=True, null=True)
-    references = models.TextField(blank=True, null=True)
-
-    # New field: Landlord association
-    landlord = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='tenant_applications')
-
+    
     class Meta:
         db_table = 'tenant_applications'
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} Application"
+
+
