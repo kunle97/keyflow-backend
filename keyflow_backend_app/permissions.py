@@ -63,8 +63,7 @@ class PropertyCreatePermission(BasePermission):
         else:
             user_id = view.kwargs.get('pk', None) #id in the url as an int
 
-
-        if request.method  == 'POST' and (user_id != int(request_id)):
+        if request.method  == 'POST' and (int(request_body_user) != int(request_id)):
             return False # not grant access
         return True # grant access otherwise
 
@@ -97,15 +96,16 @@ class ResourceCreatePermission(BasePermission):
         # check that its a create request and user is creating a resource only
         request_id = request.user.id #id of the user making the request
         
-        #create variable for request body
-        request_body_property = request.data.get('rental_property')
-        #retrieve property object from  request_body_property variable
-        property_object = RentalProperty.objects.get(pk=request_body_property)
-        print(f"REequest body proprerty {request_body_property}")
-        property_user_id = property_object.user.id #id of the user who owns the property
-
-        if request.method  == 'POST' and (property_user_id != int(request_id)):
-            return False # not grant access
+        if(request.method  == 'POST' ):
+            #create variable for request body
+            request_body_property = request.data.get('rental_property')
+            #retrieve property object from  request_body_property variable
+            print(f"Request body proprerty {request_body_property}")
+            property_object = RentalProperty.objects.get(pk=request_body_property)
+            property_user_id = property_object.user.id #id of the user who owns the property
+            if request.method  == 'POST' and (property_user_id != int(request_id)):
+                return False # not grant access
+            
         return True # grant access otherwise
 
 #Create Custome permission class for updating a unit where only users who own the property can update a unit for that property

@@ -98,7 +98,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def units(self, request, pk=None): 
         property = self.get_object()
-        units = property.units.all()
+        units = RentalUnit.objects.filter(rental_property_id=property.id)
         serializer = UnitSerializer(units, many=True)
         return Response(serializer.data)
    
@@ -117,7 +117,7 @@ class UnitViewSet(viewsets.ModelViewSet):
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     pagination_class = CustomPagination
 
-    #manage leases (mianly used by landlords)
+    #manage leases (mainly used by landlords)
     @action(detail=True, methods=['post'])
     def assign_lease(self, request, pk=None):
         unit = self.get_object()

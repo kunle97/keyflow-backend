@@ -23,6 +23,10 @@ class User(AbstractUser):
 class RentalProperty(models.Model):
     name = models.CharField(max_length=100, blank=True)
     address = models.TextField()
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    zip_code = models.PositiveIntegerField(blank=True, null=True)
+    country = models.CharField(max_length=100, default='United States')
     units = models.ManyToManyField('RentalUnit', blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None)
 
@@ -36,6 +40,7 @@ class RentalUnit(models.Model):
     name = models.CharField(max_length=100, blank=True)
     beds = models.PositiveIntegerField()
     baths = models.PositiveIntegerField()
+    rent = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
     lease_agreement = models.ForeignKey('LeaseAgreement', blank=True, null=True, on_delete=models.SET_NULL)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
