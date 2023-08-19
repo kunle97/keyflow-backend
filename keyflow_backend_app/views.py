@@ -19,7 +19,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import TenantApplicationSerializer
-
+import stripe
 #Custom  classes
 class CustomPagination(PageNumberPagination):
     page_size = 10
@@ -41,8 +41,16 @@ class UserLoginView(APIView):
         #create a token for the user on success full login
         token=Token.objects.create(user=user)
         serializer = UserSerializer(instance=user)
-        return Response({'message': 'User logged in successfully.','user':serializer.data,'token':token.key}, status=status.HTTP_200_OK)
-    
+        return Response({'message': 'User logged in successfully.','user':serializer.data,'token':token.key,'statusCode':status.HTTP_200_OK, 'isAuthenticated':True}, status=status.HTTP_200_OK)
+
+#create a logout endpoint that deletes the token
+class UserLogoutView(APIView):
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        request.user.auth_token.delete()
+        return Response({'message': 'User logged out successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+
 class UserRegistrationView(APIView):
     def post(self, request):
         User = get_user_model()
@@ -131,7 +139,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
     serializer_class = LeaseAgreementSerializer
     permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    
+
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
     serializer_class = MaintenanceRequestSerializer
@@ -148,8 +156,24 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
 #Handle Lease
 class TenantViewSet(viewsets.ModelViewSet):
     # ... (existing code)
+    
+    @action(detail=True, methods=['post'])
+    def make_payment(self, request, pk=None):
+        tenant = self.get_object()
+        amount = 1000  # Sample amount in cents
+        # Call Stripe API to create a payment
+        stripe.api_key = 'your_stripe_secret_key'
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency='usd',
+            payment_method_types=['card'],
+            customer=tenant.stripe_account_id,
+        )
+        return Response({'client_secret': payment_intent.client_secret})
 
     @action(detail=True, methods=['post'])
+    @permission_classes([IsAuthenticated])
+    @authentication_classes([TokenAuthentication, SessionAuthentication])
     def renew_lease(self, request, pk=None):
         tenant = self.get_object()
         if tenant.user != request.user:
@@ -173,6 +197,8 @@ class TenantViewSet(viewsets.ModelViewSet):
 
 
     @action(detail=True, methods=['post'])
+    @permission_classes([IsAuthenticated])
+    @authentication_classes([TokenAuthentication, SessionAuthentication])
     def request_cancellation(self, request, pk=None):
         tenant = self.get_object()
         if tenant.user != request.user:

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, TenantApplication
+from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, TenantApplication, Transaction
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -34,3 +34,9 @@ class TenantApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = TenantApplication
         fields = '__all__'
+
+class TransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Transaction
+        fields = '__all__'
+

@@ -16,7 +16,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from keyflow_backend_app.views import UserViewSet, PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView, LeaseCancellationRequestViewSet, UserLoginView, TenantApplicationView
+from keyflow_backend_app.views import UserViewSet, PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView, LeaseCancellationRequestViewSet, UserLoginView, TenantApplicationView, UserLogoutView
 from keyflow_backend_app import views
 
 router = DefaultRouter()
@@ -32,6 +32,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
     path('api/auth/login/', UserLoginView.as_view(), name='login'),
+    path('api/auth/logout/', UserLogoutView.as_view(), name='logout'),
     path('api/auth/register/', UserRegistrationView.as_view(), name='register'),
     path('api/test_token', views.test_token, name='test_token'),
     path('/submit_application/', TenantApplicationView.as_view(), name='submit_application'),

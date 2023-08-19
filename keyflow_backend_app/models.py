@@ -119,3 +119,19 @@ class TenantApplication(models.Model):
         return f"{self.first_name} {self.last_name} Application"
 
 
+
+#Create a model for transactions that will be used to create a transaction history for each user
+class Transaction(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #landlord related to the transaction
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    date = models.DateField()
+    description = models.TextField()
+    rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
+    rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE,default=None)
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_transaction') #related tenant
+
+    class Meta:
+        db_table = 'transactions'
+
+    def __str__(self):
+        return f"Transaction for {self.user} on {self.date}"
