@@ -59,15 +59,56 @@ class UserRegistrationView(APIView):
         # Hash the password before saving the user
         data['password'] = make_password(data['password'])
         
+        
         serializer = UserSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
             user = User.objects.get(email=data['email'])
+
+            #TODO: send email to the user to verify their email address
+            #create stripe account for the user
+            stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+            
+            stripe_account = stripe.Account.create(type='express', country='US', email=user.email, capabilities={'card_payments': {'requested': True}, 'transfers': {'requested': True}})
+            # stripe_account = stripe.Account.create(type='standard', country='US', email=user.email)
+
+            #update the user with the stripe account id
+            user.stripe_account_id = stripe_account.id
+
+            #obtain stripe account link for the user to complete the onboarding process
+            account_link = stripe.AccountLink.create(
+                account=stripe_account.id,
+                refresh_url='http://localhost:3000/dashboard/login',
+                return_url='http://localhost:3000/dashboard/',
+                type='account_onboarding',
+            )
             user.is_active = True
             user.save()
             token=Token.objects.create(user=user)
-            return Response({'message': 'User registered successfully.', 'user':serializer.data, 'token':token.key}, status=status.HTTP_201_CREATED)
+            return Response({'message': 'User registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True, "onboarding_link":account_link}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#create an endpoint to activate the account of a new user that will set the  is_active field to true
+class UserActivationView(APIView):
+    def post(self, request):
+        User = get_user_model()
+        data = request.data.copy()
+        user = User.objects.get(email=data['email'])
+        if user is None:
+            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
+        user.is_active = True
+        user.save()
+        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+    #Create a get request to activate the user 
+    def get(self, request):
+        User = get_user_model()
+        data = request.data.copy()
+        user = User.objects.get(email=data['email'])
+        if user is None:
+            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
+        user.is_active = True
+        user.save()
+        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -160,9 +201,10 @@ class TenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def make_payment(self, request, pk=None):
         tenant = self.get_object()
+        
         amount = 1000  # Sample amount in cents
         # Call Stripe API to create a payment
-        stripe.api_key = 'your_stripe_secret_key'
+        stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
         payment_intent = stripe.PaymentIntent.create(
             amount=amount,
             currency='usd',

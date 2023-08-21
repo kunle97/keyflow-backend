@@ -44,6 +44,7 @@ class RentalUnit(models.Model):
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
     lease_agreement = models.ForeignKey('LeaseAgreement', blank=True, null=True, on_delete=models.SET_NULL)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
 
     class Meta:
         db_table = 'rental_units'
@@ -127,8 +128,13 @@ class TenantApplication(models.Model):
 
 #Create a model for transactions that will be used to create a transaction history for each user
 class Transaction(models.Model):
+    TRANSACTION_TYPE_CHOICES = (
+        ('expense', 'Expense'),
+        ('revenue', 'Revenue'),
+    )
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #landlord related to the transaction
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    type = models.CharField(max_length=50, choices=TRANSACTION_TYPE_CHOICES)
     date = models.DateField()
     description = models.TextField()
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
