@@ -13,7 +13,7 @@ class User(AbstractUser):
     password = models.CharField(max_length=100)
     account_type = models.CharField(max_length=10, choices=ACCOUNT_TYPE_CHOICES)
     stripe_account_id = models.CharField(max_length=100, blank=True, null=True)
-    stripe_customer_id = models.CharField(max_length=100, blank=True, null=True)
+    stripe_customer_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     
     class Meta:
         db_table = 'users'
