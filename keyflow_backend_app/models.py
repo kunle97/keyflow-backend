@@ -14,8 +14,6 @@ class User(AbstractUser):
     account_type = models.CharField(max_length=10, choices=ACCOUNT_TYPE_CHOICES)
     stripe_account_id = models.CharField(max_length=100, blank=True, null=True)
     stripe_customer_id = models.CharField(max_length=100, blank=True, null=True)
-    stripe_payment_method_id = models.CharField(max_length=100, blank=True, null=True)
-    
     
     class Meta:
         db_table = 'users'
@@ -66,7 +64,6 @@ class LeaseAgreement(models.Model):
     terms = models.TextField()
     signed_date = models.DateField()
     is_active = models.BooleanField(default=True)
-    rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
 
     class Meta:
