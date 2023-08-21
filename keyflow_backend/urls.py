@@ -18,7 +18,10 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from keyflow_backend_app.views import UserViewSet, UserActivationView,PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView, LeaseCancellationRequestViewSet, UserLoginView, TenantApplicationView, UserLogoutView
 from keyflow_backend_app import views
-
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'properties', PropertyViewSet)
@@ -35,6 +38,8 @@ urlpatterns = [
     path('api/auth/logout/', UserLogoutView.as_view(), name='logout'),
     path('api/auth/register/', UserRegistrationView.as_view(), name='register'),
     path('api/test_token', views.test_token, name='test_token'),
-    path('/submit_application/', TenantApplicationView.as_view(), name='submit_application'),
-    path('/api/activate/<email>/<token>/', UserActivationView.as_view(), name='activate'),
+    path('submit_application/', TenantApplicationView.as_view(), name='submit_application'),
+    path('api/activate/<email>/<token>/', UserActivationView.as_view(), name='activate'),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
