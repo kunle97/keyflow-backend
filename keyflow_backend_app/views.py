@@ -88,6 +88,31 @@ class UserRegistrationView(APIView):
             return Response({'message': 'User registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True, "onboarding_link":account_link}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+#Create an endpoint that registers a tenant
+class TenantRegistrationView(APIView):
+    def post(self, request):
+        User = get_user_model()
+        data = request.data.copy()
+        
+        # Hash the password before saving the user
+        data['password'] = make_password(data['password'])
+        
+        
+        serializer = UserSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            user = User.objects.get(email=data['email'])
+
+            #set the account type to tenant
+            user.account_type = 'tenant' 
+
+            user.is_active = True
+            user.save()
+            token=Token.objects.create(user=user)
+            return Response({'message': 'Tenant registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 #create an endpoint to activate the account of a new user that will set the  is_active field to true
 class UserActivationView(APIView):
     def post(self, request):

@@ -16,19 +16,19 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from keyflow_backend_app.views import UserViewSet, UserActivationView,PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView, LeaseCancellationRequestViewSet, UserLoginView, TenantApplicationView, UserLogoutView
+from keyflow_backend_app.views import UserViewSet, UserActivationView,PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView, LeaseCancellationRequestViewSet, UserLoginView, TenantApplicationView, UserLogoutView, TenantRegistrationView
 from keyflow_backend_app import views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
 router = DefaultRouter()
-router.register(r'users', UserViewSet)
-router.register(r'properties', PropertyViewSet)
-router.register(r'units', UnitViewSet)
-router.register(r'lease-agreements', LeaseAgreementViewSet)
-router.register(r'maintenance-requests', MaintenanceRequestViewSet)
-router.register(r'lease-cancellation-requests', LeaseCancellationRequestViewSet)
+router.register(r'users', UserViewSet,  basename='users')
+router.register(r'properties', PropertyViewSet, basename='rental_properties')
+router.register(r'units', UnitViewSet, basename='rental_units')
+router.register(r'lease-agreements', LeaseAgreementViewSet, basename='lease-agreements')
+router.register(r'maintenance-requests', MaintenanceRequestViewSet, basename='maintenance-requests')
+router.register(r'lease-cancellation-requests', LeaseCancellationRequestViewSet, basename='lease-cancellation-requests')
 
 
 urlpatterns = [
@@ -37,6 +37,7 @@ urlpatterns = [
     path('api/auth/login/', UserLoginView.as_view(), name='login'),
     path('api/auth/logout/', UserLogoutView.as_view(), name='logout'),
     path('api/auth/register/', UserRegistrationView.as_view(), name='register'),
+    path('api/auth/tenant/register/', TenantRegistrationView.as_view(), name='tenant_register'),
     path('api/test_token', views.test_token, name='test_token'),
     path('submit_application/', TenantApplicationView.as_view(), name='submit_application'),
     path('api/activate/<email>/<token>/', UserActivationView.as_view(), name='activate'),
