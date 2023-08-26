@@ -10,15 +10,15 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest
-from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer
+from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication
+from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer
 from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters, serializers
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import TenantApplicationSerializer
+from .serializers import RentalApplicationSerializer
 import stripe
 #Custom  classes
 class CustomPagination(PageNumberPagination):
@@ -317,16 +317,63 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError("Cannot request cancellation for an inactive lease.")
         serializer.save(tenant=tenant, unit=unit, request_date=timezone.now())
 
-class TenantApplicationView(APIView):
-    def post(self, request):
-        data = request.data.copy()
-        data['landlord'] = request.user.id  # Assign the logged-in landlord user
-        serializer = TenantApplicationSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Application submitted successfully.'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class RentalApplicationViewSet(viewsets.ModelViewSet):
+    queryset = RentalApplication.objects.all()
+    serializer_class = RentalApplicationSerializer
 
+    #Create a method to retrive all rental applications for a specific user
+    @action(detail=True, methods=['get'])
+    def user_rental_applications(self, request, pk=None):
+        user = self.get_object()
+        rental_applications = RentalApplication.objects.filter(user_id=user.id)
+        serializer = RentalApplicationSerializer(rental_applications, many=True)
+        return Response(serializer.data,  status=status.HTTP_200_OK)
+    
+    #Create a method to approve a rental application
+    @action(detail=True, methods=['post'])
+    def approve_rental_application(self, request, pk=None):
+        rental_application = self.get_object()
+        rental_application.is_approved = True
+        rental_application.save()
+        return Response({'message': 'Rental application approved successfully.'})
+    
+    #Create a method to reject and delete a rental application
+    @action(detail=True, methods=['post'])
+    def reject_rental_application(self, request, pk=None):
+        rental_application = self.get_object()
+        rental_application.delete()
+        return Response({'message': 'Rental application rejected successfully.'})
+    
+
+#make a viewset for lease terms
+class LeaseTermViewSet(viewsets.ModelViewSet):
+    queryset = LeaseTerm.objects.all()
+    serializer_class = LeaseTermSerializer
+    permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+
+    #Create a method to retrive all lease terms for a specific user
+    @action(detail=True, methods=['get'])
+    def user_lease_terms(self, request, pk=None):
+        user = self.get_object()
+        lease_terms = LeaseTerm.objects.filter(user_id=user.id)
+        serializer = LeaseTermSerializer(lease_terms, many=True)
+        return Response(serializer.data,  status=status.HTTP_200_OK)
+
+#Create a viewset for transactions model
+class TransactionViewSet(viewsets.ModelViewSet):
+    queryset = Transaction.objects.all()
+    serializer_class = TransactionSerializer
+    permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+
+    #create to retrive all transactions for a specific user
+    @action(detail=True, methods=['get'])
+    def user_transactions(self, request, pk=None):
+        user = self.get_object()
+        transactions = Transaction.objects.filter(user_id=user.id)
+        serializer = TransactionSerializer(transactions, many=True)
+        return Response(serializer.data,  status=status.HTTP_200_OK)
 
 #test to see if tooken is valid and return user info
 @api_view(['GET'])

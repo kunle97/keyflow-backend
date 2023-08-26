@@ -16,7 +16,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from keyflow_backend_app.views import UserViewSet, UserActivationView,PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView, LeaseCancellationRequestViewSet, UserLoginView, TenantApplicationView, UserLogoutView, TenantRegistrationView
+from keyflow_backend_app.views import UserViewSet, UserActivationView,PropertyViewSet, UnitViewSet, LeaseAgreementViewSet, MaintenanceRequestViewSet,UserRegistrationView, LeaseCancellationRequestViewSet, UserLoginView, UserLogoutView, TenantRegistrationView,TransactionViewSet, LeaseTermViewSet,  RentalApplicationViewSet
 from keyflow_backend_app import views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -29,6 +29,9 @@ router.register(r'units', UnitViewSet, basename='rental_units')
 router.register(r'lease-agreements', LeaseAgreementViewSet, basename='lease-agreements')
 router.register(r'maintenance-requests', MaintenanceRequestViewSet, basename='maintenance-requests')
 router.register(r'lease-cancellation-requests', LeaseCancellationRequestViewSet, basename='lease-cancellation-requests')
+router.register(r'lease-terms', LeaseTermViewSet, basename='lease-terms')
+router.register(r'transactions', TransactionViewSet, basename='transactions')
+router.register(r'rental-applications',RentalApplicationViewSet , basename='transactions')
 
 
 urlpatterns = [
@@ -39,7 +42,6 @@ urlpatterns = [
     path('api/auth/register/', UserRegistrationView.as_view(), name='register'),
     path('api/auth/tenant/register/', TenantRegistrationView.as_view(), name='tenant_register'),
     path('api/test_token', views.test_token, name='test_token'),
-    path('submit_application/', TenantApplicationView.as_view(), name='submit_application'),
     path('api/activate/<email>/<token>/', UserActivationView.as_view(), name='activate'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

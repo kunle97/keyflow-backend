@@ -43,9 +43,9 @@ class RentalUnit(models.Model):
     baths = models.PositiveIntegerField()
     rent = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
-    lease_agreement = models.ForeignKey('LeaseAgreement', blank=True, null=True, on_delete=models.SET_NULL)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
+    least_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
 
     class Meta:
         db_table = 'rental_units'
@@ -58,20 +58,38 @@ class LeaseAgreement(models.Model):
     rental_unit = models.ForeignKey('RentalUnit', on_delete=models.CASCADE)
     start_date = models.DateField()
     end_date = models.DateField()
-    monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
-    security_deposit = models.DecimalField(max_digits=10, decimal_places=2)
+    document_id = models.CharField(max_length=100, blank=True, null=True)
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant')
-    terms = models.TextField()
+    lease_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
     signed_date = models.DateField()
     is_active = models.BooleanField(default=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
-
+    approval_hash = models.CharField(max_length=100, blank=True, null=True)
     class Meta:
         db_table = 'lease_agreements'
 
     def __str__(self):
         return f"Lease Agreement for RentalUnit {self.rental_unit} at {self.rental_property}"
 
+class LeaseTerm(models.Model):
+    rent = models.DecimalField(max_digits=10, decimal_places=2)
+    term = models.IntegerField() #Integer for duration of lease in months
+    description = models.TextField() #descriptionn of the property and lease terms (to be displayed on REntal App page)
+    late_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    secutiry_deposit = models.DecimalField(max_digits=10, decimal_places=2)
+    gas_included = models.BooleanField(default=False)
+    water_included = models.BooleanField(default=False)
+    electric_included = models.BooleanField(default=False)
+    repairs_included = models.BooleanField(default=False)
+    lease_cancellation_notice_period = models.IntegerField() #Integer for notice period in days
+    lease_cancellation_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    class Meta:
+        db_table = 'lease_terms'
+
+    def __str__(self):
+        return f"Lease Term for {self.term} months"
+    
 class MaintenanceRequest(models.Model):
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     description = models.TextField()
@@ -102,16 +120,24 @@ class LeaseCancellationRequest(models.Model):
 
 
 
-class TenantApplication(models.Model):
+class RentalApplication(models.Model):
     # Existing fields
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=False)
     phone_number = models.CharField(max_length=15)
     desired_move_in_date = models.DateField()
-    additional_comments = models.TextField(blank=True, null=True)
     is_approved = models.BooleanField(default=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #landlord that created the application
+    unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE, default=None) #Unit that the application is for
+    approval_hash = models.CharField(max_length=100, blank=True, null=True, default=None)
+    other_occupants = models.BooleanField(default=None)
+    pets = models.BooleanField(default=None)
+    vehicles = models.BooleanField(default=None)
+    convicted = models.BooleanField(default=None)
+    bankrupcy_filed = models.BooleanField(default=None)
+    evicted = models.BooleanField(default=None)
+    employment_history = models.TextField(blank=True, null=True)
+    residential_history = models.TextField(blank=True, null=True)
 
     # New fields
     # paystubs = models.FileField(upload_to='tenant_paystubs/', blank=True, null=True)
@@ -119,10 +145,10 @@ class TenantApplication(models.Model):
     # references = models.TextField(blank=True, null=True)
     
     class Meta:
-        db_table = 'tenant_applications'
+        db_table = 'rental_applications'
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} Application"
+        return f"{self.first_name} {self.last_name} Rental Application"
 
 
 
