@@ -46,7 +46,8 @@ class RentalUnit(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
     least_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
-
+    is_occupied = models.BooleanField(default=False)
+    
     class Meta:
         db_table = 'rental_units'
 
