@@ -64,7 +64,7 @@ class LeaseAgreement(models.Model):
     signed_date = models.DateField()
     is_active = models.BooleanField(default=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
-    approval_hash = models.CharField(max_length=100, blank=True, null=True)
+    approval_hash = models.CharField(max_length=100, blank=True, null=True,unique=True)
     class Meta:
         db_table = 'lease_agreements'
 
@@ -130,7 +130,7 @@ class RentalApplication(models.Model):
     desired_move_in_date = models.DateField()
     is_approved = models.BooleanField(default=False)
     unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE, default=None) #Unit that the application is for
-    approval_hash = models.CharField(max_length=100, blank=True, null=True, default=None)
+    approval_hash = models.CharField(max_length=100, blank=True, null=True, default=None, unique=True)
     other_occupants = models.BooleanField(default=None)
     pets = models.BooleanField(default=None)
     vehicles = models.BooleanField(default=None)
