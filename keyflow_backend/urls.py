@@ -31,7 +31,7 @@ router.register(r'maintenance-requests', MaintenanceRequestViewSet, basename='ma
 router.register(r'lease-cancellation-requests', LeaseCancellationRequestViewSet, basename='lease-cancellation-requests')
 router.register(r'lease-terms', LeaseTermViewSet, basename='lease-terms')
 router.register(r'transactions', TransactionViewSet, basename='transactions')
-router.register(r'rental-applications',RentalApplicationViewSet , basename='transactions')
+router.register(r'rental-applications',RentalApplicationViewSet , basename='rental-applications')
 
 
 urlpatterns = [

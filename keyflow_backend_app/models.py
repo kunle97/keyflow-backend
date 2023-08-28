@@ -124,7 +124,8 @@ class RentalApplication(models.Model):
     # Existing fields
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
-    email = models.EmailField(unique=False)
+    email = models.EmailField(unique=False) 
+    date_of_birth = models.DateField(default=None, blank=True, null=True)
     phone_number = models.CharField(max_length=15)
     desired_move_in_date = models.DateField()
     is_approved = models.BooleanField(default=False)
@@ -138,7 +139,9 @@ class RentalApplication(models.Model):
     evicted = models.BooleanField(default=None)
     employment_history = models.TextField(blank=True, null=True)
     residential_history = models.TextField(blank=True, null=True)
-
+    landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_application_landlord') #related landlord that created the application
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant_application_tenant') #related tenant that created the application
+    
     # New fields
     # paystubs = models.FileField(upload_to='tenant_paystubs/', blank=True, null=True)
     # bank_statements = models.FileField(upload_to='tenant_bank_statements/', blank=True, null=True)

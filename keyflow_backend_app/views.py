@@ -12,7 +12,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated
 from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication
 from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer
-from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission
+from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission,RentalApplicationCreatePermission
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters, serializers
 from rest_framework import status
@@ -150,6 +150,16 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.id == request.user.id:
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    #GET: api/users/{id}/rental-applications
+    @action(detail=True, methods=['get'], url_path='rental-applications')
+    def rental_applications(self, request, pk=None):
+        user = self.get_object()
+        rental_applications = RentalApplication.objects.filter(landlord=user.id)
+        serializer = RentalApplicationSerializer(rental_applications, many=True)
+        if user.id == request.user.id:
+            return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
@@ -182,6 +192,14 @@ class UnitViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     pagination_class = CustomPagination
+
+    #Create a function to retireve all rental applications for a specific unit
+    @action(detail=True, methods=['get'], url_path='rental-applications')
+    def rental_applications(self, request, pk=None):
+        unit = self.get_object()
+        rental_applications = RentalApplication.objects.filter(unit=unit)
+        serializer = RentalApplicationSerializer(rental_applications, many=True)
+        return Response(serializer.data)
 
     #manage leases (mainly used by landlords)
     @action(detail=True, methods=['post'])
@@ -320,29 +338,31 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 class RentalApplicationViewSet(viewsets.ModelViewSet):
     queryset = RentalApplication.objects.all()
     serializer_class = RentalApplicationSerializer
-
-    #Create a method to retrive all rental applications for a specific user
-    @action(detail=True, methods=['get'])
-    def user_rental_applications(self, request, pk=None):
-        user = self.get_object()
-        rental_applications = RentalApplication.objects.filter(user_id=user.id)
-        serializer = RentalApplicationSerializer(rental_applications, many=True)
-        return Response(serializer.data,  status=status.HTTP_200_OK)
+    permission_classes =[RentalApplicationCreatePermission]
     
     #Create a method to approve a rental application
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='approve-rental-application')
     def approve_rental_application(self, request, pk=None):
         rental_application = self.get_object()
-        rental_application.is_approved = True
-        rental_application.save()
-        return Response({'message': 'Rental application approved successfully.'})
+        request_user = request.data.get('user_id')
+        print(f'Reqeust User id: {request_user}')
+        print(f'Landlord id: {rental_application.landlord.id}')
+        if rental_application.landlord == request_user:
+            rental_application.is_approved = True
+            rental_application.save()
+            return Response({'message': 'Rental application approved successfully.'})
+        return Response({'message': 'You do not have the permissions to access this resource'})
     
     #Create a method to reject and delete a rental application
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='reject-rental-application')
     def reject_rental_application(self, request, pk=None):
         rental_application = self.get_object()
-        rental_application.delete()
-        return Response({'message': 'Rental application rejected successfully.'})
+        if request.user.is_authenticated and rental_application.landlord == request.user:
+            rental_application.is_approved = True
+            rental_application.save()
+            # rental_application.delete()
+            return Response({'message': 'Rental application rejected successfully.'})
+        return Response({'message': 'You do not have the permissions to access this resource'})
     
 
 #make a viewset for lease terms

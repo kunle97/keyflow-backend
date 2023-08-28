@@ -1,6 +1,8 @@
 from rest_framework import permissions
 from rest_framework.permissions import  BasePermission
-from .models import RentalProperty
+from .models import RentalProperty, RentalUnit
+from rest_framework.response import Response
+from rest_framework import status
 class IsLandlordOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
@@ -166,3 +168,28 @@ class IsResourceOwner(permissions.BasePermission):
         if view.action == 'create':
             return True
         return request.user and request.user.is_authenticated
+    
+
+#Create a permission that allows RentalAppliocation to only be created if the unit_id exists
+class RentalApplicationCreatePermission(BasePermission):
+
+    def has_permission(self, request, view):
+
+        #create variable for request body
+        request_body_unit = request.data.get('unit')
+
+        # unit_object = RentalUnit.objects.get(id=request_body_unit)
+        # unit_user_id = unit_object.rental_property.user.id #id of the user who owns the property
+        
+        # #Create variable for RentalApplication
+        # landlord_id = request.data.get('landlord_id')
+
+        # #confirm the id and unit's user id match
+        # if request.method  == 'POST' and (unit_user_id != landlord_id):
+        #     return False # not grant access
+
+        #retrieve unit object from  request_body_unit variable
+        unit_object_exists = RentalUnit.objects.filter(id=request_body_unit).exists()
+        if request.method  == 'POST' and (unit_object_exists):
+            return Response({"message": "Unit does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        return True # grant access otherwise
