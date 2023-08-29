@@ -221,7 +221,7 @@ class UnitViewSet(viewsets.ModelViewSet):
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
     serializer_class = LeaseAgreementSerializer
-    permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner, ResourceCreatePermission]
+    permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
@@ -338,8 +338,16 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 class RentalApplicationViewSet(viewsets.ModelViewSet):
     queryset = RentalApplication.objects.all()
     serializer_class = RentalApplicationSerializer
-    permission_classes =[RentalApplicationCreatePermission]
+    permission_classes =[RentalApplicationCreatePermission]#TODO: Investigate why IsResourceOwner is not working
     
+    #Create method to delete all rental applications for a specific unit
+    @action(detail=True, methods=['delete'], url_path='delete-remaining-rental-applications')
+    def delete_remaining_rental_applications(self, request, pk=None):
+        application = self.get_object()
+        rental_applications = RentalApplication.objects.filter(unit=application.unit,is_archived=False)
+        rental_applications.delete()
+        return Response({'message': 'Rental applications deleted successfully.'})
+
     #Create a method to approve a rental application
     @action(detail=True, methods=['post'], url_path='approve-rental-application')
     def approve_rental_application(self, request, pk=None):

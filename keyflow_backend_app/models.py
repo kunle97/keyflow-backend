@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth import get_user_model
-
+from datetime import datetime
 class User(AbstractUser):
     ACCOUNT_TYPE_CHOICES = (
         ('landlord', 'Landlord'),
@@ -14,7 +14,8 @@ class User(AbstractUser):
     account_type = models.CharField(max_length=10, choices=ACCOUNT_TYPE_CHOICES)
     stripe_account_id = models.CharField(max_length=100, blank=True, null=True)
     stripe_customer_id = models.CharField(max_length=100, blank=True, null=True, default=None)
-    
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     class Meta:
         db_table = 'users'
 
@@ -30,7 +31,8 @@ class RentalProperty(models.Model):
     country = models.CharField(max_length=100, default='United States')
     units = models.ManyToManyField('RentalUnit', blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None)
-
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     class Meta:
         db_table = 'rental_properties'
 
@@ -47,7 +49,9 @@ class RentalUnit(models.Model):
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
     least_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
     is_occupied = models.BooleanField(default=False)
-    
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
+
     class Meta:
         db_table = 'rental_units'
 
@@ -55,22 +59,25 @@ class RentalUnit(models.Model):
         return f"Unit {self.name} at {self.rental_property.address}"
     
 class LeaseAgreement(models.Model):
-    rental_property = models.ForeignKey('RentalProperty', on_delete=models.CASCADE)
     rental_unit = models.ForeignKey('RentalUnit', on_delete=models.CASCADE)
-    start_date = models.DateField()
-    end_date = models.DateField()
+    rental_application = models.ForeignKey('RentalApplication', on_delete=models.CASCADE, default=None)
+    start_date = models.DateField(blank=True, null=True)
+    end_date = models.DateField(blank=True, null=True)
     document_id = models.CharField(max_length=100, blank=True, null=True)
-    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant')
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant')
     lease_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
-    signed_date = models.DateField()
-    is_active = models.BooleanField(default=True)
+    signed_date = models.DateField(blank=True, null=True)
+    is_active = models.BooleanField(default=False,blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
     approval_hash = models.CharField(max_length=100, blank=True, null=True,unique=True)
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
+    
     class Meta:
         db_table = 'lease_agreements'
 
     def __str__(self):
-        return f"Lease Agreement for RentalUnit {self.rental_unit} at {self.rental_property}"
+        return f"Lease Agreement for RentalUnit {self.rental_unit} "
 
 class LeaseTerm(models.Model):
     rent = models.DecimalField(max_digits=10, decimal_places=2)
@@ -84,7 +91,9 @@ class LeaseTerm(models.Model):
     repairs_included = models.BooleanField(default=False)
     lease_cancellation_notice_period = models.IntegerField() #Integer for notice period in days
     lease_cancellation_fee = models.DecimalField(max_digits=10, decimal_places=2)
-    
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
+
     class Meta:
         db_table = 'lease_terms'
 
@@ -98,7 +107,9 @@ class MaintenanceRequest(models.Model):
     landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #related landlord
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_maintenance_request') #related tenant that created the request
-
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
+    
     class Meta:
         db_table = 'maintenance_requests'
 
@@ -112,6 +123,8 @@ class LeaseCancellationRequest(models.Model):
     request_date = models.DateTimeField()
     is_approved = models.BooleanField(default=False)
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 
     class Meta:
         db_table = 'lease_cancellation_requests'
@@ -129,9 +142,10 @@ class RentalApplication(models.Model):
     date_of_birth = models.DateField(default=None, blank=True, null=True)
     phone_number = models.CharField(max_length=15)
     desired_move_in_date = models.DateField()
+    is_archived = models.BooleanField(default=False)
     is_approved = models.BooleanField(default=False)
-    unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE, default=None) #Unit that the application is for
     approval_hash = models.CharField(max_length=100, blank=True, null=True, default=None, unique=True)
+    unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE, default=None) #Unit that the application is for
     other_occupants = models.BooleanField(default=None)
     pets = models.BooleanField(default=None)
     vehicles = models.BooleanField(default=None)
@@ -142,7 +156,9 @@ class RentalApplication(models.Model):
     residential_history = models.TextField(blank=True, null=True)
     landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_application_landlord') #related landlord that created the application
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant_application_tenant') #related tenant that created the application
-    
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
+
     # New fields
     # paystubs = models.FileField(upload_to='tenant_paystubs/', blank=True, null=True)
     # bank_statements = models.FileField(upload_to='tenant_bank_statements/', blank=True, null=True)
@@ -170,6 +186,8 @@ class Transaction(models.Model):
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE,default=None)
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_transaction') #related tenant
+    created_at = models.DateTimeField(default=datetime.now,  blank=True)
+    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 
     class Meta:
         db_table = 'transactions'
