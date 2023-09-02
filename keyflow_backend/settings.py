@@ -142,6 +142,8 @@ CORS_ORIGIN_WHITELIST = [
     'https://localhost:3000',
     'http://127.0.0.1:3000',
     'https://127.0.0.1:3000',
+    'https://merchant-ui-api.stripe.com',
+    'https://js.stripe.com',
 ]
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

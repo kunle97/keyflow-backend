@@ -47,7 +47,7 @@ class RentalUnit(models.Model):
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
-    least_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
+    lease_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
     is_occupied = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
@@ -80,11 +80,12 @@ class LeaseAgreement(models.Model):
         return f"Lease Agreement for RentalUnit {self.rental_unit} "
 
 class LeaseTerm(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Landlord that created the lease term
     rent = models.DecimalField(max_digits=10, decimal_places=2)
     term = models.IntegerField() #Integer for duration of lease in months
     description = models.TextField() #descriptionn of the property and lease terms (to be displayed on REntal App page)
     late_fee = models.DecimalField(max_digits=10, decimal_places=2)
-    secutiry_deposit = models.DecimalField(max_digits=10, decimal_places=2)
+    security_deposit = models.DecimalField(max_digits=10, decimal_places=2)
     gas_included = models.BooleanField(default=False)
     water_included = models.BooleanField(default=False)
     electric_included = models.BooleanField(default=False)
@@ -156,6 +157,7 @@ class RentalApplication(models.Model):
     residential_history = models.TextField(blank=True, null=True)
     landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_application_landlord') #related landlord that created the application
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant_application_tenant') #related tenant that created the application
+    comments = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 
