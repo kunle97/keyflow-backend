@@ -27,7 +27,7 @@ class RentalProperty(models.Model):
     address = models.TextField()
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=100, blank=True)
-    zip_code = models.PositiveIntegerField(blank=True, null=True)
+    zip_code = models.CharField(blank=True, null=True)
     country = models.CharField(max_length=100, default='United States')
     units = models.ManyToManyField('RentalUnit', blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None)
@@ -43,7 +43,6 @@ class RentalUnit(models.Model):
     name = models.CharField(max_length=100, blank=True)
     beds = models.PositiveIntegerField()
     baths = models.PositiveIntegerField()
-    rent = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
@@ -92,6 +91,9 @@ class LeaseTerm(models.Model):
     repairs_included = models.BooleanField(default=False)
     lease_cancellation_notice_period = models.IntegerField() #Integer for notice period in days
     lease_cancellation_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    stripe_product_id = models.CharField(max_length=100, blank=True, null=True, default=None)
+    stripe_price_id = models.CharField(max_length=100, blank=True, null=True, default=None)
+    stripe_subscription_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 
@@ -183,11 +185,12 @@ class Transaction(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #landlord related to the transaction
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=TRANSACTION_TYPE_CHOICES)
-    date = models.DateField()
     description = models.TextField()
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE,default=None)
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_transaction') #related tenant
+    payment_intent_id = models.CharField(max_length=100, blank=True, null=True, default=None)
+    payment_method_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 
