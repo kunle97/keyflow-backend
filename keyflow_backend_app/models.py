@@ -24,7 +24,7 @@ class User(AbstractUser):
 
 class RentalProperty(models.Model):
     name = models.CharField(max_length=100, blank=True)
-    address = models.TextField()
+    street = models.TextField()
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=100, blank=True)
     zip_code = models.CharField(blank=True, null=True)
@@ -37,7 +37,7 @@ class RentalProperty(models.Model):
         db_table = 'rental_properties'
 
     def __str__(self):
-        return f"Property {self.name} at {self.address}"
+        return f"Property {self.name} at {self.street} {self.city}, {self.state} {self.zip_code}"
 
 class RentalUnit(models.Model):
     name = models.CharField(max_length=100, blank=True)
@@ -69,6 +69,7 @@ class LeaseAgreement(models.Model):
     is_active = models.BooleanField(default=False,blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
     approval_hash = models.CharField(max_length=100, blank=True, null=True,unique=True)
+    stripe_subscription_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     
@@ -104,12 +105,22 @@ class LeaseTerm(models.Model):
         return f"Lease Term for {self.term} months"
     
 class MaintenanceRequest(models.Model):
+    SERVICE_TYPE_CHOICES = (
+        ('plumbing', 'Plumbling'),
+        ('electrical', 'Electrical'),
+        ('appliance', 'Appliance'),
+        ('structural', 'Structural'),
+        ('other', 'Other'),
+    )
+        
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
+    type = models.CharField(max_length=35, choices=SERVICE_TYPE_CHOICES)
     description = models.TextField()
-    resolved = models.BooleanField(default=False)
+    is_resolved = models.BooleanField(default=False)
+    is_archived = models.BooleanField(default=False)
     landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #related landlord
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_maintenance_request') #related tenant that created the request
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_maintenance_request') #related tenant that created the request
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     

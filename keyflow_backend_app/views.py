@@ -107,143 +107,6 @@ class UserRegistrationView(APIView):
             return Response({'message': 'User registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True, "onboarding_link":account_link}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-#Create an endpoint that registers a tenant
-class TenantRegistrationView(APIView):
-    def post(self, request):
-        User = get_user_model()
-        data = request.data.copy()
-        
-        # Hash the password before saving the user
-        data['password'] = make_password(data['password'])
-        
-        
-        serializer = UserSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            user = User.objects.get(email=data['email'])
-
-            #set the account type to tenant
-            user.account_type = 'tenant' 
-            
-            #Create a stripe customer id for the user
-            stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
-            customer = stripe.Customer.create(email=user.email)
-            print(f'Stripe customer id: {customer.id}')
-            user.stripe_customer_id = customer.id
-            print(f'User customer id: {user.stripe_customer_id}')
-
-            user.is_active = True
-            user.save()
-
-            #Retrieve unit from the request unit_id parameter
-            unit_id = data['unit_id']
-            unit = RentalUnit.objects.get(id=unit_id)
-            unit.tenant = user
-            unit.save()
-
-            #Retrieve lease agreement from the request lease_agreement_id parameter
-            lease_agreement_id = data['lease_agreement_id']
-            lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
-            lease_agreement.tenant = user
-            lease_agreement.save()
-
-            #Retrieve rental application from the request approval_hash parameter
-            approval_hash = data['approval_hash']
-            rental_application = RentalApplication.objects.get(approval_hash=approval_hash)
-            rental_application.tenant = user
-            rental_application.save()
-
-            token=Token.objects.create(user=user)
-            return Response({'message': 'Tenant registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#Create a class that retrieves a rental application by the approval_hash
-class RetrieveRentalApplicationByApprovalHash(APIView):
-    def post(self, request):
-        approval_hash = request.data.get('approval_hash')
-        rental_application = RentalApplication.objects.get(approval_hash=approval_hash)
-        serializer = RentalApplicationSerializer(rental_application)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-class TenantVerificationView(APIView):
-    #Create a function that verifies the lease agreement id and approval hash
-    def post(self, request):
-        approval_hash = request.data.get('approval_hash')
-        lease_agreement_id = request.data.get('lease_agreement_id')
-
-        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
-        #check if the approval hash is valid with the lease agreement 
-        if lease_agreement.approval_hash != approval_hash:
-            return Response({'message': 'Invalid data.','status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
-
-        #return a response for the lease being signed successfully
-        return Response({'message': 'Approval hash valid.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
-
-#Create an endpoint that will handle when a person signs a lease agreement
-class SignLeaseAgreementView(APIView):
-    def post(self, request):
-        approval_hash = request.data.get('approval_hash')
-        lease_agreement_id = request.data.get('lease_agreement_id')
-        unit_id = request.data.get('unit_id')
-        start_date = request.data.get('start_date')
-        end_date = request.data.get('end_date')
-        signed_date = request.data.get('signed_date')
-
-        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
-        #check if the approval hash is valid with the lease agreement 
-        if lease_agreement.approval_hash != approval_hash:
-            return Response({'message': 'Invalid data.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        #retrieve the lease agreement object and update the start_date and end_date and set is_active to true
-        lease_agreement.start_date = start_date
-        lease_agreement.end_date = end_date
-        lease_agreement.is_active = True
-        lease_agreement.signed_date = signed_date
-        #document_id = request.data.get('document_id') TODO
-        lease_agreement.save()
-
-        #retrieve the unit object and set the is_occupied field to true
-        unit = RentalUnit.objects.get(id=unit_id)
-        unit.is_occupied = True
-        unit.save()
-
-        #return a response for the lease being signed successfully
-        return Response({'message': 'Lease signed successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
-       
-#Create a function to retrieve a lease agreement by the id without the need for a token
-class RetrieveLeaseAgreementByIdAndApprovalHashView(APIView):
-    def post(self, request):
-        approval_hash = request.data.get('approval_hash')
-        lease_agreement_id = request.data.get('lease_agreement_id')
-        
-        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
-        #check if the approval hash is valid with the lease agreement 
-        if lease_agreement.approval_hash != approval_hash:
-            return Response({'message': 'Invalid data.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        serializer = LeaseAgreementSerializer(lease_agreement)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-#create an endpoint to activate the account of a new user that will set the  is_active field to true
-class UserActivationView(APIView):
-    def post(self, request):
-        User = get_user_model()
-        data = request.data.copy()
-        user = User.objects.get(email=data['email'])
-        if user is None:
-            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
-        user.is_active = True
-        user.save()
-        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
-    #Create a get request to activate the user 
-    def get(self, request):
-        User = get_user_model()
-        data = request.data.copy()
-        user = User.objects.get(email=data['email'])
-        if user is None:
-            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
-        user.is_active = True
-        user.save()
-        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -303,6 +166,218 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
     
+    #GET: api/users/{id}/tenant-maintenance-requests
+    #Create a function to retrieve all maintenance requests for a specific tenant user
+    @action(detail=True, methods=['get'], url_path='tenant-maintenance-requests')
+    def tenant_maintenance_requests(self, request, pk=None):
+        user = self.get_object()
+        maintenance_requests = MaintenanceRequest.objects.filter(tenant=user)
+        serializer = MaintenanceRequestSerializer(maintenance_requests, many=True)
+        if user.id == request.user.id:
+            return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    #GET: api/users/{id}/landlord-maintenance-requests
+    #Create a function to retrieve all maintenance requests for a specific landlord user
+    @action(detail=True, methods=['get'], url_path='landlord-maintenance-requests')
+    def landlord_maintenance_requests(self, request, pk=None):
+        user = self.get_object()
+        maintenance_requests = MaintenanceRequest.objects.filter(landlord=user)
+        serializer = MaintenanceRequestSerializer(maintenance_requests, many=True)
+        if user.id == request.user.id:
+            return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    #POST: api/users/{id}/tenant
+    #Create a function to retrieve a specific tenant for a specific landlord
+    @action(detail=True, methods=['get'], url_path='tenant')
+    def tenants(self, request, pk=None):
+        user = self.get_object()
+        #Create variable for tenant id
+        tenant_id = request.data.get('tenant_id')
+        tenant = User.objects.filter(id=tenant_id, account_type='tenant')
+        
+        #Find a lease agreement matching the landlord and tenant
+        lease_agreement = LeaseAgreement.objects.filter(user=user, tenant=tenant_id)
+        
+        #Check if lease agreement does not exist
+        if lease_agreement is None:
+            return Response({'detail': 'Landlord Tenant relationship does not exist'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = UserSerializer(tenant, many=True)
+        print(f'zx Tenant: {tenant}')
+        if user.id == request.user.id:
+            return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+    
+
+#Create an endpoint that registers a tenant
+class TenantRegistrationView(APIView):
+    def post(self, request):
+        User = get_user_model()
+        data = request.data.copy()
+        
+        # Hash the password before saving the user
+        data['password'] = make_password(data['password'])
+        
+        
+        serializer = UserSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            user = User.objects.get(email=data['email'])
+
+            #set the account type to tenant
+            user.account_type = 'tenant' 
+            
+            #Create a stripe customer id for the user
+            stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+            customer = stripe.Customer.create(email=user.email)
+            print(f'Stripe customer id: {customer.id}')
+            user.stripe_customer_id = customer.id
+            print(f'User customer id: {user.stripe_customer_id}')
+
+            user.is_active = True
+            user.save()
+
+            #Retrieve unit from the request unit_id parameter
+            unit_id = data['unit_id']
+            unit = RentalUnit.objects.get(id=unit_id)
+            unit.tenant = user
+            unit.save()
+
+            #Retrieve lease agreement from the request lease_agreement_id parameter
+            lease_agreement_id = data['lease_agreement_id']
+            lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+            lease_agreement.tenant = user
+            lease_agreement.save()
+
+            #Retrieve rental application from the request approval_hash parameter
+            approval_hash = data['approval_hash']
+            rental_application = RentalApplication.objects.get(approval_hash=approval_hash)
+            rental_application.tenant = user
+            rental_application.save()
+
+            #Retrieve price id from lease term using lease_agreement
+            lease_term = unit.lease_term
+
+            #Attach payment method to the customer adn make it default
+            payment_method_id = data['payment_method_id']
+            stripe.PaymentMethod.attach(
+                payment_method_id,
+                customer=customer.id,
+            )
+
+            #TODO: implement secutrity deposit flow here. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
+
+
+            #Create a stripe subscription for the user and make a default payment method
+            subscription = stripe.Subscription.create(
+                customer=customer.id,
+                items=[
+                    {"price": lease_term.stripe_price_id},
+                ],
+                default_payment_method=payment_method_id,
+                # trial_period_days=30,
+            )
+
+            #add subscription id to the lease agreement
+            lease_agreement.stripe_subscription_id = subscription.id
+
+            token=Token.objects.create(user=user)
+            return Response({'message': 'Tenant registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#Create a class that retrieves a rental application by the approval_hash
+class RetrieveRentalApplicationByApprovalHash(APIView):
+    def post(self, request):
+        approval_hash = request.data.get('approval_hash')
+        rental_application = RentalApplication.objects.get(approval_hash=approval_hash)
+        serializer = RentalApplicationSerializer(rental_application)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+class TenantVerificationView(APIView):
+    #Create a function that verifies the lease agreement id and approval hash
+    def post(self, request):
+        approval_hash = request.data.get('approval_hash')
+        lease_agreement_id = request.data.get('lease_agreement_id')
+
+        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+        #check if the approval hash is valid with the lease agreement 
+        if lease_agreement.approval_hash != approval_hash:
+            return Response({'message': 'Invalid data.','status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+
+        #return a response for the lease being signed successfully
+        return Response({'message': 'Approval hash valid.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+
+#Create an endpoint that will handle when a person signs a lease agreement
+class SignLeaseAgreementView(APIView):
+    def post(self, request):
+        approval_hash = request.data.get('approval_hash')
+        lease_agreement_id = request.data.get('lease_agreement_id')
+        unit_id = request.data.get('unit_id')
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
+        signed_date = request.data.get('signed_date')
+
+        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+        #check if the approval hash is valid with the lease agreement 
+        if lease_agreement.approval_hash != approval_hash:
+            return Response({'message': 'Invalid data.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        #retrieve the lease agreement object and update the start_date and end_date and set is_active to true
+        lease_agreement.start_date = start_date
+        lease_agreement.end_date = end_date
+        lease_agreement.is_active = True
+        lease_agreement.signed_date = signed_date
+        #document_id = request.data.get('document_id') TODO
+        lease_agreement.save()
+
+
+
+        #retrieve the unit object and set the is_occupied field to true
+        unit = RentalUnit.objects.get(id=unit_id)
+        unit.is_occupied = True
+        unit.save()
+
+
+        #return a response for the lease being signed successfully
+        return Response({'message': 'Lease signed successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+       
+#Create a function to retrieve a lease agreement by the id without the need for a token
+class RetrieveLeaseAgreementByIdAndApprovalHashView(APIView):
+    def post(self, request):
+        approval_hash = request.data.get('approval_hash')
+        lease_agreement_id = request.data.get('lease_agreement_id')
+        
+        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+        #check if the approval hash is valid with the lease agreement 
+        if lease_agreement.approval_hash != approval_hash:
+            return Response({'message': 'Invalid data.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = LeaseAgreementSerializer(lease_agreement)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+#create an endpoint to activate the account of a new user that will set the  is_active field to true
+class UserActivationView(APIView):
+    def post(self, request):
+        User = get_user_model()
+        data = request.data.copy()
+        user = User.objects.get(email=data['email'])
+        if user is None:
+            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
+        user.is_active = True
+        user.save()
+        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+    #Create a get request to activate the user 
+    def get(self, request):
+        User = get_user_model()
+        data = request.data.copy()
+        user = User.objects.get(email=data['email'])
+        if user is None:
+            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
+        user.is_active = True
+        user.save()
+        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+
+
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = PropertySerializer
@@ -368,6 +443,13 @@ class UnitViewSet(viewsets.ModelViewSet):
         unit.save()
         return Response({'message': 'Lease removed successfully.'})  
     
+    #Create a function to retrieve maintenance requests for a specific unit
+    @action(detail=True, methods=['get'], url_path='maintenance-requests')
+    def maintenance_requests(self, request, pk=None):
+        unit = self.get_object()
+        maintenance_requests = MaintenanceRequest.objects.filter(unit=unit)
+        serializer = MaintenanceRequestSerializer(maintenance_requests, many=True)
+        return Response(serializer.data)
 
     #Retrieve the lease term for a specific unit endpoint: api/units/{id}/lease-term
     @action(detail=True, methods=['get'], url_path='lease-term')
@@ -434,17 +516,8 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
     serializer_class = MaintenanceRequestSerializer
-    permission_classes = [IsAuthenticated, IsTenantOrReadOnly,  IsResourceOwner, ResourceCreatePermission]
+    permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-
-    @action(detail=True, methods=['post'])
-    def mark_resolved(self, request, pk=None):
-        maintenance_request = self.get_object()
-        maintenance_request.resolved = True
-        maintenance_request.save()
-        return Response({'message': 'Maintenance request marked as resolved.'})
-
-#Create a function to create a stripe charge for a tenant
 
 #Handle Lease
 class TenantViewSet(viewsets.ModelViewSet):
@@ -635,17 +708,19 @@ class LeaseTermCreateView(APIView):
             #Create a stripe product for the lease term
             stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
             product = stripe.Product.create(
-                name=f'{data["term"]} month lease @ ${data["rent"]}/month. User ID: {user.id} Lease Term ID: {lease_term.id}',
+                name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {data["term"]} month lease @ ${data["rent"]}/month. Lease Term ID: {lease_term.id}',
                 type='service',
                 metadata={"seller_id": user.stripe_account_id},  # Associate the product with the connected account
             )
+
             #Create a stripe price for the lease term
             price = stripe.Price.create(
                 unit_amount=data['rent']*100,
+                recurring={"interval": "month"},
                 currency='usd',
-                # recurring={'interval': 'month'},
                 product=product.id,
             )
+
 
             #update the lease term object with the stripe product and price ids
             lease_term.stripe_product_id = product.id
