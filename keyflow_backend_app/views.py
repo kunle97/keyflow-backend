@@ -1,4 +1,5 @@
-from datetime import timedelta, timezone
+from datetime import timedelta, timezone, datetime
+from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets, permissions
 from django.contrib.auth.hashers import make_password
 from rest_framework.decorators import action, authentication_classes, permission_classes, api_view
@@ -224,13 +225,23 @@ class TenantRegistrationView(APIView):
         if serializer.is_valid():
             serializer.save()
             user = User.objects.get(email=data['email'])
+            #Initialize unit here to get the larndlord object
+            unit_id = data['unit_id']
+            unit = RentalUnit.objects.get(id=unit_id)
+
+            #retrieve landlord from the unit
+            landlord = unit.user
 
             #set the account type to tenant
             user.account_type = 'tenant' 
-            
             #Create a stripe customer id for the user
             stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
-            customer = stripe.Customer.create(email=user.email)
+            customer = stripe.Customer.create(
+                email=user.email,
+                metadata={
+                    "landlord_id": landlord.id,
+                }, 
+            )
             print(f'Stripe customer id: {customer.id}')
             user.stripe_customer_id = customer.id
             print(f'User customer id: {user.stripe_customer_id}')
@@ -239,8 +250,7 @@ class TenantRegistrationView(APIView):
             user.save()
 
             #Retrieve unit from the request unit_id parameter
-            unit_id = data['unit_id']
-            unit = RentalUnit.objects.get(id=unit_id)
+
             unit.tenant = user
             unit.save()
 
@@ -267,17 +277,95 @@ class TenantRegistrationView(APIView):
             )
 
             #TODO: implement secutrity deposit flow here. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
+            if lease_term.security_deposit>0:
+                #Retrieve landlord from the unit
+                landlord = unit.user
+                security_deposit_payment_intent = stripe.PaymentIntent.create(
+                    amount=int(lease_term.security_deposit*100),
+                    currency='usd',
+                    payment_method_types=['card'],
+                    customer=customer.id,
+                    payment_method=data['payment_method_id'],
+                    transfer_data={
+                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                    },
+                    confirm=True,
+                            #Add Metadata to the transaction signifying that it is a security deposit
+                    metadata={
+                        "type": "security_deposit",
+                        "user_id": user.id,
+                        "landlord_id": landlord.id,
+                        "rental_property_id": unit.rental_property.id,
+                        "rental_unit_id": unit.id,
+                    }
 
+                )
+                
+                #create a transaction object for the security deposit
+                securit_deposit_transaction = Transaction.objects.create(
+                    type = 'revenue',
+                    description = f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for landlord {landlord.first_name} {landlord.last_name}',
+                    rental_property = unit.rental_property,
+                    rental_unit = unit,
+                    user=landlord,
+                    tenant=user,
+                    amount=int(lease_term.security_deposit),
+                    payment_method_id=data['payment_method_id'],
+                    payment_intent_id=security_deposit_payment_intent.id,
 
-            #Create a stripe subscription for the user and make a default payment method
-            subscription = stripe.Subscription.create(
-                customer=customer.id,
-                items=[
-                    {"price": lease_term.stripe_price_id},
-                ],
-                default_payment_method=payment_method_id,
-                # trial_period_days=30,
-            )
+                )
+                subscription=None
+                if lease_term.grace_period != 0:      
+                    # Convert the ISO date string to a datetime object
+                    start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")
+                    
+                    # Number of months to add
+                    months_to_add = lease_term.grace_period
+                    
+                    # Calculate the end date by adding months
+                    end_date = start_date + relativedelta(months=months_to_add)
+                    
+                    # Convert the end date to a Unix timestamp
+                    grace_period_end = int(end_date.timestamp())
+                    subscription = stripe.Subscription.create(
+                        customer=customer.id,
+                        items=[
+                            {"price": lease_term.stripe_price_id},
+                        ],
+                        
+                        default_payment_method=payment_method_id,
+                        trial_end=grace_period_end,
+                        transfer_data={
+                            "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                         },
+                    )
+                
+                else:
+                    grace_period_end = lease_agreement.start_date
+                    #Create a stripe subscription for the user and make a default payment method
+                    subscription = stripe.Subscription.create(
+                        customer=customer.id,
+                        items=[
+                            {"price": lease_term.stripe_price_id},
+                        ],
+                        default_payment_method=payment_method_id,
+                        transfer_data={
+                            "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                         },
+                    )
+                    #create a transaction object for the security deposit
+                    subscription_transaction = Transaction.objects.create(
+                        type = 'revenue',
+                        description = f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for landlord {landlord.first_name} {landlord.last_name}',
+                        rental_property = unit.rental_property,
+                        rental_unit = unit,
+                        user=landlord,
+                        tenant=user,
+                        amount=int(lease_term.security_deposit*100),
+                        payment_method_id=data['payment_method_id'],
+                        payment_intent_id="subscription",
+                    )
+            
 
             #add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id
@@ -704,6 +792,7 @@ class LeaseTermCreateView(APIView):
                 repairs_included=data['repairs_included'],
                 lease_cancellation_fee=data['lease_cancellation_fee'],
                 lease_cancellation_notice_period=data['lease_cancellation_notice_period'],
+                grace_period=data['grace_period'],
             )
             #Create a stripe product for the lease term
             stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
