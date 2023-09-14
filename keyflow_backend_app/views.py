@@ -338,6 +338,8 @@ class TenantRegistrationView(APIView):
                         transfer_data={
                             "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
                          },
+                         #Cancel the subscription after at the end date specified by lease term
+                         cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
                     )
                 
                 else:
@@ -352,6 +354,7 @@ class TenantRegistrationView(APIView):
                         transfer_data={
                             "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
                          },
+                        cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
                     )
                     #create a transaction object for the security deposit
                     subscription_transaction = Transaction.objects.create(
