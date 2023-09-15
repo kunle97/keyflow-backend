@@ -47,7 +47,7 @@ class UserLoginView(APIView):
         if user is None:
             return Response({'message': 'Error logging you in.'}, status=status.HTTP_404_NOT_FOUND)
         if not user.check_password(password):
-            return Response({'message': 'Error logging you in.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'Invalid email or password.'}, status=status.HTTP_400_BAD_REQUEST)
         
         #create a token for the user on success full login
         token=Token.objects.create(user=user)
@@ -118,7 +118,22 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated, DisallowUserCreatePermission]
+    permission_classes = [IsAuthenticated]
+
+    #Create a function to change password
+    @action(detail=True, methods=['post'], url_path='change-password')
+    def change_password(self, request, pk=None):
+        user = self.get_object()
+        print(f'zx User is auth: {user.is_authenticated}')
+        data = request.data.copy()
+        old_password = data['old_password']
+        new_password = data['new_password']
+        if user.check_password(old_password):
+            user.set_password(new_password)
+            user.save()
+            return Response({'message': 'Password changed successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+        return Response({'message': 'Error changing password.'}, status=status.HTTP_400_BAD_REQUEST)
+        
 
     #GET: api/users/{id}/properties
     @action(detail=True, methods=['get'])
@@ -951,6 +966,12 @@ class PlaidLinkTokenView(APIView):
 
 #Create a class that handles manageing a tenants stripe subscription (rent) called ManageTenantSusbcriptionView
 class ManageTenantSubscriptionView(viewsets.ModelViewSet):
+    #TODO: Investigate why authentication CLasses not working
+    # queryset = User.objects.all()
+    # serializer_class = UserSerializer
+    # authentication_classes = [TokenAuthentication, SessionAuthentication]
+    # permission_classes = [IsAuthenticated, DisallowUserCreatePermission]
+
     #Create a method to cancel a subscription called turn_off_autopay
     @action(detail=False, methods=['post'], url_path='turn-off-autopay')
     def turn_off_autopay(self, request, pk=None):
