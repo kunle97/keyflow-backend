@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, RentalApplication, Transaction, LeaseTerm
+from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, RentalApplication, Transaction, LeaseTerm,PasswordResetToken
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -44,4 +44,10 @@ class TransactionSerializer(serializers.ModelSerializer):
 class LeaseTermSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaseTerm
+        fields = '__all__'
+
+#Create serializers for PasswordResetToken
+class PasswordResetTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PasswordResetToken
         fields = '__all__'

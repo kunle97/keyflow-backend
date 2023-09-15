@@ -45,6 +45,7 @@ from keyflow_backend_app.views import (
     RetrievePropertyByIdView,
     TenantViewSet,
     ManageTenantSubscriptionView,
+    PasswordResetTokenView
     )
 from keyflow_backend_app import views
 from rest_framework_simplejwt.views import (
@@ -62,6 +63,7 @@ router.register(r'transactions', TransactionViewSet, basename='transactions')
 router.register(r'rental-applications',RentalApplicationViewSet , basename='rental-applications')
 router.register(r'tenants', TenantViewSet, basename='tenants')
 router.register(r'manage-lease', ManageTenantSubscriptionView, basename='manage_lease')
+router.register(r'password-reset', PasswordResetTokenView, basename='password_reset')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -88,4 +90,5 @@ urlpatterns = [
     path('api/activate/<email>/<token>/', UserActivationView.as_view(), name='activate'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # path('api/password-reset/', PasswordResetTokenView.as_view(), name='password_reset'),
 ]
