@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from datetime import timedelta, timezone, datetime
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets, permissions
@@ -28,6 +30,7 @@ from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
+load_dotenv()
 #Custom  classes
 class CustomPagination(PageNumberPagination):
     page_size = 10
@@ -76,7 +79,7 @@ class UserRegistrationView(APIView):
 
             #TODO: send email to the user to verify their email address
             #create stripe account for the user
-            stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+            stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
             
             stripe_account = stripe.Account.create(
                 type='express', 
@@ -237,7 +240,7 @@ class TenantRegistrationView(APIView):
             #set the account type to tenant
             user.account_type = 'tenant' 
             #Create a stripe customer id for the user
-            stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+            stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
             customer = stripe.Customer.create(
                 email=user.email,
                 metadata={
@@ -628,7 +631,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         amount=lease_term.rent #retrieve the amount from the lease term object
         
         # Call Stripe API to create a payment
-        stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         payment_intent = stripe.PaymentIntent.create(
             amount=int(amount*100),
             currency='usd',
@@ -786,7 +789,7 @@ class LeaseTermCreateView(APIView):
                 grace_period=data['grace_period'],
             )
             #Create a stripe product for the lease term
-            stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+            stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
             product = stripe.Product.create(
                 name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {data["term"]} month lease @ ${data["rent"]}/month. Lease Term ID: {lease_term.id}',
                 type='service',
@@ -878,7 +881,7 @@ class AddCardPaymentMethodView(APIView):
         # Retrieve the payment method id from the request
         payment_method_id = request.data.get('payment_method_id')
         # Create a payment method for the user
-        stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         stripe.PaymentMethod.attach(
             payment_method_id,
             customer=stripe_customer_id,
@@ -893,10 +896,8 @@ class ListPaymentMethodsView(APIView):
         user = User.objects.get(id=request.data.get('user_id'))
         # Retrieve the stripe account id from the user object
         stripe_customer_id = user.stripe_customer_id
-        # Retrieve the payment method id from the request
-        payment_method_id = request.data.get('payment_method_id')
         # Create a payment method for the user
-        stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         payment_methods = stripe.PaymentMethod.list(
             customer=stripe_customer_id,
             type="card",
@@ -908,7 +909,7 @@ class StripeViewSet(viewsets.ModelViewSet):
     #create a method to create price for a product
     @action(detail=True, methods=['post'], url_path='create-price')
     def create_rent_product(self, request, pk=None):
-        stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         
         product = stripe.Product.create(name=request.data.get('lease_term_name'))
         price = stripe.Price.create(
@@ -977,7 +978,7 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
     #Create a method to create a subscription called turn_on_autopay
     @action(detail=False, methods=['post'], url_path='turn-on-autopay')
     def turn_on_autopay(self, request, pk=None):
-        stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         #Retrieve user id from request body
         user_id = request.data.get('user_id')
         #Retrieve the user object from the database by id

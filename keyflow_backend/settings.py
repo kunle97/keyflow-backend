@@ -192,8 +192,6 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
 }
 
-STRIPE_API_KEY="sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
-
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
 
