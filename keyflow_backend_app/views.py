@@ -1029,6 +1029,33 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
         lease_agreement.save()
         #Return a response
         return Response({'message': 'Subscription created successfully.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+    
+    #Create a get function to retrieve the next payment date for rent for a specific user
+    @action(detail=False, methods=['post'], url_path='next-payment-date')
+    def next_payment_date(self, request, pk=None):
+        #Retrieve user id from request body
+        user_id = request.data.get('user_id')
+        print(f'User id: {user_id}')
+        #Retrieve the user object from the database by id
+        user = User.objects.get(id=user_id)
+        #Retrieve the unit object from the user object
+        unit = RentalUnit.objects.get(tenant=user)
+        #Retrieve the lease agreement object from the unit object
+        lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
+
+        # Input lease start date (replace with your actual start date)
+        lease_start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")  # Example: February 28, 2023
+
+        # Calculate the current date
+        current_date = datetime.now()
+
+        # Calculate the next payment date
+        while lease_start_date < current_date:
+            lease_start_date += timedelta(days=30)  # Assuming monthly payments
+
+        next_payment_date = lease_start_date
+        #Return a response
+        return Response({'next_payment_date': next_payment_date, "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
 #test to see if tooken is valid and return user info
 @api_view(['GET'])
