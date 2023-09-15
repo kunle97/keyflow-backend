@@ -43,7 +43,9 @@ from keyflow_backend_app.views import (
     RetrieveUnitByIdView,
     RetrieveTenantDashboardData,
     RetrievePropertyByIdView,
-    TenantViewSet)
+    TenantViewSet,
+    ManageTenantSubscriptionView,
+    )
 from keyflow_backend_app import views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -58,7 +60,8 @@ router.register(r'maintenance-requests', MaintenanceRequestViewSet, basename='ma
 router.register(r'lease-cancellation-requests', LeaseCancellationRequestViewSet, basename='lease-cancellation-requests')
 router.register(r'transactions', TransactionViewSet, basename='transactions')
 router.register(r'rental-applications',RentalApplicationViewSet , basename='rental-applications')
-router.register(r'tenants', TenantViewSet, basename='tenants'),
+router.register(r'tenants', TenantViewSet, basename='tenants')
+router.register(r'manage-lease', ManageTenantSubscriptionView, basename='manage_lease')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

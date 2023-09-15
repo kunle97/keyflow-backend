@@ -95,7 +95,6 @@ class LeaseTerm(models.Model):
     lease_cancellation_fee = models.DecimalField(max_digits=10, decimal_places=2)
     stripe_product_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     stripe_price_id = models.CharField(max_length=100, blank=True, null=True, default=None)
-    stripe_subscription_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 

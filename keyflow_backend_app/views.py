@@ -20,6 +20,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import RentalApplicationSerializer
+from datetime import datetime, timedelta
+import calendar
 import stripe
 import plaid
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
@@ -372,7 +374,7 @@ class TenantRegistrationView(APIView):
 
             #add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id
-
+            lease_agreement.save()
             token=Token.objects.create(user=user)
             return Response({'message': 'Tenant registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -710,20 +712,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         )
 
         return Response({'detail': 'Lease cancellation request submitted successfully.'}, status=status.HTTP_200_OK)
-    #Handle Payments (Stripe Concept)    
-    # @action(detail=True, methods=['post'])
-    # def make_payment(self, request, pk=None):
-    #     tenant = self.get_object()
-    #     amount = 1000  # Sample amount in cents
-    #     # Call Stripe API to create a payment
-    #     stripe.api_key = 'your_stripe_secret_key'
-    #     payment_intent = stripe.PaymentIntent.create(
-    #         amount=amount,
-    #         currency='usd',
-    #         payment_method_types=['card'],
-    #         customer=tenant.stripe_account_id,
-    #     )
-    #     return Response({'client_secret': payment_intent.client_secret})
 
 class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseCancellationRequest.objects.all()
@@ -960,8 +948,86 @@ class PlaidLinkTokenView(APIView):
         return Response(response.to_dict(), status=status.HTTP_200_OK)
 
 
+#Create a class that handles manageing a tenants stripe subscription (rent) called ManageTenantSusbcriptionView
+class ManageTenantSubscriptionView(viewsets.ModelViewSet):
+    #Create a method to cancel a subscription called turn_off_autopay
+    @action(detail=False, methods=['post'], url_path='turn-off-autopay')
+    def turn_off_autopay(self, request, pk=None):
+        #Retrieve user id from request body
+        user_id = request.data.get('user_id')
+        #Retrieve the user object from the database by id
+        user = User.objects.get(id=user_id)
+        #Retrieve the unit object from the user object
+        unit = RentalUnit.objects.get(tenant=user)
+        #Retrieve the lease agreement object from the unit object
+        lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
+        #Retrieve the subscription id from the lease agreement object
+        subscription_id = lease_agreement.stripe_subscription_id
+        print(f'Subscription id: {subscription_id}')
+        #Retrieve the subscription object from the subscription id
+        subscription = stripe.Subscription.retrieve(subscription_id)
+        #Cancel the subscription
+        subscription.delete()
+        #remove the subscription id from the lease agreement object
+        lease_agreement.stripe_subscription_id = None
+        lease_agreement.save()
+        #Return a response
+        return Response({'message': 'Subscription cancelled successfully.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+    
+    #Create a method to create a subscription called turn_on_autopay
+    @action(detail=False, methods=['post'], url_path='turn-on-autopay')
+    def turn_on_autopay(self, request, pk=None):
+        stripe.api_key = "sk_test_51LkoD8EDNRYu93CIBSaakI9e31tBUi23aObcNPMUdVQH2UvzaYl6uVIbTUGbSJzjUOoReHsRU8AusmDRzW7V87wi00hHSSqjhl"
+        #Retrieve user id from request body
+        user_id = request.data.get('user_id')
+        #Retrieve the user object from the database by id
+        user = User.objects.get(id=user_id)
+        #Retrieve the unit object from the user object
+        unit = RentalUnit.objects.get(tenant=user)
+        #Retrieve the lease agreement object from the unit object
+        lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
+        #Retrieve the lease term object from the unit object
+        lease_term = unit.lease_term
+        #Retrieve the stripe customer id from the user object
+        stripe_customer_id = user.stripe_customer_id
+        #Create a subscription
 
+        # Input lease start date (replace with your actual start date)
+        lease_start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")  # Example: February 28, 2023
 
+        # Calculate the current date
+        current_date = datetime.now()
+
+        # Calculate the next payment date
+        while lease_start_date < current_date:
+            lease_start_date += timedelta(days=30)  # Assuming monthly payments
+
+        next_payment_date = lease_start_date
+
+        print("Next payment date:", next_payment_date.strftime("%Y-%m-%d"))
+        if next_payment_date<current_date: #If the next payment date is in the past, make the user pay immediately
+            subscription = stripe.Subscription.create(
+                customer=stripe_customer_id,
+                cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()), #unix timestamp format
+                items=[
+                     {"price": lease_term.stripe_price_id},
+                ],
+            )
+        else:
+            subscription = stripe.Subscription.create(
+                customer=stripe_customer_id,
+                cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()), #unix timestamp format
+                trial_end=int(datetime.fromisoformat(f"{next_payment_date}").timestamp()), #User pays when next pay date reached
+                items=[
+                    {"price": lease_term.stripe_price_id},
+                ],
+            )
+
+        #Update the lease agreement object with the subscription id
+        lease_agreement.stripe_subscription_id = subscription.id
+        lease_agreement.save()
+        #Return a response
+        return Response({'message': 'Subscription created successfully.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
 #test to see if tooken is valid and return user info
 @api_view(['GET'])
