@@ -10,7 +10,7 @@ class PropertySerializer(serializers.ModelSerializer):
         model = RentalProperty
         fields = '__all__'
 
-class UnitSerializer(serializers.ModelSerializer):
+class RentalUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = RentalUnit
         fields = '__all__'

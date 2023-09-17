@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 from datetime import timedelta, timezone, datetime
+import json
+from django.http import JsonResponse
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets, permissions
 from django.contrib.auth.hashers import make_password
@@ -11,10 +13,12 @@ from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
+from django.views.decorators.csrf import csrf_exempt
+from django.views import View
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken
-from .serializers import UserSerializer, PropertySerializer, UnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer
+from .serializers import UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer
 from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission,RentalApplicationCreatePermission
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters, serializers
@@ -30,6 +34,7 @@ from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
+
 load_dotenv()
 #Custom  classes
 class CustomPagination(PageNumberPagination):
@@ -208,26 +213,76 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.id == request.user.id:
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
-    
+class LandlordTenantDetailView(APIView):   
     #POST: api/users/{id}/tenant
     #Create a function to retrieve a specific tenant for a specific landlord
-    @action(detail=True, methods=['get'], url_path='tenant')
-    def tenants(self, request, pk=None):
-        user = self.get_object()
-        #Create variable for tenant id
+    # @action(detail=True, methods=['post'], url_path='tenant')
+    def post(self, request):
+        #Create variable for LANDLORD id
+        landlord_id = request.data.get('landlord_id')
         tenant_id = request.data.get('tenant_id')
-        tenant = User.objects.filter(id=tenant_id, account_type='tenant')
-        
+        print(f'zx Landlord id: {landlord_id}')
+        print(f'zx Tenant id: {tenant_id}')
+
+        landlord = User.objects.get(id=landlord_id)
+        tenant = User.objects.filter(id=tenant_id).first()
+
         #Find a lease agreement matching the landlord and tenant
-        lease_agreement = LeaseAgreement.objects.filter(user=user, tenant=tenant_id)
+        lease_agreement = LeaseAgreement.objects.get(user=landlord, tenant=tenant)
+
+        #Retrieve the unit from the tenant
+        unit = RentalUnit.objects.get(tenant=lease_agreement.tenant)
+        rental_property = RentalProperty.objects.get(id=unit.rental_property.id)
         
-        #Check if lease agreement does not exist
+        #Retrieve transactions for the tenant
+        transactions = Transaction.objects.filter(tenant=tenant)
+        #Retrieve maintenance request
+        maintenance_requests = MaintenanceRequest.objects.filter(tenant=tenant)
+
+        user_serializer = UserSerializer(tenant, many=False)
+        unit_serializer = RentalUnitSerializer(unit, many=False)
+        property_serializer = PropertySerializer(rental_property, many=False)
+        lease_agreement_serializer = LeaseAgreementSerializer(lease_agreement, many=False)
+        transaction_serializer = TransactionSerializer(transactions, many=True)
+        maintenance_request_serializer = MaintenanceRequestSerializer(maintenance_requests, many=True)
+        
         if lease_agreement is None:
             return Response({'detail': 'Landlord Tenant relationship does not exist'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = UserSerializer(tenant, many=True)
-        print(f'zx Tenant: {tenant}')
+
+
+        if landlord_id == request.user.id:
+            return Response(
+                {'tenant':user_serializer.data, 
+                 'unit':unit_serializer.data, 
+                 'property':property_serializer.data, 
+                 'lease_agreement':lease_agreement_serializer.data,
+                 'transactions':transaction_serializer.data,
+                 'maintenance_requests':maintenance_request_serializer.data,
+                 'status':status.HTTP_200_OK
+                 }, status=status.HTTP_200_OK)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+class LandlordTenantListView(APIView):
+    #POST: api/users/{id}/landlord-tenants
+    #Create a function to retrieve a specific tenant for a specific landlord
+    # @action(detail=True, methods=['get'], url_path='landlord-tenants')
+    def post(self, request):
+        user = User.objects.get(id=request.data.get('landlord_id'))
+        #Verify user is a landlord
+        if user.account_type != 'landlord':
+            return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+ 
+        #Retrieve landlord's properties
+        properties = RentalProperty.objects.filter(user_id=user.id)
+        #retrieve units for each property that are occupied
+        units = RentalUnit.objects.filter(rental_property__in=properties, is_occupied=True)
+        #Retrieve the tenants for each unit
+        tenants = User.objects.filter(id__in=units.values_list('tenant', flat=True))
+        #Create a user serializer for the tenants object
+        serializer = UserSerializer(tenants, many=True)
+        
+
         if user.id == request.user.id:
-            return Response(serializer.data)
+            return Response({'tenants':serializer.data, 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
     
 
@@ -560,7 +615,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def units(self, request, pk=None): 
         property = self.get_object()
         units = RentalUnit.objects.filter(rental_property_id=property.id)
-        serializer = UnitSerializer(units, many=True)
+        serializer = RentalUnitSerializer(units, many=True)
         return Response(serializer.data)
    
     #GET: api/properties/{id}/tenants
@@ -573,7 +628,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
-    serializer_class = UnitSerializer
+    serializer_class = RentalUnitSerializer
     permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     pagination_class = CustomPagination
@@ -637,7 +692,7 @@ class RetrieveTenantDashboardData(APIView):
         lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
         
         
-        unit_serializer = UnitSerializer(unit)
+        unit_serializer = RentalUnitSerializer(unit)
         lease_term_serializer = LeaseTermSerializer(lease_term)
         lease_agreement_serializer = LeaseAgreementSerializer(lease_agreement)
 
@@ -651,7 +706,7 @@ class RetrieveUnitUserId(APIView):
     def post(self, request):
         unit_id = request.data.get('unit_id')
         unit = RentalUnit.objects.get(id=unit_id)
-        serializer = UnitSerializer(unit)
+        serializer = RentalUnitSerializer(unit)
         response_data = serializer.data
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -927,7 +982,7 @@ class RetrieveUnitByIdView(APIView):
     def post(self, request):
         unit_id = request.data.get('unit_id')
         unit = RentalUnit.objects.get(id=unit_id)
-        serializer = UnitSerializer(unit)
+        serializer = RentalUnitSerializer(unit)
         return Response(serializer.data, status=status.HTTP_200_OK) 
 
 #Create a viewset for transactions model
@@ -1134,6 +1189,65 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
         next_payment_date = lease_start_date
         #Return a response
         return Response({'next_payment_date': next_payment_date, "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+
+# transactions/views.py
+
+
+
+class StripeWebhookView(View):
+    @csrf_exempt
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        payload = request.body
+        event = None
+
+        try:
+            event = stripe.Event.construct_from(
+                json.loads(payload), stripe.api_key
+            )
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+        if event.type == 'payment_intent.succeeded':
+            payment_intent = event.data.object
+            metadata = payment_intent.get('metadata', {})
+            print(f'Event Data {event.data}')
+            print(f'zx Payment intent {payment_intent}')
+            print(f'zx Metadata {metadata}')
+            Transaction.objects.create(
+              amount=float(payment_intent.amount / 100),  # Convert to currency units
+              payment_intent_id=payment_intent.id,
+              user = metadata.get('landlord_id', None),
+              type = metadata.get('type', None),
+              description = metadata.get('description', None),
+              rental_property = metadata.get('rental_property_id', None),
+              rental_unit = metadata.get('rental_unit_id', None),
+              tenant = metadata.get('tenant_id', None), #related tenant
+              payment_method_id = metadata.get('payment_method_id', None)# or payment_intent.payment_method.id
+            )
+
+        elif event.type == 'customer.subscription.created':
+            subscription = event.data.object
+            metadata = subscription.get('metadata', {})
+            print(f'Event Data {event.data}')
+            print(f'zx Payment intent {subscription}')
+            print(f'zx Metadata {metadata}')
+            Transaction.objects.create(
+              subscription_id=subscription.id,
+              amount=int(subscription.amount / 100),  # Convert to currency units
+              user = metadata.get('landlord_id', None),
+              type = metadata.get('type', None),
+              description = metadata.get('description', None),
+              rental_property = metadata.get('rental_property_id', None),
+              rental_unit = metadata.get('rental_unit_id', None),
+              tenant = metadata.get('tenant_id', None), #related tenant
+              payment_method_id = metadata.get('payment_method_id', None),# or payment_intent.payment_method.id
+            )
+            print(subscription)
+        return JsonResponse({'status': 'ok'})
+
 
 #test to see if tooken is valid and return user info
 @api_view(['GET'])

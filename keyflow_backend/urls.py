@@ -45,7 +45,10 @@ from keyflow_backend_app.views import (
     RetrievePropertyByIdView,
     TenantViewSet,
     ManageTenantSubscriptionView,
-    PasswordResetTokenView
+    PasswordResetTokenView,
+    StripeWebhookView,
+    LandlordTenantDetailView,
+    LandlordTenantListView,
     )
 from keyflow_backend_app import views
 from rest_framework_simplejwt.views import (
@@ -90,5 +93,7 @@ urlpatterns = [
     path('api/activate/<email>/<token>/', UserActivationView.as_view(), name='activate'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    # path('api/password-reset/', PasswordResetTokenView.as_view(), name='password_reset'),
+    path('api/stripe-webhook/', StripeWebhookView.as_view(), name='stripe_webhook'),
+    path('api/landlord-tenant-detail/', LandlordTenantDetailView.as_view(), name='landlord_tenant_detail'),
+    path('api/landlord-tenant-list/', LandlordTenantListView.as_view(), name='landlord_tenant_list'),
 ]
