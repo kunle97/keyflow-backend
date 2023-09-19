@@ -1184,15 +1184,70 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
 
         # Calculate the next payment date
         while lease_start_date < current_date:
-            lease_start_date += timedelta(days=30)  # Assuming monthly payments
+            
+            next_month_date = lease_start_date + timedelta(days=30)  # Assuming monthly payments
+            # Ensure that the result stays on the same day even if the next month has fewer days
+            # For example, if input_date is January 31, next_month_date would be February 28 (or 29 in a leap year)
+            # This code snippet adjusts it to February 28 (or 29)
+            if lease_start_date.day != next_month_date.day:
+                next_month_date = next_month_date.replace(day=lease_start_date.day)
+                lease_start_date = next_month_date
+            else:
+                lease_start_date += timedelta(days=30)  # Assuming monthly payments
 
         next_payment_date = lease_start_date
         #Return a response
         return Response({'next_payment_date': next_payment_date, "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
-# transactions/views.py
+
+    #Create a method to retrieve all payment dates for a specific user's subscription
+    @action(detail=False, methods=['post'], url_path='payment-dates')
+    def payment_dates(self, request, pk=None):
+        #Retrieve user id from request body
+        user_id = request.data.get('user_id')
+        #Retrieve the user object from the database by id
+        user = User.objects.get(id=user_id)
+        #Retrieve the unit object from the user object
+        unit = RentalUnit.objects.get(tenant=user)
+        #Retrieve the lease agreement object from the unit object
+        lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
+
+        # Input lease start date (replace with your actual start date)
+        lease_start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")  # Example: February 28, 2023
+        
+        # Calculate the lease end date
+        lease_end_date = datetime.fromisoformat(f"{lease_agreement.end_date}")  # Example: February 28, 2023
+
+        #Create a ppayment dates list
+        payment_dates = [{'title':'Rent Due','payment_date':lease_start_date, 'transaction_paid':False}]
+
+         # Calculate the next payment date
+        while lease_start_date <= lease_end_date:
+            #Check for transaction in database to see if payment has been made
+            transaction_paid = Transaction.objects.filter(rental_unit=unit, created_at=lease_start_date).exists()
+            event_title = ''
+            if transaction_paid:
+                event_title = 'Rent Paid'
+            else:
+                event_title = 'Rent Due'
 
 
+            next_month_date = lease_start_date + timedelta(days=30)  # Assuming monthly payments
+            # Ensure that the result stays on the same day even if the next month has fewer days
+            # For example, if input_date is January 31, next_month_date would be February 28 (or 29 in a leap year)
+            # This code snippet adjusts it to February 28 (or 29)
+            if lease_start_date.day != next_month_date.day:
+                next_month_date = next_month_date.replace(day=lease_start_date.day)
+                payment_dates.append({'title':event_title,'payment_date':next_month_date, 'transaction_paid':transaction_paid})
+                lease_start_date = next_month_date
+            else:
+                payment_dates.append({'title':event_title,'payment_date':next_month_date, 'transaction_paid':transaction_paid})
+                lease_start_date += timedelta(days=30)  # Assuming monthly payments
+                
+            #Add the payment date and transaction paid status to the payment dates list
+
+        #Return a response with the payment dates list
+        return Response({'payment_dates': payment_dates, "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
 class StripeWebhookView(View):
     @csrf_exempt
