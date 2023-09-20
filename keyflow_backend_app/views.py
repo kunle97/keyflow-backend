@@ -446,7 +446,7 @@ class TenantRegistrationView(APIView):
                         rental_unit = unit,
                         user=landlord,
                         tenant=user,
-                        amount=int(lease_term.security_deposit*100),
+                        amount=int(lease_term.rent),
                         payment_method_id=data['payment_method_id'],
                         payment_intent_id="subscription",
                     )
