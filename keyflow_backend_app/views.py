@@ -375,7 +375,7 @@ class TenantRegistrationView(APIView):
                             #Add Metadata to the transaction signifying that it is a security deposit
                     metadata={
                         "type": "revenue",
-                        "description": f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}'
+                        "description": f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}',
                         "user_id": user.id,
                         "tenant_id": user.id,
                         "landlord_id": landlord.id,
