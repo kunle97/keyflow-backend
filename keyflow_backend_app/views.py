@@ -374,19 +374,22 @@ class TenantRegistrationView(APIView):
                     confirm=True,
                             #Add Metadata to the transaction signifying that it is a security deposit
                     metadata={
-                        "type": "security_deposit",
+                        "type": "revenue",
+                        "description": f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}'
                         "user_id": user.id,
+                        "tenant_id": user.id,
                         "landlord_id": landlord.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
+                        "payment_method_id": data['payment_method_id'],
                     }
 
                 )
                 
                 #create a transaction object for the security deposit
-                securit_deposit_transaction = Transaction.objects.create(
+                security_deposit_transaction = Transaction.objects.create(
                     type = 'revenue',
-                    description = f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for landlord {landlord.first_name} {landlord.last_name}',
+                    description = f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}',
                     rental_property = unit.rental_property,
                     rental_unit = unit,
                     user=landlord,
@@ -422,6 +425,16 @@ class TenantRegistrationView(APIView):
                          },
                          #Cancel the subscription after at the end date specified by lease term
                          cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
+                        metadata={
+                            "type": "revenue",
+                            "description": f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}',
+                            "user_id": user.id,
+                            "tenant_id":user.id,
+                            "landlord_id": landlord.id,
+                            "rental_property_id": unit.rental_property.id,
+                            "rental_unit_id": unit.id,
+                            "payment_method_id": data['payment_method_id'],
+                        }
                     )
                 
                 else:
@@ -438,15 +451,15 @@ class TenantRegistrationView(APIView):
                          },
                         cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
                     )
-                    #create a transaction object for the security deposit
+                    #create a transaction object for the rent payment (stripe subscription)
                     subscription_transaction = Transaction.objects.create(
                         type = 'revenue',
-                        description = f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for landlord {landlord.first_name} {landlord.last_name}',
+                        description = f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}',
                         rental_property = unit.rental_property,
                         rental_unit = unit,
                         user=landlord,
                         tenant=user,
-                        amount=int(lease_term.security_deposit*100),
+                        amount=int(lease_term.rent),
                         payment_method_id=data['payment_method_id'],
                         payment_intent_id="subscription",
                     )
