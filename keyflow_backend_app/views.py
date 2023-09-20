@@ -17,7 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views import View
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken
+from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken, AccountActivationToken
 from .serializers import UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer
 from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission,RentalApplicationCreatePermission
 from rest_framework.pagination import PageNumberPagination
@@ -50,10 +50,12 @@ class UserLoginView(APIView):
         password = request.data.get('password')
         user = User.objects.filter(email=email).first()
         if user is None:
-            return Response({'message': 'Error logging you in.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'message': 'Error logging you in.', 'status':status.HTTP_404_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
         if not user.check_password(password):
-            return Response({'message': 'Invalid email or password.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'message': 'Invalid email or password.', 'status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        #Check if user accoun is active
+        if user.is_active is False:
+            return Response({'message': 'User account is not active. Please check your email for an activation link.', 'status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
         #create a token for the user on success full login
         token=Token.objects.create(user=user)
         serializer = UserSerializer(instance=user)
@@ -109,13 +111,18 @@ class UserRegistrationView(APIView):
             account_link = stripe.AccountLink.create(
                 account=stripe_account.id,
                 refresh_url='http://localhost:3000/dashboard/landlord/login',
-                return_url='http://localhost:3000/dashboard/landlord/',
+                return_url='http://localhost:3000/dashboard/activate-account/',
                 type='account_onboarding',
             )
-            user.is_active = True #TODO: Remove this for activation flow implementation
+            user.is_active = False #TODO: Remove this for activation flow implementation
             user.save()
-            token=Token.objects.create(user=user)
-            return Response({'message': 'User registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True, "onboarding_link":account_link}, status=status.HTTP_201_CREATED)
+            #Create an account activation token for the user
+            account_activation_token = AccountActivationToken.objects.create(
+                user=user,
+                email=user.email,
+                token=data['activation_token'],
+            )
+            return Response({'message': 'User registered successfully.', 'user':serializer.data, 'isAuthenticated':True, "onboarding_link":account_link}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -321,7 +328,7 @@ class TenantRegistrationView(APIView):
             user.stripe_customer_id = customer.id
             print(f'User customer id: {user.stripe_customer_id}')
 
-            user.is_active = True
+            user.is_active = False
             user.save()
 
             #Retrieve unit from the request unit_id parameter
@@ -448,8 +455,12 @@ class TenantRegistrationView(APIView):
             #add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id
             lease_agreement.save()
-            token=Token.objects.create(user=user)
-            return Response({'message': 'Tenant registered successfully.', 'user':serializer.data, 'token':token.key,'isAuthenticated':True}, status=status.HTTP_201_CREATED)
+            account_activation_token = AccountActivationToken.objects.create(
+                user=user,
+                email=user.email,
+                token=data['activation_token'],
+            )
+            return Response({'message': 'Tenant registered successfully.', 'user':serializer.data,'isAuthenticated':True}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 #Create a modle viewset that will handle the CRUD operations for PasswordResetTokens
@@ -581,25 +592,21 @@ class RetrieveLeaseAgreementByIdAndApprovalHashView(APIView):
 #create an endpoint to activate the account of a new user that will set the  is_active field to true
 class UserActivationView(APIView):
     def post(self, request):
-        User = get_user_model()
-        data = request.data.copy()
-        user = User.objects.get(email=data['email'])
-        if user is None:
-            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
-        user.is_active = True
-        user.save()
-        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
-    #Create a get request to activate the user 
-    def get(self, request):
-        User = get_user_model()
-        data = request.data.copy()
-        user = User.objects.get(email=data['email'])
-        if user is None:
-            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
-        user.is_active = True
-        user.save()
-        return Response({'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+        #Verify that the account activation token is valid
+        account_activation_token = AccountActivationToken.objects.get(token=request.data.get('activation_token'))
+        if account_activation_token is None:
+            return Response({'message': 'Invalid token.','status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        
+        #retrieve user via account activation token
+        user = User.objects.get(email=account_activation_token.email)
 
+        if user is None:
+            return Response({'message': 'Error activating user.'}, status=status.HTTP_404_NOT_FOUND)
+        user.is_active = True
+        user.save()
+        #Delete the account activation token
+        account_activation_token.delete()
+        return Response({'account_type':user.account_type, 'message': 'User activated successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
