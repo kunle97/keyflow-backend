@@ -372,7 +372,7 @@ class TenantRegistrationView(APIView):
                         "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
                     },
                     confirm=True,
-                            #Add Metadata to the transaction signifying that it is a security deposit
+                    #Add Metadata to the transaction signifying that it is a security deposit
                     metadata={
                         "type": "revenue",
                         "description": f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}',
@@ -424,7 +424,7 @@ class TenantRegistrationView(APIView):
                             "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
                          },
                          #Cancel the subscription after at the end date specified by lease term
-                         cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
+                        cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
                         metadata={
                             "type": "revenue",
                             "description": f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}',
@@ -450,6 +450,16 @@ class TenantRegistrationView(APIView):
                             "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
                          },
                         cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
+                        metadata={
+                            "type": "revenue",
+                            "description": f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}',
+                            "user_id": user.id,
+                            "tenant_id": user.id,
+                            "landlord_id": landlord.id,
+                            "rental_property_id": unit.rental_property.id,
+                            "rental_unit_id": unit.id,
+                            "payment_method_id": data['payment_method_id'],
+                        }
                     )
                     #create a transaction object for the rent payment (stripe subscription)
                     subscription_transaction = Transaction.objects.create(
@@ -1118,17 +1128,12 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
         #Retrieve the subscription id from the lease agreement object
         subscription_id = lease_agreement.stripe_subscription_id
         print(f'Subscription id: {subscription_id}')
-        #Retrieve the subscription object from the subscription id
-        #subscription = stripe.Subscription.retrieve(subscription_id)
-        #Cancel the subscription
-        #subscription.delete()
-        #remove the subscription id from the lease agreement object
-        #lease_agreement.stripe_subscription_id = None
-        #lease_agreement.save()
         stripe.Subscription.modify(
           subscription_id,
           pause_collection={"behavior": "void"},
         )
+        lease_agreement.auto_pay_is_enabled = False
+        lease_agreement.save()
         #Return a response
         return Response({'message': 'Subscription paused successfully.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
     
@@ -1145,50 +1150,13 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
         #Retrieve the lease agreement object from the unit object
         lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
         subscription_id = lease_agreement.stripe_subscription_id
-        #Retrieve the lease term object from the unit object
-        #lease_term = unit.lease_term
-        #Retrieve the stripe customer id from the user object
-        #stripe_customer_id = user.stripe_customer_id
-        #Create a subscription
 
-        # Input lease start date (replace with your actual start date)
-       # lease_start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")  # Example: February 28, 2023
-
-        # Calculate the current date
-        #current_date = datetime.now()
-
-        # Calculate the next payment date
-        # while lease_start_date < current_date:
-        #     lease_start_date += timedelta(days=30)  # Assuming monthly payments
-
-        # next_payment_date = lease_start_date
-
-        # print("Next payment date:", next_payment_date.strftime("%Y-%m-%d"))
-        # if next_payment_date<current_date: #If the next payment date is in the past, make the user pay immediately
-        #     subscription = stripe.Subscription.create(
-        #         customer=stripe_customer_id,
-        #         cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()), #unix timestamp format
-        #         items=[
-        #              {"price": lease_term.stripe_price_id},
-        #         ],
-        #     )
-        # else:
-        #     subscription = stripe.Subscription.create(
-        #         customer=stripe_customer_id,
-        #         cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()), #unix timestamp format
-        #         trial_end=int(datetime.fromisoformat(f"{next_payment_date}").timestamp()), #User pays when next pay date reached
-        #         items=[
-        #             {"price": lease_term.stripe_price_id},
-        #         ],
-        #     )
-
-        # #Update the lease agreement object with the subscription id
-        # lease_agreement.stripe_subscription_id = subscription.id
-        # lease_agreement.save()
         stripe.Subscription.modify(
           subscription_id,
           pause_collection='',
         )
+        lease_agreement.auto_pay_is_enabled = True
+        lease_agreement.save()
         #Return a response
         return Response({'message': 'Subscription resumed successfully.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
     

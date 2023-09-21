@@ -70,6 +70,7 @@ class LeaseAgreement(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
     approval_hash = models.CharField(max_length=100, blank=True, null=True,unique=True)
     stripe_subscription_id = models.CharField(max_length=100, blank=True, null=True, default=None)
+    auto_pay_is_enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     
