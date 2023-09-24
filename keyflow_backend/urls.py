@@ -32,10 +32,9 @@ from keyflow_backend_app.views import (
     TenantRegistrationView,
     TransactionViewSet, 
     LeaseTermCreateView,
+    DeleteLeaseTermByIdView,
     RentalApplicationViewSet, 
     PlaidLinkTokenView,
-    AddCardPaymentMethodView,
-    ListPaymentMethodsView, 
     RetrieveLeaseTermByIdViewAndApprovalHash,
     RetrieveLeaseAgreementByIdAndApprovalHashView,
     RetrieveLeaseTermByIdView,
@@ -49,6 +48,7 @@ from keyflow_backend_app.views import (
     StripeWebhookView,
     LandlordTenantDetailView,
     LandlordTenantListView,
+    ManagePaymentMethodsView
     )
 from keyflow_backend_app import views
 from rest_framework_simplejwt.views import (
@@ -67,6 +67,7 @@ router.register(r'rental-applications',RentalApplicationViewSet , basename='rent
 router.register(r'tenants', TenantViewSet, basename='tenants')
 router.register(r'manage-lease', ManageTenantSubscriptionView, basename='manage_lease')
 router.register(r'password-reset', PasswordResetTokenView, basename='password_reset')
+router.register(r'stripe', ManagePaymentMethodsView, basename='stripe')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -78,13 +79,12 @@ urlpatterns = [
     path('api/auth/tenant/register/verify/', TenantVerificationView.as_view(), name='tenant_register_verify'),
     path('api/auth/tenant/register/retrieve-rental-application/', RetrieveRentalApplicationByApprovalHash.as_view(), name='tenant_register_verify'),
     path('api/plaid/create-link-token/', PlaidLinkTokenView.as_view(), name='create_plaid_link_token'),
-    path('api/stripe/add-payment-method/', AddCardPaymentMethodView.as_view(), name='add_stripe_payment_method'),
-    path('api/stripe/list-payment-methods/', ListPaymentMethodsView.as_view(), name='list_stripe_payment_method'),
     path('api/test_token', views.test_token, name='test_token'),
     path('api/sign-lease-agreement/',SignLeaseAgreementView.as_view(), name='sign_lease'),
     path('api/retrieve-lease-term-and-approval/',RetrieveLeaseTermByIdViewAndApprovalHash.as_view(), name='retrieve_lease_agreement-approval'),
     path('api/retrieve-lease-agreement-approval/',RetrieveLeaseAgreementByIdAndApprovalHashView.as_view(), name='retrieve_lease_agreement'),
     path('api/create-lease-term/',LeaseTermCreateView.as_view(), name='create_lease_term'),
+    path('api/delete-lease-term/',DeleteLeaseTermByIdView.as_view(), name='delete_lease_term'),
     path('api/retrieve-lease-term/',RetrieveLeaseTermByIdView.as_view(), name='retrieve_lease_term'),
     path('api/retrieve-lease-term-unit/',RetrieveLeaseTermByUnitView.as_view(), name='retrieve_lease_term_unit'),
     path('api/retrieve-unit/',RetrieveUnitByIdView.as_view(), name='retrieve_unit_unauthenticated'),

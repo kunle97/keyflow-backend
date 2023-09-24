@@ -55,7 +55,7 @@ class RentalUnit(models.Model):
         db_table = 'rental_units'
 
     def __str__(self):
-        return f"Unit {self.name} at {self.rental_property.address}"
+        return f"Unit {self.name} at {self.rental_property.street}"
     
 class LeaseAgreement(models.Model):
     rental_unit = models.ForeignKey('RentalUnit', on_delete=models.CASCADE)
@@ -113,11 +113,15 @@ class MaintenanceRequest(models.Model):
         ('structural', 'Structural'),
         ('other', 'Other'),
     )
-        
+    STATUS_TYPE_CHOICES = (
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+    )
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     type = models.CharField(max_length=35, choices=SERVICE_TYPE_CHOICES)
     description = models.TextField()
-    is_resolved = models.BooleanField(default=False)
+    status = models.CharField(max_length=50, choices=STATUS_TYPE_CHOICES, default='pending')
     is_archived = models.BooleanField(default=False)
     landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #related landlord
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
