@@ -231,6 +231,16 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.id == request.user.id:
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    #Create a function to retrieve one speceiofic tenant
+    @action(detail=True, methods=['post'], url_path='tenant')
+    def tenant(self, request, pk=None):
+        user = self.get_object()
+        tenant = User.objects.get(id=request.data.get('tenant_id'))
+        serializer = UserSerializer(tenant)
+        if user.id == request.user.id:
+            return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
 class LandlordTenantDetailView(APIView):   
     #POST: api/users/{id}/tenant
     #Create a function to retrieve a specific tenant for a specific landlord
