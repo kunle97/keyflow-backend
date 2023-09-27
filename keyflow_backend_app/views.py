@@ -20,7 +20,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken, AccountActivationToken
 from .serializers import UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer
 from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission,RentalApplicationCreatePermission, PropertyDeletePermission, UnitDeletePermission
-
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters, serializers
 from rest_framework import status
@@ -290,9 +290,8 @@ class LandlordTenantDetailView(APIView):
                  }, status=status.HTTP_200_OK)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
 class LandlordTenantListView(APIView):
-    #POST: api/users/{id}/landlord-tenants
-    #Create a function to retrieve a specific tenant for a specific landlord
-    # @action(detail=True, methods=['get'], url_path='landlord-tenants')
+
+    #POST: api/users/{id}/tenants
     def post(self, request):
         user = User.objects.get(id=request.data.get('landlord_id'))
         #Verify user is a landlord
@@ -657,10 +656,13 @@ class PropertyViewSet(viewsets.ModelViewSet):
     serializer_class = PropertySerializer
     permission_classes = [ IsAuthenticated, IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    pagination_class = CustomPagination
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name', 'address']
-
+    # pagination_class = CustomPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['name', 'street', 'city', 'state' ]
+    def get_queryset(self):
+        user = self.request.user  # Get the current user
+        queryset = super().get_queryset().filter(user=user)
+        return queryset
     #GET: api/properties/{id}/units
     @action(detail=True, methods=['get'])
     def units(self, request, pk=None): 
@@ -682,7 +684,13 @@ class UnitViewSet(viewsets.ModelViewSet):
     serializer_class = RentalUnitSerializer
     permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    pagination_class = CustomPagination
+    # pagination_class = CustomPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['name']
+    def get_queryset(self):
+        user = self.request.user  # Get the current user
+        queryset = super().get_queryset().filter(user=user)
+        return queryset
 
     #Create a function that sets the is occupied field to true
     @action(detail=True, methods=['post'])
@@ -792,7 +800,12 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     serializer_class = MaintenanceRequestSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['description', 'status' ]
+    def get_queryset(self):
+        user = self.request.user  # Get the current user
+        queryset = super().get_queryset().filter(landlord=user)
+        return queryset
 #Handle Lease
 class TenantViewSet(viewsets.ModelViewSet):
     # ... (existing code)
@@ -912,7 +925,12 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = RentalApplicationSerializer
     permission_classes =[ RentalApplicationCreatePermission]#TODO: Investigate why IsResourceOwner is not working
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['first_name', 'last_name', 'email', 'phone_number' ]
+    def get_queryset(self):
+        user = self.request.user  # Get the current user
+        queryset = super().get_queryset().filter(landlord=user)
+        return queryset
     #Create method to delete all rental applications for a specific unit
     @action(detail=True, methods=['delete'], url_path='delete-remaining-rental-applications')
     def delete_remaining_rental_applications(self, request, pk=None):
@@ -1056,7 +1074,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['description', 'type' ]
+    def get_queryset(self):
+        user = self.request.user  # Get the current user
+        queryset = super().get_queryset().filter(user=user)
+        return queryset
 
 class ManagePaymentMethodsView(viewsets.ModelViewSet):
     #Create a function to create a payment method for a user

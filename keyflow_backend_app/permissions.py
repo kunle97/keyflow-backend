@@ -159,8 +159,6 @@ class IsResourceOwner(permissions.BasePermission):
     
     def has_object_permission(self, request, view, obj):
         # Check if the user is the owner of the resource (e.g., property, unit, lease agreement)
-        print(f"request.user: {request.user.id}")
-        print(f"obj.user: {obj.user.id}")
         return obj.user == request.user
     
     def has_permission(self, request, view):
