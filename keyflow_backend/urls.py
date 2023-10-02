@@ -48,7 +48,8 @@ from keyflow_backend_app.views import (
     StripeWebhookView,
     LandlordTenantDetailView,
     LandlordTenantListView,
-    ManagePaymentMethodsView
+    ManagePaymentMethodsView,
+    RetrieveLandlordSubscriptionPriceView
     )
 from keyflow_backend_app import views
 from rest_framework_simplejwt.views import (
@@ -90,6 +91,7 @@ urlpatterns = [
     path('api/retrieve-unit/',RetrieveUnitByIdView.as_view(), name='retrieve_unit_unauthenticated'),
     path('api/retrieve-tenant-dashboard-data/',RetrieveTenantDashboardData.as_view(), name='retrieve_tenant_dashboard_data'),
     path('api/retrieve-property/',RetrievePropertyByIdView.as_view(), name='retrieve_property_unauthenticated'),
+    path('api/retrieve-landlord-subscription-prices/',RetrieveLandlordSubscriptionPriceView.as_view(), name='retrieve_landlord_subscription_price'),
     path('api/auth/activate-account/', UserActivationView.as_view(), name='activate'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

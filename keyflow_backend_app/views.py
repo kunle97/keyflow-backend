@@ -75,7 +75,7 @@ class UserRegistrationView(APIView):
     def post(self, request):
         User = get_user_model()
         data = request.data.copy()
-        
+        print(f'zx Data: {data}')
         # Hash the password before saving the user
         data['password'] = make_password(data['password'])
         
@@ -85,10 +85,10 @@ class UserRegistrationView(APIView):
             serializer.save()
             user = User.objects.get(email=data['email'])
 
-            #TODO: send email to the user to verify their email address
-            #create stripe account for the user
+        #     #TODO: send email to the user to verify their email address
             stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
             
+            # create stripe account for the user
             stripe_account = stripe.Account.create(
                 type='express', 
                 country='US', 
@@ -97,17 +97,42 @@ class UserRegistrationView(APIView):
                     'card_payments': {'requested': True}, 
                     'transfers': {'requested': True}, 
                     'bank_transfer_payments': {'requested': True}
-                })
-            # stripe_account = stripe.Account.create(type='standard', country='US', email=user.email)
+                }
+            )
    
-            #update the user with the stripe account id
+            # update the user with the stripe account id
             user.stripe_account_id = stripe_account.id
 
             #Create a customer id for the user
             customer = stripe.Customer.create(email=user.email)
             user.stripe_customer_id = customer.id
 
+            # attach payment method to the customer adn make it default
+            payment_method_id = data['payment_method_id']
+            stripe.PaymentMethod.attach(
+                payment_method_id,
+                customer=customer.id,
+            )
 
+            #Subscribe landlord to thier selected plan using product id and price id
+            product_id = data['product_id']
+            price_id = data['price_id']
+            subscription = stripe.Subscription.create(
+                customer=customer.id,
+                items=[
+                    {"price": price_id},
+                ],
+                default_payment_method=payment_method_id,
+                metadata={
+                    "type": "revenue",
+                    "description": f'{user.first_name} {user.last_name} Landlord Subscrtiption',
+                    "product_id": product_id,
+                    "user_id": user.id,
+                    "tenant_id": user.id,
+                    "payment_method_id": payment_method_id,
+                }
+            )
+            user.stripe_subscription_id = subscription.id
             #obtain stripe account link for the user to complete the onboarding process
             account_link = stripe.AccountLink.create(
                 account=stripe_account.id,
@@ -125,7 +150,30 @@ class UserRegistrationView(APIView):
             )
             return Response({'message': 'User registered successfully.', 'user':serializer.data, 'isAuthenticated':True, "onboarding_link":account_link}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+#Create a class that retrieve a price from stripe subscriptions for landlords and returns it in the response
+class RetrieveLandlordSubscriptionPriceView(APIView):
+    def post(self, request):
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
+        product1 = stripe.Product.retrieve("prod_OkG5FJoG1wZUyt")
+        product2 = stripe.Product.retrieve("prod_OkG8eb8RuNyOO5")
+        price1 = stripe.Price.retrieve(product1.default_price)
+        price2 = stripe.Price.retrieve(product2.default_price)
+        serialized_products = [{
+            'product_id': product1.id,
+            'name': product1.name,
+            'price': price1.unit_amount / 100,  # Convert to dollars
+            'price_id': price1.id,
+            'features': product1.features,
+            'billing_scheme':price1.recurring
+        },{
+            'product_id': product2.id,
+            'name': product2.name,
+            'price': price2.unit_amount / 100,  # Convert to dollars
+            'price_id': price2.id,
+            'features': product2.features,
+            'billing_scheme': price2.recurring
+        }]
+        return Response({'products':serialized_products}, status=status.HTTP_200_OK)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
