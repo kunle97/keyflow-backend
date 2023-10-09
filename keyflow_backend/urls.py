@@ -43,6 +43,7 @@ from keyflow_backend_app.views import (
     RetrieveTenantDashboardData,
     RetrievePropertyByIdView,
     TenantViewSet,
+    LeaseTermViewSet,
     ManageTenantSubscriptionView,
     PasswordResetTokenView,
     StripeWebhookView,
@@ -69,6 +70,7 @@ router.register(r'tenants', TenantViewSet, basename='tenants')
 router.register(r'manage-lease', ManageTenantSubscriptionView, basename='manage_lease')
 router.register(r'password-reset', PasswordResetTokenView, basename='password_reset')
 router.register(r'stripe', ManagePaymentMethodsView, basename='stripe')
+router.register(r'lease-terms', LeaseTermViewSet, basename='lease-terms')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

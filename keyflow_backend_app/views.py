@@ -104,7 +104,9 @@ class UserRegistrationView(APIView):
             user.stripe_account_id = stripe_account.id
 
             #Create a customer id for the user
-            customer = stripe.Customer.create(email=user.email)
+            customer = stripe.Customer.create(
+                email=user.email
+            )
             user.stripe_customer_id = customer.id
 
             # attach payment method to the customer adn make it default
@@ -180,6 +182,11 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['account_type', 'is_active']
+    search_fields = ['first_name', 'last_name', 'email']
+    ordering_fields = ['first_name', 'last_name', 'email', 'created_at']
 
     #Create a function to change password
     @action(detail=True, methods=['post'], url_path='change-password')
@@ -289,6 +296,27 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.id == request.user.id:
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+    #Create a function to retrieve all of the tenants for a specific landlord
+    #GET: api/users/{id}/tenants
+    @action(detail=True, methods=['get'], url_path='tenants')
+    def tenants(self, request, pk=None):
+        qs = self.filter_queryset(self.get_queryset())
+        user = self.get_object()
+        #Verify user is a landlord
+        if user.account_type != 'landlord':
+           return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+        #Retrieve landlord's properties
+        properties = RentalProperty.objects.filter(user_id=user.id)
+        #retrieve units for each property that are occupied
+        units = RentalUnit.objects.filter(rental_property__in=properties, is_occupied=True)
+        #Retrieve the tenants for each unit
+        tenants = qs.filter(id__in=units.values_list('tenant', flat=True))
+        #Create a user serializer for the tenants object
+        serializer = UserSerializer(tenants, many=True)
+        if user.id == request.user.id:
+           return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+ 
 class LandlordTenantDetailView(APIView):   
     #POST: api/users/{id}/tenant
     #Create a function to retrieve a specific tenant for a specific landlord
@@ -705,12 +733,24 @@ class PropertyViewSet(viewsets.ModelViewSet):
     permission_classes = [ IsAuthenticated, IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     # pagination_class = CustomPagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    search_fields = ['name', 'street', 'city', 'state' ]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    ordering_fields = ['name', 'street', 'created_at', 'id', 'state' ]
+    search_fields = ['name', 'street' ]
+    filterset_fields = ['city', 'state']
+
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(user=user)
         return queryset
+    
+    @action(detail=False, methods=['get'], url_path='filters')
+    def retireve_filter_data(self, request):
+        user = self.request.user
+        user_properties = RentalProperty.objects.filter(user=user)
+        states = user_properties.values_list('state', flat=True).distinct()
+        cities = user_properties.values_list('city', flat=True).distinct()
+        return Response({'states':states, 'cities':cities}, status=status.HTTP_200_OK)
+
     #GET: api/properties/{id}/units
     @action(detail=True, methods=['get'])
     def units(self, request, pk=None): 
@@ -733,8 +773,12 @@ class UnitViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     # pagination_class = CustomPagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
     search_fields = ['name']
+    ordering_fields = ['name', 'beds', 'baths', 'created_at', 'id']
+    filterset_fields = ['name', 'beds', 'baths']
+
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(user=user)
@@ -848,8 +892,11 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     serializer_class = MaintenanceRequestSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
     search_fields = ['description', 'status' ]
+    ordering_fields = ['status','created_at', 'id']
+    filterset_fields = ['status']
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(landlord=user)
@@ -973,8 +1020,11 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = RentalApplicationSerializer
     permission_classes =[ RentalApplicationCreatePermission]#TODO: Investigate why IsResourceOwner is not working
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    search_fields = ['first_name', 'last_name', 'email', 'phone_number' ]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    search_fields = ['first_name', 'last_name', 'email' ]
+    filterset_fields = ['first_name', 'last_name', 'email', 'phone_number' ]
+    ordering_fields = ['first_name', 'last_name', 'email', 'phone_number', 'created_at' ]
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(landlord=user)
@@ -1011,6 +1061,20 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             return Response({'message': 'Rental application rejected successfully.'})
         return Response({'message': 'You do not have the permissions to access this resource'})
     
+class LeaseTermViewSet(viewsets.ModelViewSet):
+    queryset = LeaseTerm.objects.all()
+    serializer_class = LeaseTermSerializer
+    permission_classes = [IsAuthenticated, IsResourceOwner]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['term', 'rent', 'security_deposit' ]
+    ordering_fields = ['term', 'rent', 'security_deposit' ]
+    filterset_fields = ['term', 'rent', 'security_deposit' ]
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset().filter(user=user)
+        return queryset
+
 
 #make a viewset for lease terms
 class LeaseTermCreateView(APIView):
@@ -1064,6 +1128,7 @@ class LeaseTermCreateView(APIView):
         lease_terms = LeaseTerm.objects.filter(user_id=user.id)
         serializer = LeaseTermSerializer(lease_terms, many=True)
         return Response(serializer.data,  status=status.HTTP_200_OK)
+
 
 #Create a class tto retrieve a lease term by its id and approval hash
 class RetrieveLeaseTermByIdViewAndApprovalHash(APIView):
@@ -1122,8 +1187,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated, IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['description', 'type' ]
+    ordering_fields = ['description', 'type', 'amount', 'created_at' ]
+    filterset_fields = ['description', 'type', 'created_at' ]
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(user=user)
