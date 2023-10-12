@@ -17,7 +17,8 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from keyflow_backend_app.views import (
-    UserViewSet, 
+    UserViewSet,
+    NotificationViewSet,
     RetrieveRentalApplicationByApprovalHash,
     TenantVerificationView, 
     SignLeaseAgreementView,
@@ -71,6 +72,7 @@ router.register(r'manage-lease', ManageTenantSubscriptionView, basename='manage_
 router.register(r'password-reset', PasswordResetTokenView, basename='password_reset')
 router.register(r'stripe', ManagePaymentMethodsView, basename='stripe')
 router.register(r'lease-terms', LeaseTermViewSet, basename='lease-terms')
+router.register(r'notifications', views.NotificationViewSet, basename='notifications')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

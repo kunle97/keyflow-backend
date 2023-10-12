@@ -17,8 +17,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views import View
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from .models import User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken, AccountActivationToken
-from .serializers import UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer
+from .models import Notification,User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken, AccountActivationToken
+from .serializers import NotificationSerializer,UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer
 from .permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission,RentalApplicationCreatePermission, PropertyDeletePermission, UnitDeletePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.pagination import PageNumberPagination
@@ -316,7 +316,30 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.id == request.user.id:
            return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+    #Create a function to retrieve a users Notifications
+    @action(detail=True, methods=['get'], url_path='notifications')
+    def notifications(self, request, pk=None):
+        user = self.get_object()
+        notifications = Notification.objects.filter(user=user)
+        serializer = NotificationSerializer(notifications, many=True)
+        if user.id == request.user.id:
+           return Response(serializer.data)
+        return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
  
+#Create a notification viewset that allows users to retrieve their notifications
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['message', 'is_read', 'type']
+    search_fields = ['message']
+    ordering_fields = ['user', 'is_read', 'timestamp']
+
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
+
 class LandlordTenantDetailView(APIView):   
     #POST: api/users/{id}/tenant
     #Create a function to retrieve a specific tenant for a specific landlord
@@ -427,6 +450,14 @@ class TenantRegistrationView(APIView):
             user.is_active = False
             user.save()
 
+            #Create a notification for the landlord that a tenant has been added
+            notification = Notification.objects.create(
+                user=landlord,
+                message=f'{user.first_name} {user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}',
+                type='tenant_registered',
+                title='Tenant Registered',
+            )
+
             #Retrieve unit from the request unit_id parameter
 
             unit.tenant = user
@@ -454,10 +485,10 @@ class TenantRegistrationView(APIView):
                 customer=customer.id,
             )
 
+            landlord = unit.user
             #TODO: implement secutrity deposit flow here. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
             if lease_term.security_deposit>0:
                 #Retrieve landlord from the unit
-                landlord = unit.user
                 security_deposit_payment_intent = stripe.PaymentIntent.create(
                     amount=int(lease_term.security_deposit*100),
                     currency='usd',
@@ -481,7 +512,7 @@ class TenantRegistrationView(APIView):
                     }
 
                 )
-                
+
                 #create a transaction object for the security deposit
                 security_deposit_transaction = Transaction.objects.create(
                     type = 'revenue',
@@ -495,81 +526,95 @@ class TenantRegistrationView(APIView):
                     payment_intent_id=security_deposit_payment_intent.id,
 
                 )
-                subscription=None
-                if lease_term.grace_period != 0:      
-                    # Convert the ISO date string to a datetime object
-                    start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")
-                    
-                    # Number of months to add
-                    months_to_add = lease_term.grace_period
-                    
-                    # Calculate the end date by adding months
-                    end_date = start_date + relativedelta(months=months_to_add)
-                    
-                    # Convert the end date to a Unix timestamp
-                    grace_period_end = int(end_date.timestamp())
-                    subscription = stripe.Subscription.create(
-                        customer=customer.id,
-                        items=[
-                            {"price": lease_term.stripe_price_id},
-                        ],
-                        
-                        default_payment_method=payment_method_id,
-                        trial_end=grace_period_end,
-                        transfer_data={
-                            "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
-                         },
-                         #Cancel the subscription after at the end date specified by lease term
-                        cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
-                        metadata={
-                            "type": "revenue",
-                            "description": f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}',
-                            "user_id": user.id,
-                            "tenant_id":user.id,
-                            "landlord_id": landlord.id,
-                            "rental_property_id": unit.rental_property.id,
-                            "rental_unit_id": unit.id,
-                            "payment_method_id": data['payment_method_id'],
-                        }
-                    )
+                #Create a notification for the landlord that the security deposit has been paid
+                notification = Notification.objects.create(
+                    user=landlord,
+                    message=f'{user.first_name} {user.last_name} has paid the security deposit for the amount of ${lease_term.security_deposit} for unit {unit.name} at {unit.rental_property.name}',
+                    type='security_deposit_paid',
+                    title='Security Deposit Paid',
+                )
+
+            subscription=None
+            if lease_term.grace_period != 0:      
+                # Convert the ISO date string to a datetime object
+                start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")
                 
-                else:
-                    grace_period_end = lease_agreement.start_date
-                    #Create a stripe subscription for the user and make a default payment method
-                    subscription = stripe.Subscription.create(
-                        customer=customer.id,
-                        items=[
-                            {"price": lease_term.stripe_price_id},
-                        ],
-                        default_payment_method=payment_method_id,
-                        transfer_data={
-                            "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
-                         },
-                        cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
-                        metadata={
-                            "type": "revenue",
-                            "description": f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}',
-                            "user_id": user.id,
-                            "tenant_id": user.id,
-                            "landlord_id": landlord.id,
-                            "rental_property_id": unit.rental_property.id,
-                            "rental_unit_id": unit.id,
-                            "payment_method_id": data['payment_method_id'],
-                        }
-                    )
-                    #create a transaction object for the rent payment (stripe subscription)
-                    subscription_transaction = Transaction.objects.create(
-                        type = 'revenue',
-                        description = f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}',
-                        rental_property = unit.rental_property,
-                        rental_unit = unit,
-                        user=landlord,
-                        tenant=user,
-                        amount=int(lease_term.rent),
-                        payment_method_id=data['payment_method_id'],
-                        payment_intent_id="subscription",
-                    )
-            
+                # Number of months to add
+                months_to_add = lease_term.grace_period
+                
+                # Calculate the end date by adding months
+                end_date = start_date + relativedelta(months=months_to_add)
+                
+                # Convert the end date to a Unix timestamp
+                grace_period_end = int(end_date.timestamp())
+                subscription = stripe.Subscription.create(
+                    customer=customer.id,
+                    items=[
+                        {"price": lease_term.stripe_price_id},
+                    ],
+                    
+                    default_payment_method=payment_method_id,
+                    trial_end=grace_period_end,
+                    transfer_data={
+                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        },
+                        #Cancel the subscription after at the end date specified by lease term
+                    cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
+                    metadata={
+                        "type": "revenue",
+                        "description": f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}',
+                        "user_id": user.id,
+                        "tenant_id":user.id,
+                        "landlord_id": landlord.id,
+                        "rental_property_id": unit.rental_property.id,
+                        "rental_unit_id": unit.id,
+                        "payment_method_id": data['payment_method_id'],
+                    }
+                )               
+            else:
+                grace_period_end = lease_agreement.start_date
+                #Create a stripe subscription for the user and make a default payment method
+                subscription = stripe.Subscription.create(
+                    customer=customer.id,
+                    items=[
+                        {"price": lease_term.stripe_price_id},
+                    ],
+                    default_payment_method=payment_method_id,
+                    transfer_data={
+                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        },
+                    cancel_at=int(datetime.fromisoformat(f"{lease_agreement.end_date}").timestamp()),
+                    metadata={
+                        "type": "revenue",
+                        "description": f'{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}',
+                        "user_id": user.id,
+                        "tenant_id": user.id,
+                        "landlord_id": landlord.id,
+                        "rental_property_id": unit.rental_property.id,
+                        "rental_unit_id": unit.id,
+                        "payment_method_id": data['payment_method_id'],
+                    }
+                )
+                #Create a notification for the landlord that the tenant has paid the fisrt month's rent
+                notification = Notification.objects.create(
+                    user=landlord,
+                    message=f'{user.first_name} {user.last_name} has paid the first month\'s rent for the amount of ${lease_term.rent} for unit {unit.name} at {unit.rental_property.name}',
+                    type='first_month_rent_paid',
+                    title='First Month\'s Rent Paid',
+                )
+                #create a transaction object for the rent payment (stripe subscription)
+                subscription_transaction = Transaction.objects.create(
+                    type = 'revenue',
+                    description = f'{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}',
+                    rental_property = unit.rental_property,
+                    rental_unit = unit,
+                    user=landlord,
+                    tenant=user,
+                    amount=int(lease_term.rent),
+                    payment_method_id=data['payment_method_id'],
+                    payment_intent_id="subscription",
+                )
+        
 
             #add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id
@@ -689,7 +734,14 @@ class SignLeaseAgreementView(APIView):
         unit = RentalUnit.objects.get(id=unit_id)
         unit.is_occupied = True
         unit.save()
-
+        
+        #Create a notification for the landlord that the tenant has signed the lease agreement
+        notification = Notification.objects.create(
+            user=lease_agreement.user,
+            message=f'{lease_agreement.tenant.first_name} {lease_agreement.tenant.last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}',
+            type='lease_agreement_signed',
+            title='Lease Agreement Signed',
+        )
 
         #return a response for the lease being signed successfully
         return Response({'message': 'Lease signed successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
@@ -943,6 +995,14 @@ class TenantViewSet(viewsets.ModelViewSet):
             payment_intent_id=payment_intent.id,
         )
 
+        #Create a notification for the landlord that the tenant has paid the rent
+        notification = Notification.objects.create(
+            user=landlord,
+            message=f'{tenant.first_name} {tenant.last_name} has paid rent for the amount of ${amount} for unit {unit.name} at {unit.rental_property.name}',
+            type='rent_paid',
+            title='Rent Paid',
+        )
+
         #serialize transaction object and return it
         serializer = TransactionSerializer(transaction)
         transaction_data = serializer.data
@@ -957,6 +1017,8 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant = self.get_object()
         if tenant.user != request.user:
             return Response({'detail': 'You do not have permission to renew this lease.'}, status=status.HTTP_403_FORBIDDEN)
+
+        #TODO: Add logic to create notification
 
         # Logic for renewing lease
         lease = LeaseAgreement.objects.create(
@@ -993,6 +1055,8 @@ class TenantViewSet(viewsets.ModelViewSet):
             # If there's less than 30 days remaining, the lease can't be cancelled
             return Response({'detail': 'Lease cannot be cancelled with less than 30 days remaining.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # TODO: Create a notification for the landlord that the tenant has requested a lease cancellation
+
         # Create a cancellation request
         cancellation_request = LeaseCancellationRequest.objects.create(
             tenant=tenant,
@@ -1025,10 +1089,36 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     search_fields = ['first_name', 'last_name', 'email' ]
     filterset_fields = ['first_name', 'last_name', 'email', 'phone_number' ]
     ordering_fields = ['first_name', 'last_name', 'email', 'phone_number', 'created_at' ]
+    
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(landlord=user)
         return queryset
+    
+    #Create a method to create a rental application for a specific unit that also creat a notification for the landlord
+    @action(detail=True, methods=['post'], url_path='create-rental-application')
+    def create_rental_application(self, request, pk=None):
+        data = request.data.copy()
+        unit = self.get_object()
+        user = User.objects.get(id=data['user_id'])
+        rental_application = RentalApplication.objects.create(
+            unit=unit,
+            user=user,
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            email=data['email'],
+            phone_number=data['phone_number'],
+            approval_hash=data['approval_hash'],
+        )
+        #Create a notification for the landlord that a new rental application has been submitted
+        notification = Notification.objects.create(
+            user=unit.user,
+            message=f'{user.first_name} {user.last_name} has submitted a rental application for unit {unit.name} at {unit.rental_property.name}',
+            type='rental_application_submitted',
+            title='Rental Application Submitted',
+        )
+        return Response({'message': 'Rental application created successfully.'})
+
     #Create method to delete all rental applications for a specific unit
     @action(detail=True, methods=['delete'], url_path='delete-remaining-rental-applications')
     def delete_remaining_rental_applications(self, request, pk=None):
