@@ -85,6 +85,7 @@ urlpatterns = [
     path('api/auth/tenant/register/retrieve-rental-application/', RetrieveRentalApplicationByApprovalHash.as_view(), name='tenant_register_verify'),
     path('api/plaid/create-link-token/', PlaidLinkTokenView.as_view(), name='create_plaid_link_token'),
     path('api/test_token', views.test_token, name='test_token'),
+    path('api/landlords-emails/', views.get_landlord_emails, name='landlord_emails'),
     path('api/sign-lease-agreement/',SignLeaseAgreementView.as_view(), name='sign_lease'),
     path('api/retrieve-lease-term-and-approval/',RetrieveLeaseTermByIdViewAndApprovalHash.as_view(), name='retrieve_lease_agreement-approval'),
     path('api/retrieve-lease-agreement-approval/',RetrieveLeaseAgreementByIdAndApprovalHashView.as_view(), name='retrieve_lease_agreement'),

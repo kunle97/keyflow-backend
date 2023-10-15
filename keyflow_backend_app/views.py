@@ -156,24 +156,24 @@ class UserRegistrationView(APIView):
 class RetrieveLandlordSubscriptionPriceView(APIView):
     def post(self, request):
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
-        product1 = stripe.Product.retrieve("prod_OkG5FJoG1wZUyt")
-        product2 = stripe.Product.retrieve("prod_OkG8eb8RuNyOO5")
-        price1 = stripe.Price.retrieve(product1.default_price)
-        price2 = stripe.Price.retrieve(product2.default_price)
+        standard_plan_product = stripe.Product.retrieve("prod_OkG5FJoG1wZUyt")
+        pro_plan_product = stripe.Product.retrieve("prod_Op6uc8RCVCv78W")
+        standard_plan_price = stripe.Price.retrieve(standard_plan_product.default_price)
+        pro_plan_price = stripe.Price.retrieve(pro_plan_product.default_price)
         serialized_products = [{
-            'product_id': product1.id,
-            'name': product1.name,
-            'price': price1.unit_amount / 100,  # Convert to dollars
-            'price_id': price1.id,
-            'features': product1.features,
-            'billing_scheme':price1.recurring
+            'product_id': standard_plan_product.id,
+            'name': standard_plan_product.name,
+            'price': standard_plan_price.unit_amount / 100,  # Convert to dollars
+            'price_id': standard_plan_price.id,
+            'features': standard_plan_product.features,
+            'billing_scheme':standard_plan_price.recurring
         },{
-            'product_id': product2.id,
-            'name': product2.name,
-            'price': price2.unit_amount / 100,  # Convert to dollars
-            'price_id': price2.id,
-            'features': product2.features,
-            'billing_scheme': price2.recurring
+            'product_id': pro_plan_product.id,
+            'name': pro_plan_product.name,
+            'price': pro_plan_price.unit_amount / 100,  # Convert to dollars
+            'price_id': pro_plan_price.id,
+            'features': pro_plan_product.features,
+            'billing_scheme': pro_plan_price.recurring
         }]
         return Response({'products':serialized_products}, status=status.HTTP_200_OK)
 
@@ -202,6 +202,29 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'message': 'Password changed successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
         return Response({'message': 'Error changing password.'}, status=status.HTTP_400_BAD_REQUEST)
         
+    #Create a function to retrieve a landlord user's stripe subscription using the user's stripe customer id
+    #GET: api/users/{id}/landlord-subscriptions
+    @action(detail=True, methods=['get'], url_path='landlord-subscriptions')
+    def landlord_subscriptions(self, request, pk=None):
+        user = self.get_object()
+        #check if user is landlord. If not return error
+        if user.account_type != 'landlord':
+            return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
+        customer_id = user.stripe_customer_id
+        customer = stripe.Customer.retrieve(customer_id)
+        # Retrieve the customer's subscriptions using the list method
+        subscriptions = stripe.Subscription.list(customer=customer_id)
+        landlord_subscription = None
+        for subscription in  subscriptions.auto_paging_iter():
+            if subscription.status == "active":  # You can use any criteria to identify the subscription
+                 # This is the customer's active subscription
+                landlord_subscription = subscription
+                break
+        if(landlord_subscription):
+            return Response({'subscriptions': landlord_subscription}, status=status.HTTP_200_OK)
+        else:
+            return Response({'subscriptions': None, "message":"No active subscription found for this customer."}, status=status.HTTP_200_OK)
 
     #GET: api/users/{id}/properties
     @action(detail=True, methods=['get'])
@@ -325,6 +348,59 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.id == request.user.id:
            return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
+   
+    #Create a function to chagne a user's stripe susbcription plan
+    @action(detail=True, methods=['post'], url_path='change-subscription-plan')
+    def change_subscription_plan(self, request, pk=None):
+        user = self.get_object()
+        data = request.data.copy()
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
+        #retrieve the customer's subscription
+        subscription = stripe.Subscription.retrieve(data['subscription_id'])
+        current_product_id = subscription['items']['data'][0]['price']['product']
+
+        #Check if the product id from the current subscription matches the product id from the request and return an error that this current plan is already active
+        if current_product_id == data['product_id']:
+            return Response({'message': 'This subscription is already active.', 'status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        
+        #Check if the product id from the current subscription is equal to os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID') then check if the user has 10 or more units. If they do return an error that they cannot downgrade to the standard plan 
+        if current_product_id == os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID') and data['product_id'] == os.getenv('STRIPE_STANDARD_PLAN_PRODUCT_ID'):
+            #Retrieve the user's units
+            units = RentalUnit.objects.filter(user=user)
+            if units.count() > 10:
+                return Response({'message': 'You cannot downgrade to the standard plan with more than 10 units.', 'status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+
+        #check if the product id from the request is equal to os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID') and update the subscription item to the new price id and quantity of units
+        if data['product_id'] == os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID'):
+            #Retrieve the user's units
+            units = RentalUnit.objects.filter(user=user)
+            #Update the subscription item to the new price id and quantity of units
+            stripe.SubscriptionItem.modify(
+                subscription['items']['data'][0].id,
+                price=data['price_id'],
+                quantity=units.count(),
+            )
+            #modify the subscription metadata field product_id
+            stripe.Subscription.modify(
+                subscription.id,
+                metadata={'product_id': data['product_id']},
+            )
+            #Return a success message
+            return Response({'subscription': subscription,'message': 'Subscription plan changed successfully.',"status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+
+
+        stripe.SubscriptionItem.modify(
+            subscription['items']['data'][0].id,
+            price=data['price_id'],
+        )
+
+        #modify the subscription metadata field product_id
+        stripe.Subscription.modify(
+            subscription.id,
+            metadata={'product_id': data['product_id']},
+        )
+
+        return Response({'subscription': subscription,'message': 'Subscription plan changed successfully.',"status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
  
 #Create a notification viewset that allows users to retrieve their notifications
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -831,6 +907,82 @@ class UnitViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'beds', 'baths', 'created_at', 'id']
     filterset_fields = ['name', 'beds', 'baths']
 
+    #Make a create function that creates a unit with all of the expected values as well as a subscription_id to check to see what subscription plan thee user has
+    def create(self, request):
+        data = request.data.copy()
+        user = request.user 
+        rental_property = data['rental_property']
+        subscription_id = data['subscription_id']
+        product_id = data['product_id']
+        units = json.loads(data['units']) #Retrieve the javascript object from from the request in the 'units' property and convert it to a python object 
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
+        subscription = stripe.Subscription.retrieve( 
+            subscription_id, #Retrieve the subscription from stripe
+        )
+
+        #If user has the premium plan, check to see if they have 10 or less units
+        if product_id == os.getenv('STRIPE_STANDARD_PLAN_PRODUCT_ID'):
+            if RentalUnit.objects.filter(user=user).count() >= 10 or len(units) > 10 or len(units) + RentalUnit.objects.filter(user=user).count() > 10:
+                return Response({'message': 'You have reached the maximum number of units for your subscription plan. Please upgrade to a higher plan.'}, status=status.HTTP_400_BAD_REQUEST)
+            #Create the unit
+            for unit in units:
+                RentalUnit.objects.create(
+                    rental_property_id=rental_property,
+                    user=user,
+                    name=unit['name'],
+                    beds=unit['beds'],
+                    baths=unit['baths'],
+                    size=unit['size'],  
+                )
+
+            return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
+        
+        #If user has the pro plan, increase the metered usage for the user based on the new number of units
+        if product_id == os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID'):
+            #Create the unit 
+            for unit in units:
+                RentalUnit.objects.create(
+                    rental_property_id=rental_property,
+                    user=user,
+                    name=unit['name'],
+                    beds=unit['beds'],
+                    baths=unit['baths'],
+                    size=unit['size'],  
+                )
+            #Update the subscriptions quantity to the new number of units
+            subscription_item=stripe.SubscriptionItem.modify(
+                subscription['items']['data'][0].id,
+                quantity=RentalUnit.objects.filter(user=user).count(),
+            )
+            return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
+        return Response({"message","error Creating unit"}, status=status.HTTP_400_BAD_REQUEST)
+    #Create a function that override the dlete function to delete the unit and decrease the metered usage for the user
+    def destroy(self, request, pk=None):
+        unit = self.get_object()
+        user = request.user
+        data = request.data.copy()
+        product_id = data['product_id']
+        subscription_id = data['subscription_id']
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
+        subscription = stripe.Subscription.retrieve( 
+            subscription_id, #Retrieve the subscription from stripe
+        )
+        
+ 
+        #If user has the pro plan, decrease the metered usage for the user
+        if product_id == os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID'):
+            #Retrieve the subscription item from the subscription and Update the subscriptions quantity to the new number of units
+            subscription_item = stripe.SubscriptionItem.modify(
+                subscription['items']['data'][0].id,
+                quantity=RentalUnit.objects.filter(user=user).count() - 1,
+            )
+            unit.delete()
+            return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+        elif product_id == os.getenv('STRIPE_STANDARD_PLAN_PRODUCT_ID'): #If user has the premium plan, delete the unit
+            unit.delete()
+            return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+
+        return Response({"message","error deleting unit"}, status=status.HTTP_400_BAD_REQUEST) 
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(user=user)
@@ -1664,7 +1816,7 @@ class StripeWebhookView(View):
             print(subscription)
         return JsonResponse({'status': 'ok'})
 
-
+#----------TEST FUNCTIONS ----------------
 
 #test to see if tooken is valid and return user info
 @api_view(['GET'])
@@ -1673,3 +1825,16 @@ class StripeWebhookView(View):
 def test_token(request):
     return Response("passed for {}".format(request.user.username))
 
+#Create a function to retrieve all landlord userss emails
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# @authentication_classes([TokenAuthentication, SessionAuthentication])   
+def get_landlord_emails(request):
+    #Retrieve all landlord users
+    landlords = User.objects.filter(account_type='landlord')
+    #Create a list of landlord emails
+    landlord_emails = []
+    for landlord in landlords:
+        landlord_emails.append(landlord.email)
+    #Return a response
+    return Response(landlord_emails, status=status.HTTP_200_OK)
