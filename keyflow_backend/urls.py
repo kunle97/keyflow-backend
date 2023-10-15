@@ -16,48 +16,86 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from keyflow_backend_app.views import (
+from keyflow_backend_app.views.auth  import (
     UserViewSet,
-    NotificationViewSet,
-    RetrieveRentalApplicationByApprovalHash,
-    TenantVerificationView, 
-    SignLeaseAgreementView,
-    UserActivationView,
-    PropertyViewSet, 
-    UnitViewSet, 
-    LeaseAgreementViewSet, 
-    MaintenanceRequestViewSet,
-    UserRegistrationView, 
-    LeaseCancellationRequestViewSet, 
-    UserLoginView, UserLogoutView, 
-    TenantRegistrationView,
-    TransactionViewSet, 
-    LeaseTermCreateView,
-    DeleteLeaseTermByIdView,
-    RentalApplicationViewSet, 
-    PlaidLinkTokenView,
-    RetrieveLeaseTermByIdViewAndApprovalHash,
-    RetrieveLeaseAgreementByIdAndApprovalHashView,
-    RetrieveLeaseTermByIdView,
-    RetrieveLeaseTermByUnitView,
-    RetrieveUnitByIdView,
-    RetrieveTenantDashboardData,
-    RetrievePropertyByIdView,
-    TenantViewSet,
-    LeaseTermViewSet,
-    ManageTenantSubscriptionView,
-    PasswordResetTokenView,
-    StripeWebhookView,
+    UserLoginView, 
+    UserLogoutView, 
+    UserRegistrationView,
+    UserActivationView
+)
+from keyflow_backend_app.views.landlords import (
     LandlordTenantDetailView,
     LandlordTenantListView,
+)
+from keyflow_backend_app.views.lease_agreements import (
+    LeaseAgreementViewSet,
+    SignLeaseAgreementView,
+    RetrieveLeaseAgreementByIdAndApprovalHashView,
+    LeaseCancellationRequestViewSet,
+)
+from keyflow_backend_app.views.lease_terms import (
+    LeaseTermViewSet,
+    LeaseTermCreateView,
+    DeleteLeaseTermByIdView,
+    RetrieveLeaseTermByIdView,
+    RetrieveLeaseTermByUnitView,
+    RetrieveLeaseTermByIdViewAndApprovalHash,
+)
+from keyflow_backend_app.views.maintenance_requests import (
+    MaintenanceRequestViewSet,
+)   
+from keyflow_backend_app.views.manage_subscriptions import (
+    ManageTenantSubscriptionView,
+    RetrieveLandlordSubscriptionPriceView,
+)
+from keyflow_backend_app.views.notifications import (
+    NotificationViewSet,
+)
+from keyflow_backend_app.views.passwords import (
+    PasswordResetTokenView,
+)
+from keyflow_backend_app.views.payment_methods import (
     ManagePaymentMethodsView,
-    RetrieveLandlordSubscriptionPriceView
-    )
-from keyflow_backend_app import views
+    AddCardPaymentMethodView,
+    ListPaymentMethodsView,
+)
+from keyflow_backend_app.views.plaid import (
+    PlaidLinkTokenView,
+)
+from keyflow_backend_app.views.properties import (
+    PropertyViewSet,
+    RetrievePropertyByIdView,
+)
+from keyflow_backend_app.views.rental_applications import (
+    RentalApplicationViewSet,
+    RetrieveRentalApplicationByApprovalHash,
+)
+from keyflow_backend_app.views.units import (
+    UnitViewSet,
+    RetrieveUnitByIdView,
+)
+from keyflow_backend_app.views.tenants import (
+    TenantViewSet,
+    TenantRegistrationView,
+    TenantVerificationView,
+    RetrieveTenantDashboardData,
+)
+from keyflow_backend_app.views.transactions import (
+    TransactionViewSet,
+)
+
+from keyflow_backend_app.views.stripe import (
+    StripeWebhookView,
+)
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from keyflow_backend_app.views.dev import (
+    test_token,
+    get_landlord_emails,
+)
+
 router = DefaultRouter()
 router.register(r'users', UserViewSet,  basename='users')
 router.register(r'properties', PropertyViewSet, basename='rental_properties')
@@ -72,7 +110,7 @@ router.register(r'manage-lease', ManageTenantSubscriptionView, basename='manage_
 router.register(r'password-reset', PasswordResetTokenView, basename='password_reset')
 router.register(r'stripe', ManagePaymentMethodsView, basename='stripe')
 router.register(r'lease-terms', LeaseTermViewSet, basename='lease-terms')
-router.register(r'notifications', views.NotificationViewSet, basename='notifications')
+router.register(r'notifications', NotificationViewSet, basename='notifications')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -84,8 +122,8 @@ urlpatterns = [
     path('api/auth/tenant/register/verify/', TenantVerificationView.as_view(), name='tenant_register_verify'),
     path('api/auth/tenant/register/retrieve-rental-application/', RetrieveRentalApplicationByApprovalHash.as_view(), name='tenant_register_verify'),
     path('api/plaid/create-link-token/', PlaidLinkTokenView.as_view(), name='create_plaid_link_token'),
-    path('api/test_token', views.test_token, name='test_token'),
-    path('api/landlords-emails/', views.get_landlord_emails, name='landlord_emails'),
+    path('api/test_token', test_token, name='test_token'), 
+    path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),
     path('api/sign-lease-agreement/',SignLeaseAgreementView.as_view(), name='sign_lease'),
     path('api/retrieve-lease-term-and-approval/',RetrieveLeaseTermByIdViewAndApprovalHash.as_view(), name='retrieve_lease_agreement-approval'),
     path('api/retrieve-lease-agreement-approval/',RetrieveLeaseAgreementByIdAndApprovalHashView.as_view(), name='retrieve_lease_agreement'),
