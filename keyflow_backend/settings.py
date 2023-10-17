@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_filters'
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -79,7 +79,7 @@ TEMPLATES = [
     },
 ]
 
-AUTH_USER_MODEL = 'keyflow_backend_app.User'
+AUTH_USER_MODEL = 'keyflow_backend_app.user'
 
 WSGI_APPLICATION = 'keyflow_backend.wsgi.application'
 

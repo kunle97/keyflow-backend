@@ -11,14 +11,29 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from ..models  import Notification,User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken, AccountActivationToken
-from ..serializers import NotificationSerializer,UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer, RentalApplicationSerializer
+from ..models.notification  import Notification
+from ..models.user  import User
+from ..models.rental_property  import RentalProperty
+from ..models.rental_unit import RentalUnit
+from ..models.maintenance_request  import MaintenanceRequest
+from ..models.lease_term  import LeaseTerm
+from ..models.transaction  import Transaction
+from ..models.rental_application  import RentalApplication
+from ..models.account_activation_token  import AccountActivationToken
+from ..serializers.notification_serializer import NotificationSerializer
+from ..serializers.user_serializer import UserSerializer 
+from ..serializers.rental_property_serializer   import RentalPropertySerializer
+from ..serializers.rental_unit_serializer import RentalUnitSerializer
+from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer
+from ..serializers.lease_term_serializer import LeaseTermSerializer
+from ..serializers.transaction_serializer import TransactionSerializer
+from ..serializers.rental_application_serializer import RentalApplicationSerializer
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from ..serializers import RentalApplicationSerializer
 import stripe
 load_dotenv()
 #create a login endpoint
@@ -185,7 +200,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def properties(self, request, pk=None): 
         user = self.get_object()
         properties = RentalProperty.objects.filter(user_id=user.id)
-        serializer = PropertySerializer(properties, many=True)
+        serializer = RentalPropertySerializer(properties, many=True)
         if user.id == request.user.id:
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)

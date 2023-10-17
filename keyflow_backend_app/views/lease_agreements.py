@@ -9,8 +9,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from ..models import Notification, RentalUnit, LeaseAgreement, LeaseCancellationRequest
-from ..serializers import  LeaseAgreementSerializer,LeaseCancellationRequestSerializer
+from ..models.notification import Notification
+from ..models.rental_unit import RentalUnit
+from ..models.lease_agreement import LeaseAgreement
+from ..models.lease_cancelleation_request import LeaseCancellationRequest
+from ..models.rental_application import RentalApplication
+from ..serializers.lease_agreement_serializer import  LeaseAgreementSerializer
+from ..serializers.lease_cancellation_request_serializer import  LeaseCancellationRequestSerializer
 from ..permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, ResourceCreatePermission
 from rest_framework import serializers
 from rest_framework import status
@@ -50,16 +55,18 @@ class SignLeaseAgreementView(APIView):
         lease_agreement.save()
 
 
-
         #retrieve the unit object and set the is_occupied field to true
         unit = RentalUnit.objects.get(id=unit_id)
         unit.is_occupied = True
         unit.save()
         
+        #Retrieve tenantfirst and last name from the rental application using  the approval hash
+        rental_application = RentalApplication.objects.filter(approval_hash=approval_hash).first()
+        print(f'zx Rental applicatnt {rental_application.first_name} {rental_application.last_name}')
         #Create a notification for the landlord that the tenant has signed the lease agreement
         notification = Notification.objects.create(
             user=lease_agreement.user,
-            message=f'{lease_agreement.tenant.first_name} {lease_agreement.tenant.last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}',
+            message=f'{rental_application.first_name} {rental_application.last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}',
             type='lease_agreement_signed',
             title='Lease Agreement Signed',
         )

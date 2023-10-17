@@ -1,46 +1,28 @@
-import os
-from dotenv import load_dotenv
-from datetime import timedelta, timezone, datetime
-import json
-from django.http import JsonResponse
-from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets
-from django.contrib.auth.hashers import make_password
-from rest_framework.decorators import action, authentication_classes, permission_classes, api_view
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth import get_user_model
-from django.views.decorators.csrf import csrf_exempt
-from django.views import View
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from ..models import Notification,User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken, AccountActivationToken
-from ..serializers import NotificationSerializer,UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer
-from ..permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission,RentalApplicationCreatePermission, PropertyDeletePermission, UnitDeletePermission
+from ..models.user import User
+from ..models.rental_property import  RentalProperty
+from ..models.rental_unit import  RentalUnit
+from ..serializers.user_serializer import UserSerializer
+from ..serializers.rental_property_serializer import RentalPropertySerializer
+from ..serializers.rental_unit_serializer import RentalUnitSerializer
+from ..permissions import IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.pagination import PageNumberPagination
-from rest_framework import filters, serializers
+from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from ..serializers import RentalApplicationSerializer
-from datetime import datetime, timedelta
-import stripe
-import plaid
-from plaid.model.link_token_create_request import LinkTokenCreateRequest
-from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-from plaid.model.products import Products
-from plaid.model.country_code import CountryCode
-
-load_dotenv()
 
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
-    serializer_class = PropertySerializer
+    serializer_class = RentalPropertySerializer
     permission_classes = [ IsAuthenticated, IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     # pagination_class = CustomPagination
@@ -48,7 +30,10 @@ class PropertyViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'street', 'created_at', 'id', 'state' ]
     search_fields = ['name', 'street' ]
     filterset_fields = ['city', 'state']
-
+    def get_serializer_context(self):
+            # Make sure you include the context in the serializer instance
+            return {'request': self.request}
+    
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(user=user)
@@ -84,7 +69,7 @@ class RetrievePropertyByIdView(APIView):
         print(f'zx Property id: {property_id}')
         property = RentalProperty.objects.get(id=property_id)
         print(f'zx Property: {property}')
-        serializer = PropertySerializer(property)
+        serializer = RentalPropertySerializer(property)
         response_data = serializer.data
         return Response(response_data, status=status.HTTP_200_OK)
 

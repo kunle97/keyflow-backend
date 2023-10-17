@@ -2,10 +2,9 @@ from rest_framework.decorators import authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from ..models import User
+from ..models.user import User
 
 #----------TEST FUNCTIONS ----------------
 

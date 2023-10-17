@@ -1,39 +1,24 @@
 
-import os
-from dotenv import load_dotenv
-from datetime import timedelta, timezone, datetime
-import json
-from django.http import JsonResponse
-from dateutil.relativedelta import relativedelta
-from rest_framework import viewsets
-from django.contrib.auth.hashers import make_password
-from rest_framework.decorators import action, authentication_classes, permission_classes, api_view
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.authtoken.models import Token
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from django.contrib.auth import get_user_model
-from django.views.decorators.csrf import csrf_exempt
-from django.views import View
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
-from ..models import Notification,User, RentalProperty, RentalUnit, LeaseAgreement, MaintenanceRequest, LeaseCancellationRequest, LeaseTerm, Transaction, RentalApplication, PasswordResetToken, AccountActivationToken
-from ..serializers import NotificationSerializer,UserSerializer, PropertySerializer, RentalUnitSerializer, LeaseAgreementSerializer, MaintenanceRequestSerializer, LeaseCancellationRequestSerializer, LeaseTermSerializer, TransactionSerializer,PasswordResetTokenSerializer, RentalApplicationSerializer, RentalApplicationSerializer
-from ..permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, DisallowUserCreatePermission, PropertyCreatePermission, ResourceCreatePermission,RentalApplicationCreatePermission, PropertyDeletePermission, UnitDeletePermission
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.pagination import PageNumberPagination
-from rest_framework import filters, serializers
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from datetime import datetime, timedelta
-import stripe
-import plaid
-from plaid.model.link_token_create_request import LinkTokenCreateRequest
-from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-from plaid.model.products import Products
-from plaid.model.country_code import CountryCode
+from ..models.user import User
+from ..models.rental_property import RentalProperty
+from ..models.rental_unit import RentalUnit
+from ..models.lease_agreement import LeaseAgreement
+from ..models.maintenance_request import MaintenanceRequest
+from ..models.transaction import Transaction
+from ..serializers.user_serializer import  UserSerializer 
+from ..serializers.rental_property_serializer import  RentalPropertySerializer 
+from ..serializers.rental_unit_serializer import  RentalUnitSerializer 
+from ..serializers.lease_agreement_serializer import  LeaseAgreementSerializer 
+from ..serializers.maintenance_request_serializer import  MaintenanceRequestSerializer 
+from ..serializers.transaction_serializer import TransactionSerializer
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 
 
 class LandlordTenantDetailView(APIView):   
@@ -64,7 +49,7 @@ class LandlordTenantDetailView(APIView):
 
         user_serializer = UserSerializer(tenant, many=False)
         unit_serializer = RentalUnitSerializer(unit, many=False)
-        property_serializer = PropertySerializer(rental_property, many=False)
+        rental_property_serializer = RentalPropertySerializer(rental_property, many=False)
         lease_agreement_serializer = LeaseAgreementSerializer(lease_agreement, many=False)
         transaction_serializer = TransactionSerializer(transactions, many=True)
         maintenance_request_serializer = MaintenanceRequestSerializer(maintenance_requests, many=True)
@@ -77,7 +62,7 @@ class LandlordTenantDetailView(APIView):
             return Response(
                 {'tenant':user_serializer.data, 
                  'unit':unit_serializer.data, 
-                 'property':property_serializer.data, 
+                 'property':rental_property_serializer.data, 
                  'lease_agreement':lease_agreement_serializer.data,
                  'transactions':transaction_serializer.data,
                  'maintenance_requests':maintenance_request_serializer.data,
