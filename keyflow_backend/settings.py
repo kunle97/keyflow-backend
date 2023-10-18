@@ -93,7 +93,7 @@ DATABASES = {
         'NAME': 'keyflow_db',
         'USER': 'postgres',
         'PASSWORD': 'password',
-        'HOST': 'localhost',
+        'HOST': 'db', #use 'db' host  for docker use 'localhost' when running on local 
         'PORT': '5432',
     }
 }
