@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.sqlite3
+*.log
+*.git
+*.gitignore
+*.vscode
+*.idea
+*.egg-info
+*.egg
+node_modules
+*.npm
+*.yarn
+*.bower
+*.sass-cache
