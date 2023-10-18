@@ -2,8 +2,9 @@
 FROM python:3.9
 
 # Set environment variables
+ENV PYTHONPATH "${PYTHONPATH}:/backend"
 ENV PYTHONUNBUFFERED 1
-ENV DJANGO_SETTINGS_MODULE=keyflow_backend_app.settings
+ENV DJANGO_SETTINGS_MODULE=keyflow_backend.settings
 
 # Set the working directory in the container
 WORKDIR /app
