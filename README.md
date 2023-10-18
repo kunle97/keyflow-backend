@@ -14,7 +14,7 @@ In order to get started you will need to install docker
 
 1. run `docker compose up --build`
 2. Migrate the database in docker using `docker compose run web python manage.py migrate`
-3. Backend sohould now be running in a container. If you want to rerun the server after shutdown just run `docker compose up`
+3. Backend should now be running in a container. If you want to rerun the server after shutdown just run `docker compose up --build`
 
 ## Additional setup
 - If you are geettign a CORS error on the front end make sure to add the `ALLOWED_HOSTS` array to settings.py and add `http://localhost:3000` or whatever port the react application is running on.
