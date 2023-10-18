@@ -13,7 +13,7 @@ In order to get started you will need a few dependancies to run the application
 In order to get started you will need to install docker
 
 1. run `docker compose up --build`
-2. Migrate the database in docker using `docker compose run web python src/profiles_project/manage.py migrate`
+2. Migrate the database in docker using `docker compose run web python path/to/manage.py migrate`
 3. Backend sohould now be running in a container. If you want to rerun the server after shutdown just run `docker compose up`
 
 ## Additional setup
