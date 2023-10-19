@@ -94,6 +94,8 @@ from rest_framework_simplejwt.views import (
 from keyflow_backend_app.views.dev import (
     test_token,
     get_landlord_emails,
+    generate_properties,
+    generate_units
 )
 
 router = DefaultRouter()
@@ -122,8 +124,6 @@ urlpatterns = [
     path('api/auth/tenant/register/verify/', TenantVerificationView.as_view(), name='tenant_register_verify'),
     path('api/auth/tenant/register/retrieve-rental-application/', RetrieveRentalApplicationByApprovalHash.as_view(), name='tenant_register_verify'),
     path('api/plaid/create-link-token/', PlaidLinkTokenView.as_view(), name='create_plaid_link_token'),
-    path('api/test_token', test_token, name='test_token'), 
-    path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),
     path('api/sign-lease-agreement/',SignLeaseAgreementView.as_view(), name='sign_lease'),
     path('api/retrieve-lease-term-and-approval/',RetrieveLeaseTermByIdViewAndApprovalHash.as_view(), name='retrieve_lease_agreement-approval'),
     path('api/retrieve-lease-agreement-approval/',RetrieveLeaseAgreementByIdAndApprovalHashView.as_view(), name='retrieve_lease_agreement'),
@@ -141,4 +141,9 @@ urlpatterns = [
     path('api/stripe-webhook/', StripeWebhookView.as_view(), name='stripe_webhook'),
     path('api/landlord-tenant-detail/', LandlordTenantDetailView.as_view(), name='landlord_tenant_detail'),
     path('api/landlord-tenant-list/', LandlordTenantListView.as_view(), name='landlord_tenant_list'),
+    #Dev urls
+    path('api/test_token', test_token, name='test_token'), 
+    path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),
+    path('api/generate/properties/', generate_properties, name='generate_properties'),
+    path('api/generate/units/', generate_units, name='generate_units'),
 ]
