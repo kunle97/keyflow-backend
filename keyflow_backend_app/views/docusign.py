@@ -216,3 +216,131 @@ class DocuSignGenerateTemplateEditorView(APIView):
         else:
             return JsonResponse({'error': 'Envelope creation failed'}, status=response.status_code)
 
+class DocuSignListUserTemplatesView(APIView):
+    post(request):
+        api_base_url = "https://demo.docusign.net/restapi/v2"  # Replace with the correct base URL
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+    
+        get_templates_endpoint = f"{api_base_url}/accounts/{user_account_id}/templates"
+    
+        response = requests.get(get_templates_endpoint, headers=headers)
+    
+        if response.status_code == 200:
+            return response.json().get("envelopeTemplates")
+        else:
+            return None
+        
+            except Exception as e:
+                return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+
+class DocuSignRetrieveUserTemplateView(APIView):
+    post(request):
+        user_account_id = request.data.get('user_account_id') 
+        access_token  = request.data.get('access_token') 
+        template_id = request.data.get('template_id')
+        api_base_url = "https://demo.docusign.net/restapi/v2"  # Replace with the correct base URL
+    
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+    
+        get_template_endpoint = f"{api_base_url}/accounts/{user_account_id}/templates/{template_id}"
+    
+        response = requests.get(get_template_endpoint, headers=headers)
+    
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return None
+
+class DocuSignListUserEnvelopesView(APIView):
+    post(request):
+        try:
+            access_token = "YOUR_ACCESS_TOKEN"  # Replace with the user's access token
+            account_id = "YOUR_ACCOUNT_ID"  # Replace with the user's account ID
+    
+            api_base_url = "https://demo.docusign.net/restapi/v2"  # Replace with the correct base URL
+    
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            }
+    
+            list_envelopes_endpoint = f"{api_base_url}/accounts/{account_id}/envelopes"
+    
+            response = requests.get(list_envelopes_endpoint, headers=headers)
+    
+            if response.status_code == 200:
+                saved_envelopes = response.json()
+                return JsonResponse({'saved_envelopes': saved_envelopes})
+            else:
+                return JsonResponse({'error': 'Failed to retrieve saved envelopes.'}, status=400)
+    
+        except Exception as e:
+            return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+
+class DocuSignRetrieveUserEnvelopeView(APIView):
+    post(request):
+        user_account_id = request.data.get('user_account_id') 
+        access_token  = request.data.get('access_token') 
+        envelope_id = request.data.get('envelope_id')
+        api_base_url = "https://demo.docusign.net/restapi/v2"  # Replace with the correct base URL
+    
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+    
+        get_envelope_endpoint = f"{api_base_url}/accounts/{user_account_id}/envelopes/{envelope_id}"
+    
+        response = requests.get(get_envelope_endpoint, headers=headers)
+    
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return None
+
+
+class DocuSignSendEnvelopeView(APIView):
+    def post(request):
+        user_account_id = request.data.get('user_account_id'), 
+        access_token = request.data.get('access_token'), 
+        envelope_id = request.data.get('envelope_id'), 
+        recipient_email = request.data.get('recipient_email'), 
+        recipient_name = request.data.get('recipient_name')
+        api_base_url = "https://demo.docusign.net/restapi/v2"  # Replace with the correct base URL
+    
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+    
+        send_envelope_endpoint = f"{api_base_url}/accounts/{user_account_id}/envelopes/{envelope_id}/createSenderView"
+    
+        recipient_data = {
+            "email": recipient_email,
+            "name": recipient_name,
+        }
+    
+        data = {
+            "recipient_view_request": {
+                "authentication_method": "email",
+                "return_url": "http://your-redirect-uri.com",  # Replace with the actual redirect URL
+                "client_user_id": recipient_email,
+                "recipient": recipient_data,
+            }
+        }
+    
+        response = requests.post(send_envelope_endpoint, json=data, headers=headers)
+    
+        if response.status_code == 201:
+            response_data = response.json()
+            sender_view_url = response_data.get("url")
+            return sender_view_url
+        else:
+            return None
