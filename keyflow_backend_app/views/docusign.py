@@ -74,6 +74,7 @@ class DocuSignCreateUserView(APIView):
 
 class DocuSignUploadDocumentCreateTemplateView(APIView):
     def post(request):
+        
         # Define the access token
         access_token = "YOUR_ACCESS_TOKEN"  # Replace with the actual access token
     
@@ -90,9 +91,32 @@ class DocuSignUploadDocumentCreateTemplateView(APIView):
         user_account_id = "YOUR_USER_ACCOUNT_ID"  # Replace with the user's account ID
     
         # Step 1: Upload the document to the user's account
+        base64_file = None
+        try:
+            # Check if a file was uploaded in the request
+            if 'file' in request.FILES:
+                uploaded_file = request.FILES['file']
+    
+                # Get the file extension
+                file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+    
+                # Check if the file extension is allowed (PDF or DOCX)
+                if file_extension not in ('.pdf', '.docx'):
+                    return JsonResponse({'error': 'Invalid file type. Only PDF and DOCX are allowed.'}, status=400)
+    
+                # Read the content of the uploaded file
+                file_content = uploaded_file.read()
+    
+                # Encode the file content to base64
+                base64_file = base64.b64encode(file_content).decode()
+    
+                # You can now use 'base64_content' in your API request
+            else:
+                return JsonResponse({'error': 'No file uploaded.'}, status=400)
+                
         document_data = {
             "documentName": "My Document.pdf",
-            "documentBase64": "BASE64_ENCODED_DOCUMENT_CONTENT",  # Replace with the actual base64-encoded document content
+            "documentBase64": base64_file,  # Replace with the actual base64-encoded document content
         }
     
         upload_document_endpoint = f"{api_base_url}/accounts/{user_account_id}/envelopes"
