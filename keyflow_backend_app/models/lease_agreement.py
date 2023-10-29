@@ -4,7 +4,7 @@ from keyflow_backend_app.models.user import User
 
 class LeaseAgreement(models.Model):
     rental_unit = models.ForeignKey('RentalUnit', on_delete=models.CASCADE)
-    rental_application = models.ForeignKey('RentalApplication', on_delete=models.CASCADE, default=None)
+    rental_application = models.ForeignKey('RentalApplication', on_delete=models.CASCADE, default=None, blank=True, null=True)
     start_date = models.DateField(blank=True, null=True)
     end_date = models.DateField(blank=True, null=True)
     document_id = models.CharField(max_length=100, blank=True, null=True)

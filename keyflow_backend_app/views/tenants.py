@@ -28,7 +28,6 @@ from ..serializers.transaction_serializer import TransactionSerializer
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from datetime import datetime, timedelta
 import stripe
 
 load_dotenv()
@@ -321,7 +320,6 @@ class TenantRegistrationView(APIView):
                     items=[
                         {"price": lease_term.stripe_price_id},
                     ],
-                    
                     default_payment_method=payment_method_id,
                     trial_end=grace_period_end,
                     transfer_data={

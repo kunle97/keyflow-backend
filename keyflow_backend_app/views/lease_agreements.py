@@ -17,6 +17,7 @@ from ..models.rental_application import RentalApplication
 from ..serializers.lease_agreement_serializer import  LeaseAgreementSerializer
 from ..serializers.lease_cancellation_request_serializer import  LeaseCancellationRequestSerializer
 from ..permissions import IsLandlordOrReadOnly, IsTenantOrReadOnly, IsResourceOwner, ResourceCreatePermission
+from ..models.lease_term import LeaseTerm
 from rest_framework import serializers
 from rest_framework import status
 from rest_framework.response import Response
@@ -30,6 +31,33 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
     serializer_class = LeaseAgreementSerializer
     permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
+
+    #Create a function to override the create method to create a lease agreement
+    def create(self, request , *args, **kwargs):
+
+        #Retrieve the unit id from the request
+        unit_id = self.request.data.get('rental_unit')
+        #Retrieve the unit object from the database
+        unit = RentalUnit.objects.get(id=unit_id)
+        #Retrieve the lease term id from the request
+        lease_term_id = self.request.data.get('lease_term')
+        #Retrieve the lease term object from the database
+        lease_term = LeaseTerm.objects.get(id=lease_term_id)
+        approval_hash = request.data.get('approval_hash')
+        #Create a lease agreement object
+        lease_agreement = LeaseAgreement.objects.create(
+            user=request.user,
+            rental_unit=unit,
+            lease_term=lease_term,
+            approval_hash=approval_hash
+        )
+
+        #Return a success response containing the lease agreement object as well as a message and a 201 stuats code
+        serializer = LeaseAgreementSerializer(lease_agreement)
+        return Response({'message': 'Lease agreement created successfully.', 'data': serializer.data}, status=status.HTTP_201_CREATED)
+
+
+
 
 #Create an endpoint that will handle when a person signs a lease agreement
 class SignLeaseAgreementView(APIView):

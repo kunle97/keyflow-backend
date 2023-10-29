@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -10,6 +11,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
+from ..models.rental_property import RentalProperty
 from ..models.lease_agreement import LeaseAgreement
 from ..models.lease_term import  LeaseTerm
 from ..serializers.lease_term_serializer import (LeaseTermSerializer)
@@ -42,7 +44,7 @@ class LeaseTermViewSet(viewsets.ModelViewSet):
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['term', 'rent', 'security_deposit' ]
-    ordering_fields = ['term', 'rent', 'security_deposit' ]
+    ordering_fields = ['term', 'rent', 'security_deposit', 'created_at' ]
     filterset_fields = ['term', 'rent', 'security_deposit' ]
     def get_queryset(self):
         user = self.request.user
@@ -69,6 +71,8 @@ class LeaseTermCreateView(APIView):
                 lease_cancellation_fee=data['lease_cancellation_fee'],
                 lease_cancellation_notice_period=data['lease_cancellation_notice_period'],
                 grace_period=data['grace_period'],
+                additional_charges=data['additional_charges'],
+                template_id=data['template_id'],
             )
             #Create a stripe product for the lease term
             stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
@@ -91,6 +95,25 @@ class LeaseTermCreateView(APIView):
             lease_term.stripe_product_id = product.id
             lease_term.stripe_price_id = price.id
             lease_term.save()
+
+            #assign the lease term to the selected units or properties
+            selected_assignments_dict = json.loads(data['selected_assignments'])
+            if selected_assignments_dict and data['assignment_mode']:
+                if data['assignment_mode'] == 'unit':
+                    for assignment in selected_assignments_dict:
+                        unit = RentalUnit.objects.get(id=assignment['id'])
+                        unit.lease_term = lease_term
+                        unit.save()
+                elif data['assignment_mode'] == 'property':
+                    for assignment in selected_assignments_dict:
+                        #Retrieve all units where rental_property=assignment['id']
+                        property = RentalProperty.objects.get(id=assignment['id'])
+                        units = RentalUnit.objects.filter(rental_property=property)
+                        for unit in units:
+                            unit.lease_term = lease_term
+                            unit.save()
+            else:
+                print("No assignments selected")
 
             return Response({'message': 'Lease term created successfully.'})
         return Response({'message': 'You do not have permission to access this resource.'}, status=status.HTTP_403_FORBIDDEN)   

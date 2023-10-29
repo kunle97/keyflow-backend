@@ -147,6 +147,7 @@ CORS_ORIGIN_WHITELIST = [
     'https://127.0.0.1:3000',
     'https://merchant-ui-api.stripe.com',
     'https://js.stripe.com',
+    'https://api.boldsign.com'
 ]
 REST_FRAMEWORK = {
    'DEFAULT_AUTHENTICATION_CLASSES': (

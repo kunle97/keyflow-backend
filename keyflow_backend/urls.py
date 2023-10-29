@@ -95,8 +95,15 @@ from keyflow_backend_app.views.dev import (
     test_token,
     get_landlord_emails,
     generate_properties,
-    generate_units
+    generate_units,
+    generate_tenants,
 )
+from keyflow_backend_app.views.boldsign import (
+    create_embeded_template_editor_link,
+    CreateEmbeddedTemplateCreateLinkView,
+    CreateEmbededDocumentSendLink
+)
+
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet,  basename='users')
@@ -141,9 +148,15 @@ urlpatterns = [
     path('api/stripe-webhook/', StripeWebhookView.as_view(), name='stripe_webhook'),
     path('api/landlord-tenant-detail/', LandlordTenantDetailView.as_view(), name='landlord_tenant_detail'),
     path('api/landlord-tenant-list/', LandlordTenantListView.as_view(), name='landlord_tenant_list'),
+    
+    #BoldSign
+    path('api/boldsign/create-embedded-template-create-link/', CreateEmbeddedTemplateCreateLinkView.as_view(), name='create_embedded_template_create_link'),
+    path('api/boldsign/create-embedded-document-send-link/', CreateEmbededDocumentSendLink.as_view(), name='create_embedded_document_sign_link'),
+    
     #Dev urls
     path('api/test_token', test_token, name='test_token'), 
     path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),
     path('api/generate/properties/', generate_properties, name='generate_properties'),
     path('api/generate/units/', generate_units, name='generate_units'),
+    path('api/generate/tenants/', generate_tenants, name='generate_tenants'),
 ]
