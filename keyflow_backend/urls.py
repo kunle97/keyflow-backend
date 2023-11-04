@@ -97,11 +97,13 @@ from keyflow_backend_app.views.dev import (
     generate_properties,
     generate_units,
     generate_tenants,
+    generate_rental_applications,
+    generate_lease_terms,
 )
 from keyflow_backend_app.views.boldsign import (
-    create_embeded_template_editor_link,
     CreateEmbeddedTemplateCreateLinkView,
-    CreateEmbededDocumentSendLink
+    CreateDocumentFromTemplateView,
+    CreateSigningLinkView,
 )
 
 
@@ -151,12 +153,15 @@ urlpatterns = [
     
     #BoldSign
     path('api/boldsign/create-embedded-template-create-link/', CreateEmbeddedTemplateCreateLinkView.as_view(), name='create_embedded_template_create_link'),
-    path('api/boldsign/create-embedded-document-send-link/', CreateEmbededDocumentSendLink.as_view(), name='create_embedded_document_sign_link'),
-    
+    path('api/boldsign/create-document-from-template/', CreateDocumentFromTemplateView.as_view(), name='create_document_from_template'),
+    path('api/boldsign/create-signing-link/', CreateSigningLinkView.as_view(), name='create_signing_link'),
     #Dev urls
     path('api/test_token', test_token, name='test_token'), 
     path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),
     path('api/generate/properties/', generate_properties, name='generate_properties'),
     path('api/generate/units/', generate_units, name='generate_units'),
     path('api/generate/tenants/', generate_tenants, name='generate_tenants'),
+    path('api/generate/rental-applications/', generate_rental_applications, name='generate_rental_applications'),
+    path('api/generate/lease-terms/', generate_lease_terms, name='generate_lease_terms'),
+
 ]

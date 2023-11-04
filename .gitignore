@@ -2,3 +2,4 @@ venenv/
 db.sqlite3
 AuthTokens.txt
 .env
+keyflow_backend_app/migrations/

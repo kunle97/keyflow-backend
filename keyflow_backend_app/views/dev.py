@@ -547,3 +547,45 @@ def generate_lease_terms(request):
     #Return a response
     return Response({"message":"Lease Terms generated", "status":status.HTTP_201_CREATED}, status=status.HTTP_200_OK)
 
+#Create a function that generates rental applications for a tenant based on the count variable from the request and the faker library
+@api_view(['POST'])
+def generate_rental_applications(request):
+    count = request.data.get('count', 1)
+    int_count = int(count)
+    user_id = request.data.get('user_id')
+    user = User.objects.get(id=user_id)
+    #create a entries for rental applications with faker data with count number in a loop
+    while(int_count > 0):
+        first_name = faker.first_name()
+        last_name = faker.last_name()
+        #Create a username from the first and last name and random number
+        username = first_name + last_name + str(faker.pyint(min_value=1, max_value=1000))
+        #Create an email from the username
+        email = username + '@gmail.com'
+        #Create a rental application for the tenant
+        rental_application = RentalApplication.objects.create(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            date_of_birth=faker.date_of_birth(minimum_age=18, maximum_age=65).strftime('%Y-%m-%d'),
+            phone_number=faker.phone_number(),
+            desired_move_in_date=faker.date_between(start_date='-1y', end_date='today').strftime('%Y-%m-%d'),
+            unit=RentalUnit.objects.order_by('?').first(),
+            approval_hash = "",
+            other_occupants=faker.pybool(),
+            pets=faker.pybool(),
+            vehicles=faker.pybool(),
+            convicted=faker.pybool(),
+            bankrupcy_filed=faker.pybool(),
+            evicted=faker.pybool(),
+            employment_history=faker.text(max_nb_chars=200),
+            residential_history=faker.text(max_nb_chars=200),
+            comments=faker.text(max_nb_chars=200),
+            is_approved=faker.pybool(),
+            is_archived=faker.pybool(),
+            landlord=user,
+        )
+        int_count -= 1
+    #Return a response
+    return Response({"message":"Rental Applications generated", "status":status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
+

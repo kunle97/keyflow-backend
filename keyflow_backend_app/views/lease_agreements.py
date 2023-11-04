@@ -34,22 +34,30 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
 
     #Create a function to override the create method to create a lease agreement
     def create(self, request , *args, **kwargs):
-
+        print(f"Create lease agreement data {request.data}")
+        #Retrieve rental_application from the request
+        rental_application_id = request.data.get('rental_application')
         #Retrieve the unit id from the request
-        unit_id = self.request.data.get('rental_unit')
+        unit_id = request.data.get('rental_unit')
         #Retrieve the unit object from the database
         unit = RentalUnit.objects.get(id=unit_id)
         #Retrieve the lease term id from the request
-        lease_term_id = self.request.data.get('lease_term')
+        lease_term_id = request.data.get('lease_term')
         #Retrieve the lease term object from the database
         lease_term = LeaseTerm.objects.get(id=lease_term_id)
         approval_hash = request.data.get('approval_hash')
+
+        #retriueve document_id from the request 
+        document_id = request.data.get('document_id')
+        print(f"document_id {document_id}")
         #Create a lease agreement object
         lease_agreement = LeaseAgreement.objects.create(
             user=request.user,
             rental_unit=unit,
             lease_term=lease_term,
-            approval_hash=approval_hash
+            approval_hash=approval_hash,
+            document_id=document_id,
+            rental_application_id=rental_application_id
         )
 
         #Return a success response containing the lease agreement object as well as a message and a 201 stuats code
