@@ -92,11 +92,11 @@ WSGI_APPLICATION = 'keyflow_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'keyflow_db',
-        'USER': 'postgres',
-        'PASSWORD': 'password',
+        'NAME': os.getenv('DATABASE_NAME'),
+        'USER': os.getenv('DATABASE_USER'),
+        'PASSWORD': os.getenv('DATABASE_PASSWORD'),
         'HOST': os.getenv('DATABASE_HOST'), #use 'db' host  for docker use 'localhost' when running on local 
-        'PORT': '5432',
+        'PORT': os.getenv('DATABASE_PORT'),
     }
 }
 
