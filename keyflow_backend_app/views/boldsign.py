@@ -1,6 +1,6 @@
 # views.py
 import os
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from dotenv import load_dotenv
 from django.views.decorators.csrf import csrf_exempt
 import requests
@@ -114,7 +114,7 @@ class CreateDocumentFromTemplateView(APIView):
             "Content-Type": "application/json;odata.metadata=minimal;odata.streaming=true",
         }
         response = requests.post(url, headers=headers, data=json.dumps(payload))
-        #Debug REsponse
+        # Debug REsponse
         # Print the status code
         print("Status Code:", response.status_code)
 
@@ -180,5 +180,34 @@ class CreateSigningLinkView(APIView):
                 {
                     "error": "Failed to retrieve signing link",
                     "status_code": 500,
+                }
+            )
+
+
+# Create a class that donwloads a doccument using the url  https://api.boldsign.com/v1/document/download and params documentId
+class DownloadBoldSignDocumentView(APIView):
+    def post(self, request, *args, **kwargs):
+        url = f"https://api.boldsign.com/v1/document/download?documentId={request.data.get('document_id')}"
+
+        payload = {}
+        headers = {"accept": "application/json", "X-API-KEY": f"{BOLDSIGN_API_KEY}"}
+
+        response = requests.request("GET", url, headers=headers, data=payload)
+        if response.status_code == 200:
+            # Get the file content and content type from the response
+            file_content = response.content
+            content_type = response.headers.get('Content-Type')
+
+            # Create a FileResponse without specifying a filename
+            response = FileResponse(file_content)
+            response['Content-Type'] = content_type
+            response['Content-Disposition'] = 'attachment'
+
+            return response
+        else:
+            return JsonResponse(
+                {
+                    "error": "Failed to download document",
+                    "status_code": response.status_code,
                 }
             )

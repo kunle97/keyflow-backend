@@ -5,7 +5,7 @@ from .rental_application_serializer import RentalApplicationSerializer
 from .lease_term_serializer import LeaseTermSerializer
 from .user_serializer import UserSerializer
 class LeaseAgreementSerializer(serializers.ModelSerializer):
-    unit = RentalUnitSerializer(many=False, read_only=True)
+    rental_unit = RentalUnitSerializer(many=False, read_only=True)
     rental_application = RentalApplicationSerializer(many=False, read_only=True)
     lease_term = LeaseTermSerializer(many=False, read_only=True)
     tenant = UserSerializer(many=False, read_only=True)
