@@ -87,13 +87,17 @@ from keyflow_backend_app.views.transactions import (
 from keyflow_backend_app.views.stripe import (
     StripeWebhookView,
 )
+from keyflow_backend_app.views.jwt import (
+    MyTokenObtainPairView
+)
+
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
 )
 from keyflow_backend_app.views.dev import (
     test_token,
     get_landlord_emails,
+    get_landlord_usernames,
     generate_properties,
     generate_units,
     generate_tenants,
@@ -146,7 +150,7 @@ urlpatterns = [
     path('api/retrieve-property/',RetrievePropertyByIdView.as_view(), name='retrieve_property_unauthenticated'),
     path('api/retrieve-landlord-subscription-prices/',RetrieveLandlordSubscriptionPriceView.as_view(), name='retrieve_landlord_subscription_price'),
     path('api/auth/activate-account/', UserActivationView.as_view(), name='activate'),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/stripe-webhook/', StripeWebhookView.as_view(), name='stripe_webhook'),
     path('api/landlord-tenant-detail/', LandlordTenantDetailView.as_view(), name='landlord_tenant_detail'),
@@ -160,6 +164,7 @@ urlpatterns = [
     #Dev urls
     path('api/test_token', test_token, name='test_token'), 
     path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),
+    path('api/landlords-usernames/', get_landlord_usernames, name='landlord_usernames'),
     path('api/generate/properties/', generate_properties, name='generate_properties'),
     path('api/generate/units/', generate_units, name='generate_units'),
     path('api/generate/tenants/', generate_tenants, name='generate_tenants'),

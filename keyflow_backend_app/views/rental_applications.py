@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.user import User
 from ..models.notification import Notification
 from ..models.rental_application import RentalApplication
@@ -44,7 +44,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [
         RentalApplicationCreatePermission
     ]  # TODO: Investigate why IsResourceOwner is not working
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [JWTAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

@@ -4,8 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.user import User
 from ..models.rental_property import  RentalProperty
 from ..models.rental_unit import  RentalUnit
@@ -23,8 +22,8 @@ from rest_framework.views import APIView
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = RentalPropertySerializer
-    permission_classes = [ IsAuthenticated, IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [ IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission]
+    authentication_classes = [JWTAuthentication]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     ordering_fields = ['name', 'street', 'created_at', 'id', 'state' ]

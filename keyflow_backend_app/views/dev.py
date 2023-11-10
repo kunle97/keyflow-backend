@@ -9,8 +9,7 @@ from django.contrib.auth.hashers import make_password
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.user import User
 from faker import Faker
 from ..models.rental_property import RentalProperty
@@ -29,15 +28,13 @@ stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
 
 #test to see if tooken is valid and return user info
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
-@authentication_classes([TokenAuthentication, SessionAuthentication])
+@authentication_classes([JWTAuthentication])
 def test_token(request):
     return Response("passed for {}".format(request.user.username))
 
 #Create a function to retrieve all landlord userss emails
 @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# @authentication_classes([TokenAuthentication, SessionAuthentication])   
+# @authentication_classes([JWTAuthentication])   
 def get_landlord_emails(request):
     #Retrieve all landlord users
     landlords = User.objects.filter(account_type='landlord')
@@ -48,7 +45,18 @@ def get_landlord_emails(request):
     #Return a response
     return Response(landlord_emails, status=status.HTTP_200_OK)
 
-
+#Create a function to retrieve all landlord userss usernames
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+def get_landlord_usernames(request):
+    #Retrieve all landlord users
+    landlords = User.objects.filter(account_type='landlord')
+    #Create a list of landlord usernames
+    landlord_usernames = []
+    for landlord in landlords:
+        landlord_usernames.append(landlord.username)
+    #Return a response
+    return Response(landlord_usernames, status=status.HTTP_200_OK)
 @api_view(['POST'])
 def generate_properties(request):
     count = request.data.get('count', 1)

@@ -7,8 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
 from ..models.rental_property import RentalProperty
@@ -40,8 +39,8 @@ class RetrieveLeaseTermByUnitView(APIView):
 class LeaseTermViewSet(viewsets.ModelViewSet):
     queryset = LeaseTerm.objects.all()
     serializer_class = LeaseTermSerializer
-    permission_classes = [IsAuthenticated, IsResourceOwner]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsResourceOwner]
+    authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['term', 'rent', 'security_deposit' ]
     ordering_fields = ['term', 'rent', 'security_deposit', 'created_at' ]
@@ -79,7 +78,7 @@ class LeaseTermCreateView(APIView):
             product = stripe.Product.create(
                 name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {data["term"]} month lease @ ${data["rent"]}/month. Lease Term ID: {lease_term.id}',
                 type='service',
-                metadata={"seller_id": user.stripe_account_id},  # Associate the product with the connected account
+                metadata={"seller_id": user.stripee_account_id},  # Associate the product with the connected account
             )
 
             #Create a stripe price for the lease term

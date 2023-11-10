@@ -6,8 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.notification import Notification
 from ..models.rental_unit import RentalUnit
 from ..models.lease_agreement import LeaseAgreement
@@ -37,8 +36,8 @@ load_dotenv()
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
     serializer_class = LeaseAgreementSerializer
-    permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsLandlordOrReadOnly, IsResourceOwner]
+    authentication_classes = [JWTAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -177,12 +176,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseCancellationRequest.objects.all()
     serializer_class = LeaseCancellationRequestSerializer
     permission_classes = [
-        IsAuthenticated,
         IsTenantOrReadOnly,
         IsResourceOwner,
         ResourceCreatePermission,
     ]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [JWTAuthentication]
 
     def perform_create(self, serializer):
         tenant = self.request.user

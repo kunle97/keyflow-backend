@@ -16,6 +16,7 @@ class User(AbstractUser):
     stripe_customer_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
+    
     class Meta:
         db_table = 'users'
         app_label = 'keyflow_backend_app' 

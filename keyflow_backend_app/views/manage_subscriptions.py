@@ -50,8 +50,8 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
     #TODO: Investigate why authentication CLasses not working
     # queryset = User.objects.all()
     # serializer_class = UserSerializer
-    # authentication_classes = [TokenAuthentication, SessionAuthentication]
-    # permission_classes = [IsAuthenticated, DisallowUserCreatePermission]
+    # authentication_classes = [JWTAuthentication]
+    # permission_classes = [DisallowUserCreatePermission]
 
     #Create a method to cancel a subscription called turn_off_autopay
     @action(detail=False, methods=['post'], url_path='turn-off-autopay')

@@ -9,8 +9,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.notification  import Notification
 from ..models.user  import User
 from ..models.rental_property  import RentalProperty
@@ -56,8 +55,7 @@ class UserLoginView(APIView):
 
 #create a logout endpoint that deletes the token
 class UserLogoutView(APIView):
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
     def post(self, request):
         request.user.auth_token.delete()
         return Response({'message': 'User logged out successfully.','status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
@@ -149,8 +147,7 @@ class UserRegistrationView(APIView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['account_type', 'is_active']

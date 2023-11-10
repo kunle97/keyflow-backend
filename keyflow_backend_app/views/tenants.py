@@ -10,8 +10,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from ..models.notification import Notification
 from ..models.user import  User
 from ..models.rental_unit import  RentalUnit
@@ -51,8 +50,7 @@ class TenantVerificationView(APIView):
 class TenantViewSet(viewsets.ModelViewSet):
     # ... (existing code)
     @action(detail=True, methods=['post'], url_path='make-payment')
-    @permission_classes([IsAuthenticated])
-    @authentication_classes([TokenAuthentication, SessionAuthentication])
+    @authentication_classes([JWTAuthentication])
     def make_payment_intent(self, request, pk=None):
         data= request.data.copy()
         user_id = request.data.get('user_id')#retrieve user id from the request
@@ -105,8 +103,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         return Response({'payment_intent': payment_intent, 'transaction':transaction_data, "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
-    @permission_classes([IsAuthenticated])
-    @authentication_classes([TokenAuthentication, SessionAuthentication])
+    @authentication_classes([JWTAuthentication])
     def renew_lease(self, request, pk=None):
         tenant = self.get_object()
         if tenant.user != request.user:
@@ -132,8 +129,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 
 
     @action(detail=True, methods=['post'])
-    @permission_classes([IsAuthenticated])
-    @authentication_classes([TokenAuthentication, SessionAuthentication])
+    @authentication_classes([JWTAuthentication])
     def request_cancellation(self, request, pk=None):
         tenant = self.get_object()
         if tenant.user != request.user:
