@@ -78,7 +78,7 @@ class LeaseTermCreateView(APIView):
             product = stripe.Product.create(
                 name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {data["term"]} month lease @ ${data["rent"]}/month. Lease Term ID: {lease_term.id}',
                 type='service',
-                metadata={"seller_id": user.stripee_account_id},  # Associate the product with the connected account
+                metadata={"seller_id": user.stripe_account_id},  # Associate the product with the connected account
             )
 
             #Create a stripe price for the lease term

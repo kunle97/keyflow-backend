@@ -47,7 +47,6 @@ def get_landlord_emails(request):
 
 #Create a function to retrieve all landlord userss usernames
 @api_view(['GET'])
-@authentication_classes([JWTAuthentication])
 def get_landlord_usernames(request):
     #Retrieve all landlord users
     landlords = User.objects.filter(account_type='landlord')
@@ -58,6 +57,31 @@ def get_landlord_usernames(request):
     #Return a response
     return Response(landlord_usernames, status=status.HTTP_200_OK)
 @api_view(['POST'])
+
+#Create a function to retrieve all tenant userss emails
+@api_view(['GET'])
+def get_tenant_emails(request):
+    #Retrieve all tenant users
+    tenants = User.objects.filter(account_type='tenant')
+    #Create a list of tenant emails
+    tenant_emails = []
+    for tenant in tenants:
+        tenant_emails.append(tenant.email)
+    #Return a response
+    return Response(tenant_emails, status=status.HTTP_200_OK)
+
+#Create a function to retrieve all tenant userss usernames
+@api_view(['GET'])
+def get_tenant_usernames(request):
+    #Retrieve all tenant users
+    tenants = User.objects.filter(account_type='tenant')
+    #Create a list of tenant usernames
+    tenant_usernames = []
+    for tenant in tenants:
+        tenant_usernames.append(tenant.username)
+    #Return a response
+    return Response(tenant_usernames, status=status.HTTP_200_OK)
+
 def generate_properties(request):
     count = request.data.get('count', 1)
     int_count = int(count)
