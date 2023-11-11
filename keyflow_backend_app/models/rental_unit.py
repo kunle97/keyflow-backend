@@ -11,7 +11,7 @@ class RentalUnit(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Owner of the unit
     size = models.PositiveIntegerField(default=0)
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
-    lease_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
+    lease_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None, related_name='rental_units')
     is_occupied = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)

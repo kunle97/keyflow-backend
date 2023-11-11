@@ -111,6 +111,7 @@ from keyflow_backend_app.views.boldsign import (
     CreateDocumentFromTemplateView,
     CreateSigningLinkView,
     DownloadBoldSignDocumentView,
+    CreateEmbeddedTemplateEditView
 )
 
 
@@ -163,6 +164,7 @@ urlpatterns = [
     path('api/boldsign/create-document-from-template/', CreateDocumentFromTemplateView.as_view(), name='create_document_from_template'),
     path('api/boldsign/create-signing-link/', CreateSigningLinkView.as_view(), name='create_signing_link'),
     path('api/boldsign/download-document/', DownloadBoldSignDocumentView.as_view(), name='download_boldsign_document'),
+    path('api/boldsign/create-embedded-template-edit-link/', CreateEmbeddedTemplateEditView.as_view(), name='create_embedded_template_edit_link'),
     #Dev urls
     path('api/test_token', test_token, name='test_token'), 
     path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),

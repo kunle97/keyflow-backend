@@ -76,6 +76,40 @@ class CreateEmbeddedTemplateCreateLinkView(APIView):
                 }
             )
 
+class CreateEmbeddedTemplateEditView(APIView):
+    def post(self, request, *args, **kwargs):
+
+        url = "https://api.boldsign.com/v1/template/getEmbeddedTemplateEditUrl?templateId="+request.data.get("template_id")
+        payload={
+            'ShowToolbar': 'true',
+            'ViewOption': 'PreparePage',
+            'ShowSaveButton': 'true',
+            'ShowCreateButton': 'true',
+            'ShowPreviewButton': 'true',
+            'ShowNavigationButtons': 'true',
+            'ShowTooltip': 'true',
+        }
+        headers = {
+            'Accept': 'application/json',
+            'X-API-KEY': BOLDSIGN_API_KEY
+        }
+
+        response = requests.request("POST", url, headers=headers, data=payload)
+        if response.status_code == 201:
+            return JsonResponse(
+                {
+                    "message": "Template created successfully",
+                    "url": response.json()["editUrl"],
+                    "status": response.status_code,
+                }
+            )
+        else:
+            return JsonResponse(
+                {
+                    "error": "Failed to create document",
+                    "status_code": response.status_code,
+                }
+            )
 
 class CreateDocumentFromTemplateView(APIView):
     def post(self, request, *args, **kwargs):

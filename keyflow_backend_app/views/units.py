@@ -45,6 +45,11 @@ class UnitViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'beds', 'baths', 'created_at', 'id']
     filterset_fields = ['name', 'beds', 'baths']
 
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset().filter(user=user)
+        return queryset
+
     #Make a create function that creates a unit with all of the expected values as well as a subscription_id to check to see what subscription plan thee user has
     def create(self, request):
         data = request.data.copy()
@@ -121,10 +126,7 @@ class UnitViewSet(viewsets.ModelViewSet):
             return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
         return Response({"message","error deleting unit"}, status=status.HTTP_400_BAD_REQUEST) 
-    def get_queryset(self):
-        user = self.request.user  # Get the current user
-        queryset = super().get_queryset().filter(user=user)
-        return queryset
+
 
     #Create a function that sets the is occupied field to true
     @action(detail=True, methods=['post'])
