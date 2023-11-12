@@ -15,7 +15,7 @@ from ..models.user  import User
 from ..models.rental_property  import RentalProperty
 from ..models.rental_unit import RentalUnit
 from ..models.maintenance_request  import MaintenanceRequest
-from ..models.lease_term  import LeaseTerm
+from ..models.lease_template  import LeaseTemplate
 from ..models.transaction  import Transaction
 from ..models.rental_application  import RentalApplication
 from ..models.account_activation_token  import AccountActivationToken
@@ -24,7 +24,7 @@ from ..serializers.user_serializer import UserSerializer
 from ..serializers.rental_property_serializer   import RentalPropertySerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
 from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer
-from ..serializers.lease_term_serializer import LeaseTermSerializer
+from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.transaction_serializer import TransactionSerializer
 from ..serializers.rental_application_serializer import RentalApplicationSerializer
 
@@ -222,12 +222,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
    
-    #GET: api/users/{id}/lease-terms
-    @action(detail=True, methods=['get'], url_path='lease-terms')
-    def lease_terms(self, request, pk=None):
+    #GET: api/users/{id}/lease-templates
+    @action(detail=True, methods=['get'], url_path='lease-templates')
+    def lease_templates(self, request, pk=None):
         user = self.get_object()
-        lease_terms = LeaseTerm.objects.filter(user_id=user.id)
-        serializer = LeaseTermSerializer(lease_terms, many=True)
+        lease_templates = LeaseTemplate.objects.filter(user_id=user.id)
+        serializer = LeaseTemplateSerializer(lease_templates, many=True)
         if user.id == request.user.id:
             return Response(serializer.data)
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)

@@ -15,11 +15,11 @@ from faker import Faker
 from ..models.rental_property import RentalProperty
 from ..models.rental_unit import RentalUnit
 from ..models.notification import Notification
-from ..models.lease_term import LeaseTerm
+from ..models.lease_template import LeaseTemplate
 from ..models.lease_agreement import LeaseAgreement
 from ..models.rental_application import RentalApplication
 from ..models.transaction import Transaction
-from ..models.lease_term import LeaseTerm
+from ..models.lease_template import LeaseTemplate
 faker = Faker()
 load_dotenv()
 stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
@@ -163,8 +163,8 @@ def generate_tenants(request):
     user = User.objects.get(id=user_id)#retrieve user (landlord) making the request
     unit_mode=request.data.get('unit_mode') #Values are 'new', 'random' or 'specific'
     rental_unit_id = request.data.get('rental_unit_id') #If unit_mode is 'specific' then this is the rental unit id
-    lease_term_mode = request.data.get('lease_term_mode') #Values are 'new', 'random' or 'specific'
-    lease_term_id = request.data.get('lease_term_id') #If lease_term_mode is 'specific' then this is the lease term id
+    lease_template_mode = request.data.get('lease_template_mode') #Values are 'new', 'random' or 'specific'
+    lease_template_id = request.data.get('lease_template_id') #If lease_template_mode is 'specific' then this is the lease term id
     rental_application_is_approved = request.data.get('rental_application_is_approved',False) #Values are 'True' or 'False'
     rental_application_is_archived = request.data.get('rental_application_is_archived',False) #Values are 'True' or 'False'
     has_grace_period = request.data.get('has_grace_period') #Values are 'True' or 'False'
@@ -226,14 +226,14 @@ def generate_tenants(request):
 
         #---------LEASE TERM GENEREATION LOGIC----------------
 
-        lease_term=None
+        lease_template=None
         if has_grace_period:
             grace_period = faker.pyint(min_value=1, max_value=5)
         else:
             grace_period = 0
 
-        #if lease_term_mode is 'new' create a new lease term for the tenant
-        if lease_term_mode == 'new':
+        #if lease_template_mode is 'new' create a new lease term for the tenant
+        if lease_template_mode == 'new':
             rent=faker.pyint(min_value=500, max_value=5000)
             term=faker.pyint(min_value=6, max_value=12)
             late_fee=faker.pyint(min_value=50, max_value=500)
@@ -247,7 +247,7 @@ def generate_tenants(request):
             lease_cancellation_fee=faker.pyint(min_value=500, max_value=5000)
             description=faker.text(max_nb_chars=200)
             #Create a lease term for the tenant
-            lease_term = LeaseTerm.objects.create(
+            lease_template = LeaseTemplate.objects.create(
                 start_date=faker.date_between(start_date='-1y', end_date='today'),
                 end_date=faker.date_between(start_date='today', end_date='+1y'),
                 term=term,
@@ -267,7 +267,7 @@ def generate_tenants(request):
             #Create a stripe product for the lease term
             stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
             product = stripe.Product.create(
-                name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {term} month lease @ ${rent}/month. Lease Term ID: {lease_term.id}',
+                name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {term} month lease @ ${rent}/month. Lease Term ID: {lease_template.id}',
                 type='service',
                 metadata={"seller_id": user.stripe_account_id},  # Associate the product with the connected account
             )
@@ -282,17 +282,17 @@ def generate_tenants(request):
 
 
             #update the lease term object with the stripe product and price ids
-            lease_term.stripe_product_id = product.id
-            lease_term.stripe_price_id = price.id
-            lease_term.save()
-        #else if lease_term_mode is 'random' choose a random lease term for the tenant
-        elif lease_term_mode == 'random':
+            lease_template.stripe_product_id = product.id
+            lease_template.stripe_price_id = price.id
+            lease_template.save()
+        #else if lease_template_mode is 'random' choose a random lease term for the tenant
+        elif lease_template_mode == 'random':
             #Choose a random lease term
-            lease_term = LeaseTerm.objects.order_by('?').first()
-        #else if lease_term_mode is 'specific' assign the tenant to the specific lease term
-        elif lease_term_mode == 'specific':
+            lease_template = LeaseTemplate.objects.order_by('?').first()
+        #else if lease_template_mode is 'specific' assign the tenant to the specific lease term
+        elif lease_template_mode == 'specific':
             #Retrieve the lease term
-            lease_term = LeaseTerm.objects.get(id=lease_term_id)
+            lease_template = LeaseTemplate.objects.get(id=lease_template_id)
 
 
         #---------UNIT GENEREATION LOGIC----------------
@@ -307,7 +307,7 @@ def generate_tenants(request):
                 baths=faker.pyint(min_value=1, max_value=5),
                 user=user,
                 tenant=tenant,
-                lease_term=lease_term,
+                lease_template=lease_template,
                 lease_canellation_notice_period=faker.pyint(min_value=1, max_value=10),
                 lease_cancellation_fee=faker.pyint(min_value=500, max_value=5000),
             )
@@ -328,7 +328,7 @@ def generate_tenants(request):
             #Assign the tenant to the unit
             unit.tenant = tenant
             unit.is_occupied = True
-            unit.lease_term = lease_term
+            unit.lease_template = lease_template
             unit.save()
             #Create a notification for the landlord that a tenant has been added
             notification = Notification.objects.create(
@@ -343,7 +343,7 @@ def generate_tenants(request):
             unit = RentalUnit.objects.get(id=rental_unit_id)
             #Assign the tenant to the unit
             unit.tenant = tenant
-            unit.lease_term = lease_term
+            unit.lease_template = lease_template
             unit.is_occupied = True
             unit.save()
             #Create a notification for the landlord that a tenant has been added
@@ -403,13 +403,13 @@ def generate_tenants(request):
 
 
         # Define the number of months to add
-        months_to_add = lease_term.term
+        months_to_add = lease_template.term
 
         # Calculate the new date by adding months
         end_date = current_date + relativedelta(months=+months_to_add)
         #Create a lease agreement for the tenant
         lease_agreement = LeaseAgreement.objects.create(
-            lease_term=lease_term,
+            lease_template=lease_template,
             tenant=tenant,
             user=user,
             rental_unit=unit,
@@ -424,12 +424,12 @@ def generate_tenants(request):
         )
 
         subscription=None
-        if lease_term.grace_period != 0:      
+        if lease_template.grace_period != 0:      
             # Convert the ISO date string to a datetime object
             start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")
             
             # Number of months to add
-            months_to_add = lease_term.grace_period
+            months_to_add = lease_template.grace_period
             
             # Calculate the end date by adding months
             end_date = start_date + relativedelta(months=months_to_add)
@@ -439,7 +439,7 @@ def generate_tenants(request):
             subscription = stripe.Subscription.create(
                 customer=customer.id,
                 items=[
-                    {"price": lease_term.stripe_price_id},
+                    {"price": lease_template.stripe_price_id},
                 ],
                 
                 default_payment_method=payment_method.id,
@@ -466,7 +466,7 @@ def generate_tenants(request):
             subscription = stripe.Subscription.create(
                 customer=customer.id,
                 items=[
-                    {"price": lease_term.stripe_price_id},
+                    {"price": lease_template.stripe_price_id},
                 ],
                 default_payment_method=payment_method.id,
                 transfer_data={
@@ -487,7 +487,7 @@ def generate_tenants(request):
             #Create a notification for the landlord that the tenant has paid the fisrt month's rent
             notification = Notification.objects.create(
                 user=user,
-                message=f'{user.first_name} {user.last_name} has paid the first month\'s rent for the amount of ${lease_term.rent} for unit {unit.name} at {unit.rental_property.name}',
+                message=f'{user.first_name} {user.last_name} has paid the first month\'s rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}',
                 type='first_month_rent_paid',
                 title='First Month\'s Rent Paid',
             )
@@ -499,7 +499,7 @@ def generate_tenants(request):
                 rental_unit = unit,
                 user=user,
                 tenant=tenant,
-                amount=int(lease_term.rent),
+                amount=int(lease_template.rent),
                 payment_method_id=payment_method.id,
                 payment_intent_id="subscription",
             )
@@ -515,9 +515,9 @@ def generate_tenants(request):
     return Response({"message":"Tenants created", "status":status.HTTP_201_CREATED}, status=status.HTTP_200_OK)
 
 
-#Create a function called lease_term_generator that generates a number of lease terms based on the count variable from the request for the requested user
+#Create a function called lease_template_generator that generates a number of lease terms based on the count variable from the request for the requested user
 @api_view(['POST'])
-def generate_lease_terms(request):
+def generate_lease_templates(request):
     count = request.data.get('count', 1)
     int_count = int(count)
     user_id = request.data.get('user_id')
@@ -537,7 +537,7 @@ def generate_lease_terms(request):
         lease_cancellation_fee=faker.pyint(min_value=500, max_value=5000)
         description=faker.text(max_nb_chars=200)
         #Create a lease term for the tenant
-        lease_term = LeaseTerm.objects.create(
+        lease_template = LeaseTemplate.objects.create(
             start_date=faker.date_between(start_date='-1y', end_date='today'),
             end_date=faker.date_between(start_date='today', end_date='+1y'),
             term=term,
@@ -557,7 +557,7 @@ def generate_lease_terms(request):
         #Create a stripe product for the lease term
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         product = stripe.Product.create(
-            name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {term} month lease @ ${rent}/month. Lease Term ID: {lease_term.id}',
+            name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {term} month lease @ ${rent}/month. Lease Term ID: {lease_template.id}',
             type='service',
             metadata={"seller_id": user.stripe_account_id},  # Associate the product with the connected account
         )
@@ -572,9 +572,9 @@ def generate_lease_terms(request):
 
 
         #update the lease term object with the stripe product and price ids
-        lease_term.stripe_product_id = product.id
-        lease_term.stripe_price_id = price.id
-        lease_term.save()
+        lease_template.stripe_product_id = product.id
+        lease_template.stripe_price_id = price.id
+        lease_template.save()
         int_count -= 1
     #Return a response
     return Response({"message":"Lease Terms generated", "status":status.HTTP_201_CREATED}, status=status.HTTP_200_OK)

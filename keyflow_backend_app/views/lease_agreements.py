@@ -22,7 +22,7 @@ from ..permissions import (
     IsResourceOwner,
     ResourceCreatePermission,
 )
-from ..models.lease_term import LeaseTerm
+from ..models.lease_template import LeaseTemplate
 from rest_framework import serializers
 from rest_framework import status
 from rest_framework.response import Response
@@ -74,9 +74,9 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         # Retrieve the unit object from the database
         unit = RentalUnit.objects.get(id=unit_id)
         # Retrieve the lease term id from the request
-        lease_term_id = request.data.get("lease_term")
+        lease_template_id = request.data.get("lease_template")
         # Retrieve the lease term object from the database
-        lease_term = LeaseTerm.objects.get(id=lease_term_id)
+        lease_template = LeaseTemplate.objects.get(id=lease_template_id)
         approval_hash = request.data.get("approval_hash")
 
         # retriueve document_id from the request
@@ -86,7 +86,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         lease_agreement = LeaseAgreement.objects.create(
             user=request.user,
             rental_unit=unit,
-            lease_term=lease_term,
+            lease_template=lease_template,
             approval_hash=approval_hash,
             document_id=document_id,
             rental_application_id=rental_application_id,

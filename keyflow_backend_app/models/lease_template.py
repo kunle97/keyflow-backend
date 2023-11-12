@@ -2,7 +2,7 @@ from django.db import models
 from datetime import datetime
 from keyflow_backend_app.models.user import User
 
-class LeaseTerm(models.Model):
+class LeaseTemplate(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Landlord that created the lease term
     rent = models.DecimalField(max_digits=10, decimal_places=2)
     term = models.IntegerField() #Integer for duration of lease in months
@@ -24,7 +24,7 @@ class LeaseTerm(models.Model):
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 
     class Meta:
-        db_table = 'lease_terms'
+        db_table = 'lease_templates'
 
     def __str__(self):
-       return f"Lease Term for {self.term} months"
+       return f"Lease Template for {self.term} months"

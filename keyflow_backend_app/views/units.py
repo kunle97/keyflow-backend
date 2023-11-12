@@ -15,7 +15,7 @@ from ..models.maintenance_request import MaintenanceRequest
 from ..models.rental_application import RentalApplication
 from ..serializers.rental_unit_serializer import  RentalUnitSerializer 
 from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer 
-from ..serializers.lease_term_serializer import LeaseTermSerializer
+from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.rental_application_serializer import RentalApplicationSerializer
 from ..permissions import  IsResourceOwner, ResourceCreatePermission, UnitDeletePermission
 from django_filters.rest_framework import DjangoFilterBackend
@@ -169,10 +169,10 @@ class UnitViewSet(viewsets.ModelViewSet):
         serializer = MaintenanceRequestSerializer(maintenance_requests, many=True)
         return Response(serializer.data)
 
-    #Retrieve the lease term for a specific unit endpoint: api/units/{id}/lease-term
-    @action(detail=True, methods=['get'], url_path='lease-term')
-    def lease_term(self, request, pk=None):
+    #Retrieve the lease term for a specific unit endpoint: api/units/{id}/lease-template
+    @action(detail=True, methods=['get'], url_path='lease-template')
+    def lease_template(self, request, pk=None):
         unit = self.get_object()
-        lease_term = unit.lease_term
-        serializer = LeaseTermSerializer(lease_term)
+        lease_template = unit.lease_template
+        serializer = LeaseTemplateSerializer(lease_template)
         return Response(serializer.data)

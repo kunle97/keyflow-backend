@@ -33,13 +33,13 @@ from keyflow_backend_app.views.lease_agreements import (
     RetrieveLeaseAgreementByIdAndApprovalHashView,
     LeaseCancellationRequestViewSet,
 )
-from keyflow_backend_app.views.lease_terms import (
-    LeaseTermViewSet,
-    LeaseTermCreateView,
-    DeleteLeaseTermByIdView,
-    RetrieveLeaseTermByIdView,
-    RetrieveLeaseTermByUnitView,
-    RetrieveLeaseTermByIdViewAndApprovalHash,
+from keyflow_backend_app.views.lease_templates import (
+    LeaseTemplateViewSet,
+    LeaseTemplateCreateView,
+    DeleteLeaseTemplateByIdView,
+    RetrieveLeaseTemplateByIdView,
+    RetrieveLeaseTemplateByUnitView,
+    RetrieveLeaseTemplateByIdViewAndApprovalHash,
 )
 from keyflow_backend_app.views.maintenance_requests import (
     MaintenanceRequestViewSet,
@@ -104,7 +104,7 @@ from keyflow_backend_app.views.dev import (
     generate_units,
     generate_tenants,
     generate_rental_applications,
-    generate_lease_terms,
+    generate_lease_templates,
 )
 from keyflow_backend_app.views.boldsign import (
     CreateEmbeddedTemplateCreateLinkView,
@@ -128,7 +128,7 @@ router.register(r'tenants', TenantViewSet, basename='tenants')
 router.register(r'manage-lease', ManageTenantSubscriptionView, basename='manage_lease')
 router.register(r'password-reset', PasswordResetTokenView, basename='password_reset')
 router.register(r'stripe', ManagePaymentMethodsView, basename='stripe')
-router.register(r'lease-terms', LeaseTermViewSet, basename='lease-terms')
+router.register(r'lease-templates', LeaseTemplateViewSet, basename='lease-templates')
 router.register(r'notifications', NotificationViewSet, basename='notifications')
 
 urlpatterns = [
@@ -142,12 +142,12 @@ urlpatterns = [
     path('api/auth/tenant/register/retrieve-rental-application/', RetrieveRentalApplicationByApprovalHash.as_view(), name='tenant_register_verify'),
     path('api/plaid/create-link-token/', PlaidLinkTokenView.as_view(), name='create_plaid_link_token'),
     path('api/sign-lease-agreement/',SignLeaseAgreementView.as_view(), name='sign_lease'),
-    path('api/retrieve-lease-term-and-approval/',RetrieveLeaseTermByIdViewAndApprovalHash.as_view(), name='retrieve_lease_agreement-approval'),
+    path('api/retrieve-lease-template-and-approval/',RetrieveLeaseTemplateByIdViewAndApprovalHash.as_view(), name='retrieve_lease_agreement-approval'),
     path('api/retrieve-lease-agreement-approval/',RetrieveLeaseAgreementByIdAndApprovalHashView.as_view(), name='retrieve_lease_agreement'),
-    path('api/create-lease-term/',LeaseTermCreateView.as_view(), name='create_lease_term'),
-    path('api/delete-lease-term/',DeleteLeaseTermByIdView.as_view(), name='delete_lease_term'),
-    path('api/retrieve-lease-term/',RetrieveLeaseTermByIdView.as_view(), name='retrieve_lease_term'),
-    path('api/retrieve-lease-term-unit/',RetrieveLeaseTermByUnitView.as_view(), name='retrieve_lease_term_unit'),
+    path('api/create-lease-template/',LeaseTemplateCreateView.as_view(), name='create_lease_template'),
+    path('api/delete-lease-template/',DeleteLeaseTemplateByIdView.as_view(), name='delete_lease_template'),
+    path('api/retrieve-lease-template/',RetrieveLeaseTemplateByIdView.as_view(), name='retrieve_lease_template'),
+    path('api/retrieve-lease-template-unit/',RetrieveLeaseTemplateByUnitView.as_view(), name='retrieve_lease_template_unit'),
     path('api/retrieve-unit/',RetrieveUnitByIdView.as_view(), name='retrieve_unit_unauthenticated'),
     path('api/retrieve-tenant-dashboard-data/',RetrieveTenantDashboardData.as_view(), name='retrieve_tenant_dashboard_data'),
     path('api/retrieve-property/',RetrievePropertyByIdView.as_view(), name='retrieve_property_unauthenticated'),
@@ -175,6 +175,6 @@ urlpatterns = [
     path('api/generate/units/', generate_units, name='generate_units'),
     path('api/generate/tenants/', generate_tenants, name='generate_tenants'),
     path('api/generate/rental-applications/', generate_rental_applications, name='generate_rental_applications'),
-    path('api/generate/lease-terms/', generate_lease_terms, name='generate_lease_terms'),
+    path('api/generate/lease-templates/', generate_lease_templates, name='generate_lease_templates'),
 
 ]

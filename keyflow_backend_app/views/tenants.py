@@ -22,7 +22,7 @@ from ..models.account_activation_token import  AccountActivationToken
 from ..serializers.user_serializer import UserSerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
 from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
-from ..serializers.lease_term_serializer import LeaseTermSerializer 
+from ..serializers.lease_template_serializer import LeaseTemplateSerializer 
 from ..serializers.transaction_serializer import TransactionSerializer
 from rest_framework import status
 from rest_framework.response import Response
@@ -57,8 +57,8 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant = User.objects.get(id=user_id)#retrieve the user object
         unit = RentalUnit.objects.get(tenant=tenant)#retrieve the unit object
         landlord = unit.user#Retrieve landlord object from unit object
-        lease_term = unit.lease_term #Retrieve lease term object from unit object
-        amount=lease_term.rent #retrieve the amount from the lease term object
+        lease_template = unit.lease_template #Retrieve lease term object from unit object
+        amount=lease_template.rent #retrieve the amount from the lease term object
         
         # Call Stripe API to create a payment
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
@@ -162,19 +162,19 @@ class RetrieveTenantDashboardData(APIView):
         user_id = request.data.get('user_id')
         user= User.objects.get(id=user_id)
         unit = RentalUnit.objects.get(tenant=user)
-        lease_term = unit.lease_term
+        lease_template = unit.lease_template
         lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
         
         
         unit_serializer = RentalUnitSerializer(unit)
-        lease_term_serializer = LeaseTermSerializer(lease_term)
+        lease_template_serializer = LeaseTemplateSerializer(lease_template)
         lease_agreement_serializer = LeaseAgreementSerializer(lease_agreement)
 
         unit_data = unit_serializer.data
-        lease_term_data = lease_term_serializer.data
+        lease_template_data = lease_template_serializer.data
         lease_agreement_data = lease_agreement_serializer.data
 
-        return Response({'unit':unit_data,'lease_term':lease_term_data,'lease_agreement':lease_agreement_data, 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+        return Response({'unit':unit_data,'lease_template':lease_template_data,'lease_agreement':lease_agreement_data, 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
 #Create an endpoint that registers a tenant
 class TenantRegistrationView(APIView):
@@ -240,7 +240,7 @@ class TenantRegistrationView(APIView):
             rental_application.save()
 
             #Retrieve price id from lease term using lease_agreement
-            lease_term = unit.lease_term
+            lease_template = unit.lease_template
 
             #Attach payment method to the customer adn make it default
             payment_method_id = data['payment_method_id']
@@ -251,10 +251,10 @@ class TenantRegistrationView(APIView):
 
             landlord = unit.user
             #TODO: implement secutrity deposit flow here. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
-            if lease_term.security_deposit>0:
+            if lease_template.security_deposit>0:
                 #Retrieve landlord from the unit
                 security_deposit_payment_intent = stripe.PaymentIntent.create(
-                    amount=int(lease_term.security_deposit*100),
+                    amount=int(lease_template.security_deposit*100),
                     currency='usd',
                     payment_method_types=['card'],
                     customer=customer.id,
@@ -285,7 +285,7 @@ class TenantRegistrationView(APIView):
                     rental_unit = unit,
                     user=landlord,
                     tenant=user,
-                    amount=int(lease_term.security_deposit),
+                    amount=int(lease_template.security_deposit),
                     payment_method_id=data['payment_method_id'],
                     payment_intent_id=security_deposit_payment_intent.id,
 
@@ -293,18 +293,18 @@ class TenantRegistrationView(APIView):
                 #Create a notification for the landlord that the security deposit has been paid
                 notification = Notification.objects.create(
                     user=landlord,
-                    message=f'{user.first_name} {user.last_name} has paid the security deposit for the amount of ${lease_term.security_deposit} for unit {unit.name} at {unit.rental_property.name}',
+                    message=f'{user.first_name} {user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}',
                     type='security_deposit_paid',
                     title='Security Deposit Paid',
                 )
 
             subscription=None
-            if lease_term.grace_period != 0:      
+            if lease_template.grace_period != 0:      
                 # Convert the ISO date string to a datetime object
                 start_date = datetime.fromisoformat(f"{lease_agreement.start_date}")
                 
                 # Number of months to add
-                months_to_add = lease_term.grace_period
+                months_to_add = lease_template.grace_period
                 
                 # Calculate the end date by adding months
                 end_date = start_date + relativedelta(months=months_to_add)
@@ -314,7 +314,7 @@ class TenantRegistrationView(APIView):
                 subscription = stripe.Subscription.create(
                     customer=customer.id,
                     items=[
-                        {"price": lease_term.stripe_price_id},
+                        {"price": lease_template.stripe_price_id},
                     ],
                     default_payment_method=payment_method_id,
                     trial_end=grace_period_end,
@@ -340,7 +340,7 @@ class TenantRegistrationView(APIView):
                 subscription = stripe.Subscription.create(
                     customer=customer.id,
                     items=[
-                        {"price": lease_term.stripe_price_id},
+                        {"price": lease_template.stripe_price_id},
                     ],
                     default_payment_method=payment_method_id,
                     transfer_data={
@@ -361,7 +361,7 @@ class TenantRegistrationView(APIView):
                 #Create a notification for the landlord that the tenant has paid the fisrt month's rent
                 notification = Notification.objects.create(
                     user=landlord,
-                    message=f'{user.first_name} {user.last_name} has paid the first month\'s rent for the amount of ${lease_term.rent} for unit {unit.name} at {unit.rental_property.name}',
+                    message=f'{user.first_name} {user.last_name} has paid the first month\'s rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}',
                     type='first_month_rent_paid',
                     title='First Month\'s Rent Paid',
                 )
@@ -373,7 +373,7 @@ class TenantRegistrationView(APIView):
                     rental_unit = unit,
                     user=landlord,
                     tenant=user,
-                    amount=int(lease_term.rent),
+                    amount=int(lease_template.rent),
                     payment_method_id=data['payment_method_id'],
                     payment_intent_id="subscription",
                 )

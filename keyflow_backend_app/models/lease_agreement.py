@@ -9,7 +9,7 @@ class LeaseAgreement(models.Model):
     end_date = models.DateField(blank=True, null=True)
     document_id = models.CharField(max_length=100, blank=True, null=True)
     tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant')
-    lease_term = models.ForeignKey('LeaseTerm', on_delete=models.CASCADE, blank=True, null=True, default=None)
+    lease_template = models.ForeignKey('LeaseTemplate', on_delete=models.CASCADE, blank=True, null=True, default=None)
     signed_date = models.DateField(blank=True, null=True)
     is_active = models.BooleanField(default=False,blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
