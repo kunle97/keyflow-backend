@@ -84,6 +84,10 @@ from keyflow_backend_app.views.transactions import (
     TransactionViewSet,
 )
 
+from keyflow_backend_app.views.messages import (
+    MessageViewSet,
+)
+
 from keyflow_backend_app.views.stripe import (
     StripeWebhookView,
 )
@@ -130,6 +134,7 @@ router.register(r'password-reset', PasswordResetTokenView, basename='password_re
 router.register(r'stripe', ManagePaymentMethodsView, basename='stripe')
 router.register(r'lease-templates', LeaseTemplateViewSet, basename='lease-templates')
 router.register(r'notifications', NotificationViewSet, basename='notifications')
+router.register(r'messages', MessageViewSet, basename='messages')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
