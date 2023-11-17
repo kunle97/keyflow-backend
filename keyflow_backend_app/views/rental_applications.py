@@ -69,6 +69,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             unit=unit,
             first_name=data["first_name"],
             last_name=data["last_name"],
+            date_of_birth=data["date_of_birth"],
             email=data["email"],
             phone_number=data["phone_number"],
             desired_move_in_date=data["desired_move_in_date"],

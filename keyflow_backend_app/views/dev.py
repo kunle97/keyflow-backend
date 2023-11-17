@@ -20,6 +20,7 @@ from ..models.lease_agreement import LeaseAgreement
 from ..models.rental_application import RentalApplication
 from ..models.transaction import Transaction
 from ..models.lease_template import LeaseTemplate
+from ..models.message import Message
 faker = Faker()
 load_dotenv()
 stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
@@ -37,7 +38,7 @@ def test_token(request):
 # @authentication_classes([JWTAuthentication])   
 def get_landlord_emails(request):
     #Retrieve all landlord users
-    landlords = User.objects.filter(account_type='landlord')
+    landlords = User.objects.filter(account_type='landlord').order_by('-id')
     #Create a list of landlord emails
     landlord_emails = []
     for landlord in landlords:
@@ -49,7 +50,7 @@ def get_landlord_emails(request):
 @api_view(['GET'])
 def get_landlord_usernames(request):
     #Retrieve all landlord users
-    landlords = User.objects.filter(account_type='landlord')
+    landlords = User.objects.filter(account_type='landlord').order_by('-id')
     #Create a list of landlord usernames
     landlord_usernames = []
     for landlord in landlords:
@@ -621,3 +622,25 @@ def generate_rental_applications(request):
     #Return a response
     return Response({"message":"Rental Applications generated", "status":status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
 
+#Create a function to generate a number of messages for a user
+@api_view(['POST'])
+def generate_messages(request):
+    count = request.data.get('count', 1)
+    int_count = int(count)
+    user_id = request.data.get('user_id')
+    user = User.objects.get(id=user_id)
+    #create a entries for messages with faker data with count number in a loop
+    while(int_count > 0):
+        body = faker.text(max_nb_chars=200)
+        sender = user
+        #Retreve one of the user's tenants at randome and use them as the recipient
+        recipient = User.objects.filter(account_type='tenant', user_id=user.id).order_by('?').first()
+        #Create a message for the user
+        message = Message.objects.create(
+            body=body,
+            sender=sender,
+            recipient=recipient,
+        )
+        int_count -= 1
+    #Return a response
+    return Response({"message":"Messages generated", "status":status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)

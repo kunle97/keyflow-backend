@@ -7,7 +7,7 @@ class LeaseTemplate(models.Model):
     rent = models.DecimalField(max_digits=10, decimal_places=2)
     term = models.IntegerField() #Integer for duration of lease in months
     template_id = models.CharField(max_length=100, blank=False, null=False, default="") #BoldSign template ID
-    description = models.TextField() #descriptionn of the property and lease terms (to be displayed on REntal App page)
+    description = models.TextField() #descriptionn of the property and lease template id (to be displayed on REntal App page)
     late_fee = models.DecimalField(max_digits=10, decimal_places=2)
     security_deposit = models.DecimalField(max_digits=10, decimal_places=2)
     gas_included = models.BooleanField(default=False)
