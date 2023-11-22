@@ -16,8 +16,8 @@ from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-
+from ..helpers import strtobool
+ 
 class RetrieveRentalApplicationByApprovalHash(APIView):
     def post(self, request):
         approval_hash = request.data.get("approval_hash")
@@ -25,19 +25,6 @@ class RetrieveRentalApplicationByApprovalHash(APIView):
         serializer = RentalApplicationSerializer(rental_application)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-def strtobool (val):
-    """Convert a string representation of truth to true (1) or false (0).
-    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
-    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
-    'val' is anything else.
-    """
-    val = val.lower()
-    if val in ('y', 'yes', 't', 'true', 'on', '1'):
-        return True
-    elif val in ('n', 'no', 'f', 'false', 'off', '0'):
-        return False
-    else:
-        raise ValueError("invalid truth value %r" % (val,))
 class RentalApplicationViewSet(viewsets.ModelViewSet):
     queryset = RentalApplication.objects.all()
     serializer_class = RentalApplicationSerializer

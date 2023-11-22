@@ -14,7 +14,7 @@ class LeaseTemplate(models.Model):
     water_included = models.BooleanField(default=False)
     electric_included = models.BooleanField(default=False)
     repairs_included = models.BooleanField(default=False)
-    additional_charges =  models.TextField(blank=True, null=True) #Additional charges to be displayed on Rental App page
+    additional_charges =  models.TextField(blank=True, null=True, default="[]") #Additional charges to be displayed on Rental App page
     grace_period = models.IntegerField(default=0) #Integer for time until user must pay first rent payment period in months
     lease_cancellation_notice_period = models.IntegerField() #Integer for notice period in months
     lease_cancellation_fee = models.DecimalField(max_digits=10, decimal_places=2)

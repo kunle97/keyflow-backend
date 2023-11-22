@@ -109,6 +109,8 @@ from keyflow_backend_app.views.dev import (
     generate_tenants,
     generate_rental_applications,
     generate_lease_templates,
+    generate_messages,
+    generate_maintenance_requests
 )
 from keyflow_backend_app.views.boldsign import (
     CreateEmbeddedTemplateCreateLinkView,
@@ -117,7 +119,9 @@ from keyflow_backend_app.views.boldsign import (
     DownloadBoldSignDocumentView,
     CreateEmbeddedTemplateEditView
 )
-
+from keyflow_backend_app.views.file_uploads import (
+    FileUploadViewSet,
+)
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet,  basename='users')
@@ -135,6 +139,7 @@ router.register(r'stripe', ManagePaymentMethodsView, basename='stripe')
 router.register(r'lease-templates', LeaseTemplateViewSet, basename='lease-templates')
 router.register(r'notifications', NotificationViewSet, basename='notifications')
 router.register(r'messages', MessageViewSet, basename='messages')
+router.register(r'file-uploads', FileUploadViewSet, basename='file-uploads')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -163,7 +168,6 @@ urlpatterns = [
     path('api/stripe-webhook/', StripeWebhookView.as_view(), name='stripe_webhook'),
     path('api/landlord-tenant-detail/', LandlordTenantDetailView.as_view(), name='landlord_tenant_detail'),
     path('api/landlord-tenant-list/', LandlordTenantListView.as_view(), name='landlord_tenant_list'),
-    
     #BoldSign
     path('api/boldsign/create-embedded-template-create-link/', CreateEmbeddedTemplateCreateLinkView.as_view(), name='create_embedded_template_create_link'),
     path('api/boldsign/create-document-from-template/', CreateDocumentFromTemplateView.as_view(), name='create_document_from_template'),
@@ -181,5 +185,6 @@ urlpatterns = [
     path('api/generate/tenants/', generate_tenants, name='generate_tenants'),
     path('api/generate/rental-applications/', generate_rental_applications, name='generate_rental_applications'),
     path('api/generate/lease-templates/', generate_lease_templates, name='generate_lease_templates'),
-
+    path('api/generate/messages/', generate_messages, name='generate_messages'),
+    path('api/generate/maintenance-requests/', generate_maintenance_requests, name='generate_maintenance_requests'),
 ]

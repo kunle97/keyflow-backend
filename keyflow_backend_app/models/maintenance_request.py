@@ -10,6 +10,7 @@ class MaintenanceRequest(models.Model):
         ('electrical', 'Electrical'),
         ('appliance', 'Appliance'),
         ('structural', 'Structural'),
+        ('hvac', 'HVAC'),
         ('other', 'Other'),
     )
     STATUS_TYPE_CHOICES = (
