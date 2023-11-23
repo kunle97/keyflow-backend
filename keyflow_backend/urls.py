@@ -123,6 +123,10 @@ from keyflow_backend_app.views.file_uploads import (
     FileUploadViewSet,
 )
 
+from keyflow_backend_app.views.mailchimp  import(
+    RequestDemoSubscribeView
+)
+
 router = DefaultRouter()
 router.register(r'users', UserViewSet,  basename='users')
 router.register(r'properties', PropertyViewSet, basename='rental_properties')
@@ -174,6 +178,8 @@ urlpatterns = [
     path('api/boldsign/create-signing-link/', CreateSigningLinkView.as_view(), name='create_signing_link'),
     path('api/boldsign/download-document/', DownloadBoldSignDocumentView.as_view(), name='download_boldsign_document'),
     path('api/boldsign/create-embedded-template-edit-link/', CreateEmbeddedTemplateEditView.as_view(), name='create_embedded_template_edit_link'),
+    #MailChimp
+    path('api/mailchimp/request-demo-subscribe/', RequestDemoSubscribeView.as_view(), name='request_demo_subscribe'),
     #Dev urls
     path('api/test_token', test_token, name='test_token'), 
     path('api/landlords-emails/', get_landlord_emails, name='landlord_emails'),
