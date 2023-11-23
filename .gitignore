@@ -2,9 +2,9 @@ venv/
 db.sqlite3
 AuthTokens.txt
 .env
-migrations/
+# migrations/
 *.pyc
 /__pycache__/
-keyflow_backend_app/migrations/
+# keyflow_backend_app/migrations/
 !/__init__.py
 *.sqlite3
