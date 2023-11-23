@@ -127,6 +127,8 @@ from keyflow_backend_app.views.mailchimp  import(
     RequestDemoSubscribeView
 )
 
+from django.conf.urls.static import static
+from django.conf import settings
 router = DefaultRouter()
 router.register(r'users', UserViewSet,  basename='users')
 router.register(r'properties', PropertyViewSet, basename='rental_properties')
@@ -194,3 +196,6 @@ urlpatterns = [
     path('api/generate/messages/', generate_messages, name='generate_messages'),
     path('api/generate/maintenance-requests/', generate_maintenance_requests, name='generate_maintenance_requests'),
 ]
+
+urlpatterns +=  static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns +=  static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
