@@ -152,6 +152,7 @@ CORS_ORIGIN_WHITELIST = [
     "https://merchant-ui-api.stripe.com",
     "https://js.stripe.com",
     "https://api.boldsign.com",
+    "https://keyflow-frontend-9fxxwghdv-kunle97.vercel.app",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -162,6 +163,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://merchant-ui-api.stripe.com",
     "https://js.stripe.com",
     "https://api.boldsign.com",
+    "https://keyflow-frontend-9fxxwghdv-kunle97.vercel.app",
 ]
 
 CORS_ALLOWED_ORIGINS = [  # JWT Config
