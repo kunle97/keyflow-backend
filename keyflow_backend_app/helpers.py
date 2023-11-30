@@ -1,5 +1,10 @@
+import os
 import random
 import string
+from dotenv import load_dotenv
+import boto3
+from django.core.files.storage import default_storage
+load_dotenv()
 
 def make_id(length):
     result = ''
@@ -24,3 +29,19 @@ def strtobool (val):
         return False
     else:
         raise ValueError("invalid truth value %r" % (val,))
+
+# Function to generate a presigned URL for a specific S3 file
+def generate_presigned_url(file_key):
+    s3_client = boto3.client("s3", region_name=os.getenv("AWS_S3_REGION_NAME"))
+
+    # Generate a presigned URL for the file_key within your S3 bucket
+    presigned_url = s3_client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": os.getenv("AWS_STORAGE_BUCKET_NAME"),
+            "Key": file_key,
+        },
+        ExpiresIn=3600,  # Optional: URL expiration time in seconds
+    )
+
+    return presigned_url

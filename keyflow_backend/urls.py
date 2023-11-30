@@ -86,6 +86,7 @@ from keyflow_backend_app.views.transactions import (
 
 from keyflow_backend_app.views.messages import (
     MessageViewSet,
+    UserThreadsListView,
 )
 
 from keyflow_backend_app.views.stripe import (
@@ -97,6 +98,23 @@ from keyflow_backend_app.views.jwt import (
 
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
+)
+
+from keyflow_backend_app.views.boldsign import (
+    CreateEmbeddedTemplateCreateLinkView,
+    CreateDocumentFromTemplateView,
+    CreateSigningLinkView,
+    DownloadBoldSignDocumentView,
+    CreateEmbeddedTemplateEditView
+)
+from keyflow_backend_app.views.file_uploads import (
+    FileUploadViewSet,
+    S3FileDeleteView,
+    UnauthenticatedRetrieveImagesBySubfolderView
+)
+
+from keyflow_backend_app.views.mailchimp  import(
+    RequestDemoSubscribeView
 )
 from keyflow_backend_app.views.dev import (
     test_token,
@@ -112,21 +130,6 @@ from keyflow_backend_app.views.dev import (
     generate_messages,
     generate_maintenance_requests
 )
-from keyflow_backend_app.views.boldsign import (
-    CreateEmbeddedTemplateCreateLinkView,
-    CreateDocumentFromTemplateView,
-    CreateSigningLinkView,
-    DownloadBoldSignDocumentView,
-    CreateEmbeddedTemplateEditView
-)
-from keyflow_backend_app.views.file_uploads import (
-    FileUploadViewSet,
-)
-
-from keyflow_backend_app.views.mailchimp  import(
-    RequestDemoSubscribeView
-)
-
 router = DefaultRouter()
 router.register(r'users', UserViewSet,  basename='users')
 router.register(r'properties', PropertyViewSet, basename='rental_properties')
@@ -163,6 +166,7 @@ urlpatterns = [
     path('api/retrieve-lease-template/',RetrieveLeaseTemplateByIdView.as_view(), name='retrieve_lease_template'),
     path('api/retrieve-lease-template-unit/',RetrieveLeaseTemplateByUnitView.as_view(), name='retrieve_lease_template_unit'),
     path('api/retrieve-unit/',RetrieveUnitByIdView.as_view(), name='retrieve_unit_unauthenticated'),
+    path('api/retrieve-images-by-subfolder/',UnauthenticatedRetrieveImagesBySubfolderView.as_view(), name='retrieve_images_by_subfolder'),
     path('api/retrieve-tenant-dashboard-data/',RetrieveTenantDashboardData.as_view(), name='retrieve_tenant_dashboard_data'),
     path('api/retrieve-property/',RetrievePropertyByIdView.as_view(), name='retrieve_property_unauthenticated'),
     path('api/retrieve-landlord-subscription-prices/',RetrieveLandlordSubscriptionPriceView.as_view(), name='retrieve_landlord_subscription_price'),
@@ -172,6 +176,8 @@ urlpatterns = [
     path('api/stripe-webhook/', StripeWebhookView.as_view(), name='stripe_webhook'),
     path('api/landlord-tenant-detail/', LandlordTenantDetailView.as_view(), name='landlord_tenant_detail'),
     path('api/landlord-tenant-list/', LandlordTenantListView.as_view(), name='landlord_tenant_list'),
+    path('api/s3-file-delete/', S3FileDeleteView.as_view(), name='s3_file_delete'),
+    path('api/retrieve-user-threads/', UserThreadsListView.as_view(), name='retrieve_user_threads'),
     #BoldSign
     path('api/boldsign/create-embedded-template-create-link/', CreateEmbeddedTemplateCreateLinkView.as_view(), name='create_embedded_template_create_link'),
     path('api/boldsign/create-document-from-template/', CreateDocumentFromTemplateView.as_view(), name='create_document_from_template'),

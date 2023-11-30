@@ -13,10 +13,12 @@ from ..models.rental_unit import RentalUnit
 from ..models.lease_agreement import LeaseAgreement
 from ..models.maintenance_request import MaintenanceRequest
 from ..models.rental_application import RentalApplication
+from ..models.uploaded_file import UploadedFile
 from ..serializers.rental_unit_serializer import  RentalUnitSerializer 
 from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer 
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.rental_application_serializer import RentalApplicationSerializer
+from ..serializers.uploaded_file_serializer import UploadedFileSerializer
 from ..permissions import  IsResourceOwner, ResourceCreatePermission, UnitDeletePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -32,7 +34,9 @@ class RetrieveUnitByIdView(APIView):
         unit = RentalUnit.objects.get(id=unit_id)
         serializer = RentalUnitSerializer(unit)
         return Response(serializer.data, status=status.HTTP_200_OK) 
+    
 
+    
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
     serializer_class = RentalUnitSerializer
