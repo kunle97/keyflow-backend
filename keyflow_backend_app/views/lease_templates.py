@@ -56,6 +56,7 @@ class LeaseTemplateCreateView(APIView):
     def post(self, request):
         user = User.objects.get(id=request.data.get('user_id'))
         data = request.data.copy()
+        lease_template = None
         if user.is_authenticated and user.account_type == 'landlord':
             lease_template = LeaseTemplate.objects.create(
                 user=user,
@@ -113,8 +114,12 @@ class LeaseTemplateCreateView(APIView):
                             unit.save()
             else:
                 print("No assignments selected")
+            serializer = LeaseTemplateSerializer(lease_template)
 
-            return Response({'message': 'Lease term created successfully.'})
+            return Response({
+                'message': 'Lease term created successfully.',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
         return Response({'message': 'You do not have permission to access this resource.'}, status=status.HTTP_403_FORBIDDEN)   
 
     #Create a method to retrive all lease terms for a specific user

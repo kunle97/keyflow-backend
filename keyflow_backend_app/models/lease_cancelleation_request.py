@@ -11,8 +11,9 @@ class LeaseCancellationRequest(models.Model):
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     lease_agreement = models.ForeignKey(LeaseAgreement, on_delete=models.CASCADE, default=None)
     request_date = models.DateTimeField()
-    is_approved = models.BooleanField(default=False)
+    status = models.CharField(max_length=255, default='pending') # pending, approved, denied
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE, default=None)
+    reason = models.TextField(default=None, blank=True, null=True)
     comments = models.TextField(default=None, blank=True, null=True)
     created_at = models.DateTimeField(default=datetime.now, blank=True)
     updated_at = models.DateTimeField(default=datetime.now, blank=True)

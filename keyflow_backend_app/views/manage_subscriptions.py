@@ -123,13 +123,10 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
     def next_payment_date(self, request, pk=None):
         # Retrieve user id from request body
         user_id = request.data.get("user_id")
-        print(f"User id: {user_id}")
         # Retrieve the user object from the database by id
         user = User.objects.get(id=user_id)
-        # Retrieve the unit object from the user object
-        unit = RentalUnit.objects.get(tenant=user)
+        lease_agreement = LeaseAgreement.objects.filter(tenant=user, is_active=True).first()
         # Retrieve the lease agreement object from the unit object
-        lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
 
         # Input lease start date (replace with your actual start date)
         lease_start_date = datetime.fromisoformat(
@@ -167,10 +164,10 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
         user_id = request.data.get("user_id")
         # Retrieve the user object from the database by id
         user = User.objects.get(id=user_id)
+        lease_agreement = LeaseAgreement.objects.get(tenant=user, is_active=True)
         # Retrieve the unit object from the user object
-        unit = RentalUnit.objects.get(tenant=user)
+        unit = lease_agreement.rental_unit
         # Retrieve the lease agreement object from the unit object
-        lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
 
         # Input lease start date (replace with your actual start date)
         lease_start_date = datetime.fromisoformat(
@@ -184,52 +181,48 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
 
         # Create a ppayment dates list
         payment_dates = [
-            {
-                "title": "Rent Due",
-                "payment_date": lease_start_date,
-                "transaction_paid": False,
-            }
         ]
 
         # Calculate the next payment date
         while lease_start_date <= lease_end_date:
             # Check for transaction in database to see if payment has been made
             transaction_paid = Transaction.objects.filter(
-                rental_unit=unit, created_at=lease_start_date
+                rental_unit=unit,
+                created_at__date=lease_start_date.date()  # Extracts only the date part for comparison
             ).exists()
-            event_title = ""
+            
+            event_title = "Rent Due"  # Default title
+            
             if transaction_paid:
                 event_title = "Rent Paid"
-            else:
-                event_title = "Rent Due"
+            #check if the 
+            payment_dates.append({
+                "title": event_title,
+                "payment_date": lease_start_date,
+                "transaction_paid": transaction_paid,
+            })
+            
+            # Move to the next month's payment date
+            lease_start_date += timedelta(days=30)  # Assuming monthly payments
+            
+            # Ensure that the next month's date doesn't exceed the lease_end_date
+            if lease_start_date > lease_end_date:
+                break
 
-            next_month_date = lease_start_date + timedelta(
-                days=30
-            )  # Assuming monthly payments
-            # Ensure that the result stays on the same day even if the next month has fewer days
-            # For example, if input_date is January 31, next_month_date would be February 28 (or 29 in a leap year)
-            # This code snippet adjusts it to February 28 (or 29)
-            if lease_start_date.day != next_month_date.day:
-                next_month_date = next_month_date.replace(day=lease_start_date.day)
-                payment_dates.append(
-                    {
-                        "title": event_title,
-                        "payment_date": next_month_date,
-                        "transaction_paid": transaction_paid,
-                    }
-                )
-                lease_start_date = next_month_date
-            else:
-                payment_dates.append(
-                    {
-                        "title": event_title,
-                        "payment_date": next_month_date,
-                        "transaction_paid": transaction_paid,
-                    }
-                )
-                lease_start_date += timedelta(days=30)  # Assuming monthly payments
+            # Check if the next month's date exceeds the lease_end_date
+            # If so, set the payment date to the lease_end_date
+            if lease_start_date + timedelta(days=30) > lease_end_date:
+                lease_start_date = lease_end_date
 
-            # Add the payment date and transaction paid status to the payment dates list
+            # Check if the payment for the next month has already been made
+            # If so, update the lease_start_date to that payment date
+            transaction_paid_next_month = Transaction.objects.filter(
+                rental_unit=unit,
+                created_at__date=lease_start_date.date()  # Extracts only the date part for comparison
+            ).exists()
+
+            if transaction_paid_next_month:
+                lease_start_date += timedelta(days=30)
 
         # Return a response with the payment dates list
         return Response(

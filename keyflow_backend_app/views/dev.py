@@ -3,7 +3,7 @@ import hashlib
 import stripe
 import random
 from dotenv import load_dotenv
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from dateutil.relativedelta import relativedelta
 from rest_framework.decorators import (
     authentication_classes,
@@ -27,8 +27,12 @@ from ..models.transaction import Transaction
 from ..models.lease_template import LeaseTemplate
 from ..models.message import Message
 from ..models.maintenance_request import MaintenanceRequest
+from ..models.lease_cancelleation_request import LeaseCancellationRequest
+from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..helpers import make_id, strtobool
 from django.views.decorators.csrf import csrf_exempt
+
+
 
 faker = Faker()
 load_dotenv()
@@ -226,7 +230,8 @@ def generate_tenants(request):
     )  # Values are 'True' or 'False'
 
     tenant = None
-
+    lease_agreement = None
+    subscription = None
     # Retrieve all of the landlord's properties
     properties = RentalProperty.objects.filter(user_id=user_id)
 
@@ -311,7 +316,7 @@ def generate_tenants(request):
                 term=term,
                 rent=rent,
                 user=user,
-                template_id="d13cb236-b3d5-4be9-9ba4-b98468f60bb2",
+                template_id="a6d7a4b5-bb38-4d92-a6c9-90e76e7a96ce",
                 description=description,
                 late_fee=late_fee,
                 security_deposit=security_deposit,
@@ -432,7 +437,7 @@ def generate_tenants(request):
         end_date = current_date.replace(
             year=current_date.year + 1
         )  # One year in the future
-
+        rental_application = None
         # Create a random hash string that ius at most 100 characters
         if create_rental_application:
             rental_application = RentalApplication.objects.create(
@@ -621,9 +626,14 @@ def generate_tenants(request):
                 title="First Month's Rent Paid",
             )
 
-            # add subscription id to the lease agreement
-            lease_agreement.stripe_subscription_id = subscription.id
-            lease_agreement.save()
+            print(f"subscription: {subscription}")
+            print(f"lease_agreement: {lease_agreement}")
+
+        # add subscription id to the lease agreement
+        lease_agreement.stripe_subscription_id = subscription.id
+        if rental_application:
+            lease_agreement.rental_application = rental_application
+        lease_agreement.save()
 
         int_count -= 1
     # Return a response
@@ -754,9 +764,11 @@ def generate_rental_applications(request):
         )
     # else if unit_mode is 'random' choose a random unoccumpued unit for the tenant
     elif unit_mode == "random":
-        # Choose a random unoccupied unit
+        # Find a unit where the lease_tempalte field is NOT null
         unit = (
-            RentalUnit.objects.filter(is_occupied=False, user=user)
+            RentalUnit.objects.filter(
+                is_occupied=False, user=user, lease_template__isnull=False
+            )
             .order_by("?")
             .first()
         )
@@ -927,6 +939,117 @@ def generate_maintenance_requests(request):
     return Response(
         {
             "message": "Maintenance Requests generated",
+            "status": status.HTTP_201_CREATED,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+# Create a function to generate lease cancellation requests for a number of tenants
+@csrf_exempt
+@api_view(["POST"])
+def generate_lease_cancellation_requests(request):
+    count = request.data.get("count", 1)
+    user_id = request.data.get("user_id")
+    user = User.objects.get(id=user_id)
+    int_count = int(count)
+    # Fetch all of the reqest.user's tennats by retrieveing all of thier rental units and then all of the tenants for each unit
+    landlord_tenants = User.objects.filter(
+        id__in=RentalUnit.objects.filter(user=user).values_list(
+            "tenant__id", flat=True
+        )
+    )
+
+    #find all tenants that have an active Lease agreement
+    landlord_tenants = landlord_tenants.filter(
+        id__in=LeaseAgreement.objects.filter(is_active=True).values_list(
+            "tenant__id", flat=True
+        )
+    )
+
+    #select int_count number of random tenants from the landlord's tenants
+    tenants = landlord_tenants.order_by("?")[:int_count]
+    # Using a while loop, create a lease cancellation request for each tenant
+    while int_count > 0:
+        tenant = tenants[int_count - 1]
+        unit = RentalUnit.objects.filter(tenant=tenant).first()
+        #fetch tenant's lease agreement from the unit
+        lease_agreement = LeaseAgreement.objects.get(tenant=tenant)
+        lease_cancellation_request = LeaseCancellationRequest.objects.create(
+            user=unit.user,
+            tenant=tenant,
+            rental_unit=unit,
+            rental_property=unit.rental_property,
+            lease_agreement=lease_agreement,
+            reason="Other",
+            comments="Created using the  dev tool",
+            status="pending",
+            request_date=date.today(),
+        )
+        int_count -= 1
+
+    # Return a response
+    return Response(
+        {
+            "message": "Lease Cancellation Requests generated",
+            "status": status.HTTP_201_CREATED,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+#Create a function to generate a number of lease renewal requests for a definied number of tenants
+@csrf_exempt
+@api_view(["POST"])
+def generate_lease_renewal_requests(request):
+    count = request.data.get("count", 1)
+    user_id = request.data.get("user_id")
+    user = User.objects.get(id=user_id)
+    int_count = int(count)
+    # Fetch all of the reqest.user's tennats by retrieveing all of thier rental units and then all of the tenants for each unit
+    landlord_tenants = User.objects.filter(
+        id__in=RentalUnit.objects.filter(user=user).values_list(
+            "tenant__id", flat=True
+        )
+    )
+
+    #find all tenants that have an active Lease agreement
+    landlord_tenants = landlord_tenants.filter(
+        id__in=LeaseAgreement.objects.filter(is_active=True).values_list(
+            "tenant__id", flat=True
+        )
+    )
+
+    #select int_count number of random tenants from the landlord's tenants
+    tenants = landlord_tenants.order_by("?")[:int_count]
+    # Using a while loop, create a lease renewal request for each tenant
+    while int_count > 0:
+        tenant = tenants[int_count - 1]
+        unit = RentalUnit.objects.filter(tenant=tenant).first()
+
+        #fetch tenant's lease agreement from the unit
+        lease_agreement = LeaseAgreement.objects.filter(tenant=tenant, is_active=True).first()
+        #Create a move_in_date variable whose value is a date that is a random mumber of day after the lease agreement's end date
+        move_in_date = lease_agreement.end_date + timedelta(
+            days=random.randint(1, 30)
+        )
+        lease_renewal_request = LeaseRenewalRequest.objects.create(
+            user=unit.user,
+            tenant=tenant,
+            rental_unit=unit,
+            rental_property=unit.rental_property,
+            move_in_date=move_in_date,
+            comments="Created using the  dev tool",
+            status="pending",
+            request_date=date.today(),
+            request_term=request.data.get("request_term"),
+        )
+        int_count -= 1
+
+    # Return a response
+    return Response(
+        {
+            "message": "Lease Renewal Requests generated",
             "status": status.HTTP_201_CREATED,
         },
         status=status.HTTP_201_CREATED,

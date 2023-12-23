@@ -1,3 +1,4 @@
+from email.policy import default
 from django.db import models
 from datetime import datetime
 from keyflow_backend_app.models.user import User
@@ -18,6 +19,8 @@ class LeaseTemplate(models.Model):
     grace_period = models.IntegerField(default=0) #Integer for time until user must pay first rent payment period in months
     lease_cancellation_notice_period = models.IntegerField() #Integer for notice period in months
     lease_cancellation_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    lease_renewal_notice_period = models.IntegerField(default=None, null=True) #Integer for notice period in months
+    lease_renewal_fee = models.DecimalField(max_digits=10, decimal_places=2, default=None, null=True)
     stripe_product_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     stripe_price_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)

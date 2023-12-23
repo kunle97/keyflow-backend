@@ -76,23 +76,23 @@ class CreateEmbeddedTemplateCreateLinkView(APIView):
                 }
             )
 
+
 class CreateEmbeddedTemplateEditView(APIView):
     def post(self, request, *args, **kwargs):
-
-        url = "https://api.boldsign.com/v1/template/getEmbeddedTemplateEditUrl?templateId="+request.data.get("template_id")
-        payload={
-            'ShowToolbar': 'true',
-            'ViewOption': 'PreparePage',
-            'ShowSaveButton': 'true',
-            'ShowCreateButton': 'true',
-            'ShowPreviewButton': 'true',
-            'ShowNavigationButtons': 'true',
-            'ShowTooltip': 'true',
+        url = (
+            "https://api.boldsign.com/v1/template/getEmbeddedTemplateEditUrl?templateId="
+            + request.data.get("template_id")
+        )
+        payload = {
+            "ShowToolbar": "true",
+            "ViewOption": "PreparePage",
+            "ShowSaveButton": "true",
+            "ShowCreateButton": "true",
+            "ShowPreviewButton": "true",
+            "ShowNavigationButtons": "true",
+            "ShowTooltip": "true",
         }
-        headers = {
-            'Accept': 'application/json',
-            'X-API-KEY': BOLDSIGN_API_KEY
-        }
+        headers = {"Accept": "application/json", "X-API-KEY": BOLDSIGN_API_KEY}
 
         response = requests.request("POST", url, headers=headers, data=payload)
         if response.status_code == 201:
@@ -111,6 +111,7 @@ class CreateEmbeddedTemplateEditView(APIView):
                 }
             )
 
+
 class CreateDocumentFromTemplateView(APIView):
     def post(self, request, *args, **kwargs):
         url = (
@@ -122,12 +123,20 @@ class CreateDocumentFromTemplateView(APIView):
             + " "
             + request.data.get("tenant_last_name")
         )
+        landlord_name = request.user.first_name + " " + request.user.last_name
 
         tenant_email = ""
         if os.getenv("ENVIRONMENT") == "development":
             tenant_email = "tenant@boldsign.dev"
         else:
             tenant_email = request.data.get("tenant_email")
+
+        landlord_email = ""
+        if os.getenv("ENVIRONMENT") == "development":
+            landlord_email = "landlord@boldsign.dev"
+        else:
+            landlord_email = request.user.email
+
         payload = {
             "title": request.data.get("document_title"),
             "message": request.data.get("message"),
@@ -136,7 +145,19 @@ class CreateDocumentFromTemplateView(APIView):
                     "roleIndex": 1,
                     "signerName": tenant_name,
                     "signerEmail": tenant_email,
-                }
+                },
+                {
+                    "roleIndex": 2,
+                    "signerName": landlord_name,
+                    "signerEmail": landlord_email,
+                    "formFields": [
+                        {
+                            "fieldType": "Signature",
+                            "pageNumber": 1,
+                            "bounds": {"x": 100, "y": 100, "width": 100, "height": 50},
+                        }
+                    ],
+                },
             ],
             "sendForSignatureTemplate": True,
             # 'OnBehalfOf': 'luthercooper@cubeflakes.com',/
@@ -148,14 +169,6 @@ class CreateDocumentFromTemplateView(APIView):
             "Content-Type": "application/json;odata.metadata=minimal;odata.streaming=true",
         }
         response = requests.post(url, headers=headers, data=json.dumps(payload))
-        # Debug REsponse
-        # Print the status code
-        print("Status Code:", response.status_code)
-
-        # Print the response headers
-        print("Response Headers:")
-        for key, value in response.headers.items():
-            print(f"{key}: {value}")
 
         # Print the response content (the full response body)
         print("Response Content:", response.content)
@@ -230,12 +243,12 @@ class DownloadBoldSignDocumentView(APIView):
         if response.status_code == 200:
             # Get the file content and content type from the response
             file_content = response.content
-            content_type = response.headers.get('Content-Type')
+            content_type = response.headers.get("Content-Type")
 
             # Create a FileResponse without specifying a filename
             response = FileResponse(file_content)
-            response['Content-Type'] = content_type
-            response['Content-Disposition'] = 'attachment'
+            response["Content-Type"] = content_type
+            response["Content-Disposition"] = "attachment"
 
             return response
         else:
