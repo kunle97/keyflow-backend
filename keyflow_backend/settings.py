@@ -32,7 +32,7 @@ SECRET_KEY = "2=ygj!*kw8p+g*-kpm_b@r91io6uswae2*8f1j(o5jr4a*&ja_"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['.vercel.app','.now.sh', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['.vercel.app','.now.sh', 'localhost', '127.0.0.1','keyflow-backend-staging.onrender.com']
 
 
 # Application definition
