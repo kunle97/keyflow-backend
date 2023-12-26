@@ -190,7 +190,9 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         subscription.delete()
 
         # Delete Lease Cancellation Request
-        lease_cancellation_request.delete()
+        # lease_cancellation_request.delete()
+        lease_cancellation_request.status = "approved"
+        lease_cancellation_request.save()
 
         # Delete Lease Agreement
         lease_agreement.delete()
@@ -222,7 +224,9 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         )
 
         # Delete Lease Cancellation Request
-        lease_cancellation_request.delete()
+        # lease_cancellation_request.delete()
+        lease_cancellation_request.status = "denied"
+        lease_cancellation_request.save()
 
         #Create a notification for the tenant that the lease cancellation request has been denied
 

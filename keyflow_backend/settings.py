@@ -57,7 +57,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware", 
+    # "whitenose.middleware.WhiteNoiseMiddleware",  # whitenoise
     "django.middleware.common.CommonMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # CORS
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -143,7 +144,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = "/static/"
-
+# STATIC_ROOT =  BASE_DIR/'assets'
+# STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 CORS_ORIGIN_WHITELIST = [
     "http://localhost:3000",
     "https://localhost:3000",
@@ -190,7 +192,7 @@ AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
 AWS_S3_SIGNATURE_VERSION = 's3v4'
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=90),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": False,  # CHANGE TO TRUE WHEN DEPLOYING

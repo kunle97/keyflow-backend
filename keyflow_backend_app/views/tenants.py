@@ -85,7 +85,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 
         # create a transaction object
         transaction = Transaction.objects.create(
-            type="revenue",
+            type="rent_payment",
             description=f"{tenant.first_name} {tenant.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for landlord {landlord.first_name} {landlord.last_name}",
             rental_property=unit.rental_property,
             rental_unit=unit,
@@ -321,7 +321,7 @@ class TenantRegistrationView(APIView):
 
                 # create a transaction object for the security deposit
                 security_deposit_transaction = Transaction.objects.create(
-                    type="revenue",
+                    type="security_deposit",
                     description=f"{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
@@ -416,7 +416,7 @@ class TenantRegistrationView(APIView):
                 )
                 # create a transaction object for the rent payment (stripe subscription)
                 subscription_transaction = Transaction.objects.create(
-                    type="revenue",
+                    type="rent_payment",
                     description=f"{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
