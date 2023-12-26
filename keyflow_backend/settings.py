@@ -168,14 +168,14 @@ CSRF_TRUSTED_ORIGINS = [
     "https://js.stripe.com",
     "https://api.boldsign.com",
     "https://keyflow-frontend-9fxxwghdv-kunle97.vercel.app",
-    "https://keyflow-frontend.vercel.app/"
+    "https://keyflow-frontend.vercel.app"
 ]
 
 CORS_ALLOWED_ORIGINS = [  # JWT Config
     "http://localhost:3000",
     "https://localhost:3000",
     "http://127.0.0.1",
-    "https://keyflow-frontend.vercel.app/",
+    "https://keyflow-frontend.vercel.app",
 ]
 
 REST_FRAMEWORK = {
