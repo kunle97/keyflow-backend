@@ -141,7 +141,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         # Create notification for the recipient
         notification_title = f"New Message from {sender.first_name} {sender.last_name}"
         notification = Notification.objects.create(
-            title=notification_title, message=body, user=recipient, type="message"
+            title=notification_title, message=body, user=recipient, type="message", resource_url=f"/dashboard/messages/"
         )
         # return a response with a success message and status code
         return Response(

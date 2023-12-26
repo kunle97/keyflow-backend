@@ -101,6 +101,8 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             message=f"{tenant.first_name} {tenant.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
             type="lease_renewal_request",
             title="Lease Renewal Request",
+            resource_url=f"/dashboard/landlord/lease-renewal-requests/{lease_renewal_request.id}",
+
         )
 
         # Return a success response containing the lease renewal request object as well as a message and a 201 stuats code
@@ -189,6 +191,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved.",
             type="lease_renewal_request_approved",
             title="Lease Renewal Request Approved",
+            resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
         )
         return Response(
             {
@@ -264,6 +267,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         #         message=f'{tenant.first_name} {tenant.last_name} has paid the security deposit for the amount of ${lease_agreement.lease_template.security_deposit} for unit {lease_agreement.rental_unit.name} at {lease_agreement.rental_unit.rental_property.name}',
         #         type='security_deposit_paid',
         #         title='Security Deposit Paid',
+        #         resource_url=f'/dashboard/landlord/transactions/{security_deposit_transaction.id}'
         #     )
 
 
@@ -304,6 +308,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             message=f"{tenant.first_name} {tenant.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
             type="lease_renewal_agreement_signed",
             title="Lease Renewal Agreement Signed",
+            resource_url=f"/dashboard/landlord/lease-agreements/{lease_agreement.id}",
         )
 
         # Return a success response
@@ -333,6 +338,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
             type="lease_renewal_request_rejected",
             title="Lease Renewal Request Rejected",
+            
         )
 
         return Response(

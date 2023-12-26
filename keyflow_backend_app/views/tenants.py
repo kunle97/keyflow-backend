@@ -102,6 +102,7 @@ class TenantViewSet(viewsets.ModelViewSet):
             message=f"{tenant.first_name} {tenant.last_name} has paid rent for the amount of ${amount} for unit {unit.name} at {unit.rental_property.name}",
             type="rent_paid",
             title="Rent Paid",
+            resource_url=f"/dashboard/landlord/transactions/{transaction.id}",
         )
 
         # serialize transaction object and return it
@@ -261,6 +262,7 @@ class TenantRegistrationView(APIView):
                 message=f"{user.first_name} {user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
+                resource_url=f"/dashboard/landlord/tenants/{user.id}",
             )
 
             # Retrieve unit from the request unit_id parameter
@@ -337,6 +339,7 @@ class TenantRegistrationView(APIView):
                     message=f"{user.first_name} {user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
                     type="security_deposit_paid",
                     title="Security Deposit Paid",
+                    resource_url=f"/dashboard/landlord/transactions/{security_deposit_transaction.id}",
                 )
 
             subscription = None
@@ -413,6 +416,7 @@ class TenantRegistrationView(APIView):
                     message=f"{user.first_name} {user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
                     type="first_month_rent_paid",
                     title="First Month's Rent Paid",
+                    resource_url=f"/dashboard/landlord/transactions/{transaction.id}",
                 )
                 # create a transaction object for the rent payment (stripe subscription)
                 subscription_transaction = Transaction.objects.create(

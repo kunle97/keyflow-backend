@@ -1,3 +1,4 @@
+from email.policy import default
 from django.db import models
 from keyflow_backend_app.models.user import User
 
@@ -7,6 +8,7 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False)
     type = models.CharField(max_length=50)  # You can adjust the max_length as needed
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    resource_url = models.TextField(default=None, null=False, blank=False) 
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:

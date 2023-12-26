@@ -115,6 +115,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
             message=f"{tenant.first_name} {tenant.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}",
             type="lease_cancellation_request",
             title="Lease Cancellation Request",
+            resource_url=f"/dashboard/landlord/lease-cancellation-requests/{lease_cancellation_request.id}",
         )
 
         # Return a success response containing the lease cancellation request object as well as a message and a 201 stuats code
@@ -229,6 +230,13 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         lease_cancellation_request.save()
 
         #Create a notification for the tenant that the lease cancellation request has been denied
+        notification = Notification.objects.create(
+            user=lease_cancellation_request.tenant,
+            message=f"Your lease cancellation request for unit {lease_cancellation_request.rental_unit.name} at {lease_cancellation_request.rental_property.name} has been denied.",
+            type="lease_cancellation_request_denied",
+            title="Lease Cancellation Request Denied",
+            resource_url=f"/dashboard/tenant/lease-cancellation-requests/{lease_cancellation_request.id}",
+        )
 
         # Return a success response
         return Response(

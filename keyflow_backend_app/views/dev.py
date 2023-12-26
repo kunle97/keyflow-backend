@@ -1,13 +1,11 @@
 import os
-import hashlib
 import stripe
 import random
 from dotenv import load_dotenv
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 from rest_framework.decorators import (
     authentication_classes,
-    permission_classes,
     api_view,
 )
 from django.contrib.auth.hashers import make_password
@@ -388,6 +386,7 @@ def generate_tenants(request):
                 message=f"{first_name} {last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
+                resource_url=f"/dashboard/landlord/tenants/{tenant.id}",
             )
         # else if unit_mode is 'random' choose a random unoccumpued unit for the tenant
         elif unit_mode == "random":
@@ -411,6 +410,7 @@ def generate_tenants(request):
                 message=f"{first_name} {last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
+                resource_url=f"/dashboard/landlord/tenants/{tenant.id}",
             )
         # else if unit_mode is 'specific' assign the tenant to the specific unit
         elif unit_mode == "specific":
@@ -427,6 +427,7 @@ def generate_tenants(request):
                 message=f"{first_name} {last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
+                resource_url=f"/dashboard/landlord/tenants/{tenant.id}",
             )
 
         # Get the current date
@@ -473,6 +474,7 @@ def generate_tenants(request):
             message=f"{first_name} {last_name} has submitted a rental application for unit {unit.name} at {unit.rental_property.name}",
             type="rental_application_submitted",
             title="Rental Application Submitted",
+            resource_url=f"/dashboard/landlord/rental-applications/{rental_application.id}",
         )
 
         # Define the number of months to add
@@ -540,6 +542,7 @@ def generate_tenants(request):
                 message=f"{tenant.first_name} {tenant.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
                 type="security_deposit_paid",
                 title="Security Deposit Paid",
+                resource_url=f"/dashboard/landlord/transactions/{security_deposit_transaction.id}",
             )
 
         subscription = None
@@ -624,6 +627,7 @@ def generate_tenants(request):
                 message=f"{tenant.first_name} {tenant.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
                 type="first_month_rent_paid",
                 title="First Month's Rent Paid",
+                resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
             )
 
             print(f"subscription: {subscription}")

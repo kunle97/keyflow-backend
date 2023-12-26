@@ -214,6 +214,7 @@ class SignLeaseAgreementView(APIView):
             message=f"{rental_application.first_name} {rental_application.last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
             type="lease_agreement_signed",
             title="Lease Agreement Signed",
+            resource_url=f"/dashboard/landlord/lease-agreements/{lease_agreement.id}",
         )
 
         # return a response for the lease being signed successfully

@@ -77,6 +77,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             message=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}",
             type="rental_application_submitted",
             title="Rental Application Submitted",
+            resource_url=f"/dashboard/landlord/rental-applications/{rental_application.id}",
         )
         return Response({"message": "Rental application created successfully."})
 
