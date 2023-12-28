@@ -20,12 +20,16 @@ from keyflow_backend_app.views.auth import (
     UserViewSet,
     UserLoginView,
     UserLogoutView,
-    UserRegistrationView,
     UserActivationView,
 )
 from keyflow_backend_app.views.landlords import (
     LandlordTenantDetailView,
     LandlordTenantListView,
+)
+from keyflow_backend_app.views.account_types import (
+    OwnerViewSet,
+    StaffViewSet,
+    TenantViewSet,
 )
 from keyflow_backend_app.views.lease_agreements import (
     LeaseAgreementViewSet,
@@ -41,9 +45,6 @@ from keyflow_backend_app.views.lease_cancellation_requests import (
 
 from keyflow_backend_app.views.lease_templates import (
     LeaseTemplateViewSet,
-    LeaseTemplateCreateView,
-    DeleteLeaseTemplateByIdView,
-    RetrieveLeaseTemplateByIdView,
     RetrieveLeaseTemplateByUnitView,
     RetrieveLeaseTemplateByIdViewAndApprovalHash,
 )
@@ -62,8 +63,6 @@ from keyflow_backend_app.views.passwords import (
 )
 from keyflow_backend_app.views.payment_methods import (
     ManagePaymentMethodsView,
-    AddCardPaymentMethodView,
-    ListPaymentMethodsView,
 )
 from keyflow_backend_app.views.plaid import (
     PlaidLinkTokenView,
@@ -81,7 +80,7 @@ from keyflow_backend_app.views.units import (
     RetrieveUnitByIdView,
 )
 from keyflow_backend_app.views.tenants import (
-    TenantViewSet,
+    OldTenantViewSet,
     TenantRegistrationView,
     TenantVerificationView,
     RetrieveTenantDashboardData,
@@ -137,6 +136,9 @@ from keyflow_backend_app.views.dev import (
 
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="users")
+router.register(r"owners", OwnerViewSet, basename="owners")
+router.register(r"employees", StaffViewSet, basename="employees")
+router.register(r"tenants", TenantViewSet, basename="tenants")
 router.register(r"properties", PropertyViewSet, basename="rental_properties")
 router.register(r"units", UnitViewSet, basename="rental_units")
 router.register(r"lease-agreements", LeaseAgreementViewSet, basename="lease-agreements")
@@ -157,7 +159,7 @@ router.register(r"transactions", TransactionViewSet, basename="transactions")
 router.register(
     r"rental-applications", RentalApplicationViewSet, basename="rental-applications"
 )
-router.register(r"tenants", TenantViewSet, basename="tenants")
+router.register(r"tenants-v1", OldTenantViewSet, basename="tenants")
 router.register(r"manage-lease", ManageTenantSubscriptionView, basename="manage_lease")
 router.register(r"password-reset", PasswordResetTokenView, basename="password_reset")
 router.register(r"stripe", ManagePaymentMethodsView, basename="stripe")
@@ -171,7 +173,6 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/auth/login/", UserLoginView.as_view(), name="login"),
     path("api/auth/logout/", UserLogoutView.as_view(), name="logout"),
-    path("api/auth/register/", UserRegistrationView.as_view(), name="register"),
     path(
         "api/auth/tenant/register/",
         TenantRegistrationView.as_view(),
@@ -204,21 +205,6 @@ urlpatterns = [
         "api/retrieve-lease-agreement-approval/",
         RetrieveLeaseAgreementByIdAndApprovalHashView.as_view(),
         name="retrieve_lease_agreement",
-    ),
-    path(
-        "api/create-lease-template/",
-        LeaseTemplateCreateView.as_view(),
-        name="create_lease_template",
-    ),
-    path(
-        "api/delete-lease-template/",
-        DeleteLeaseTemplateByIdView.as_view(),
-        name="delete_lease_template",
-    ),
-    path(
-        "api/retrieve-lease-template/",
-        RetrieveLeaseTemplateByIdView.as_view(),
-        name="retrieve_lease_template",
     ),
     path(
         "api/retrieve-lease-template-unit/",

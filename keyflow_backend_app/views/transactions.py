@@ -14,8 +14,8 @@ class TransactionViewSet(viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['description', 'type' ]
-    ordering_fields = ['description', 'type', 'amount', 'created_at' ]
-    filterset_fields = ['description', 'type', 'created_at' ]
+    ordering_fields = ['description', 'type', 'amount', 'timestamp' ]
+    filterset_fields = ['description', 'type', 'timestamp' ]
     def get_queryset(self):
         user = self.request.user  # Get the current user
         queryset = super().get_queryset().filter(user=user)

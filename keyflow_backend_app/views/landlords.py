@@ -2,6 +2,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from keyflow_backend_app.models.account_type import Owner, Tenant
 from ..models.user import User
 from ..models.rental_property import RentalProperty
 from ..models.rental_unit import RentalUnit
@@ -27,14 +29,14 @@ class LandlordTenantDetailView(APIView):
         landlord_id = request.data.get("landlord_id")
         tenant_id = request.data.get("tenant_id")
 
-        landlord = User.objects.get(id=landlord_id)
-        tenant = User.objects.filter(id=tenant_id).first()
+        landlord = Owner.objects.get(id=landlord_id)
+        tenant = Tenant.objects.filter(id=tenant_id).first()
 
         # Find a lease agreement matching the landlord and tenant
 
         # Retrieve the unit from the tenant
         unit = RentalUnit.objects.get(tenant=tenant)
-        rental_property = RentalProperty.objects.get(id=unit.rental_property.id)
+        rental_property = RentalProperty.objects.get(id=unit.rental_property)
 
         # Retrieve transactions for the tenant
         transactions = Transaction.objects.filter(tenant=tenant)
@@ -50,10 +52,10 @@ class LandlordTenantDetailView(APIView):
         maintenance_request_serializer = MaintenanceRequestSerializer(
             maintenance_requests, many=True
         )
-
+        owner = Owner.objects.get(user=request.user)
         lease_agreement = None
         lease_agreement_serializer = None
-        if LeaseAgreement.objects.filter(user=landlord, tenant=tenant).exists():
+        if LeaseAgreement.objects.filter(owner=owner, tenant=tenant).exists():
             lease_agreement = LeaseAgreement.objects.get(user=landlord, tenant=tenant)
             lease_agreement_serializer = LeaseAgreementSerializer(
                 lease_agreement, many=False
@@ -90,6 +92,7 @@ class LandlordTenantListView(APIView):
     # POST: api/users/{id}/tenants
     def post(self, request):
         user = User.objects.get(id=request.data.get("landlord_id"))
+        owner = Owner.objects.get(user=user)
         # Verify user is a landlord
         if user.account_type != "landlord":
             return Response(
@@ -98,7 +101,7 @@ class LandlordTenantListView(APIView):
             )
 
         # Retrieve landlord's properties
-        properties = RentalProperty.objects.filter(user_id=user.id)
+        properties = RentalProperty.objects.filter(owner=owner)
         # retrieve units for each property that are occupied
         units = RentalUnit.objects.filter(
             rental_property__in=properties, is_occupied=True
@@ -108,7 +111,7 @@ class LandlordTenantListView(APIView):
         # Create a user serializer for the tenants object
         serializer = UserSerializer(tenants, many=True)
 
-        if user.id == request.user.id:
+        if user == request.user:
             return Response(
                 {"tenants": serializer.data, "status": status.HTTP_200_OK},
                 status=status.HTTP_200_OK,

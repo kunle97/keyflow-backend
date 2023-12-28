@@ -5,6 +5,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.notification import Notification
 from ..models.rental_application import RentalApplication
@@ -44,14 +46,16 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user  # Get the current user
-        queryset = super().get_queryset().filter(landlord=user)
+        owner = Owner.objects.get(user=user)
+        queryset = super().get_queryset().filter(owner=owner)
         return queryset
 
     # OVerride the defualt create method to create a rental application and send a notification to the landlord
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         unit = RentalUnit.objects.get(id=data["unit_id"])
-        user = unit.user
+        user = unit.owner.user
+        owner = unit.owner
         rental_application = RentalApplication.objects.create(
             unit=unit,
             first_name=data["first_name"],
@@ -68,7 +72,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             evicted= strtobool(data["evicted"]),
             employment_history=data["employment_history"],
             residential_history=data["residential_history"],
-            landlord=user,
+            owner=owner,
             comments=data["comments"],
         )
         # Create a notification for the landlord that a new rental application has been submitted
@@ -98,9 +102,9 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     def approve_rental_application(self, request, pk=None):
         rental_application = self.get_object()
         request_user = request.data.get("user_id")
-        print(f"Reqeust User id: {request_user}")
-        print(f"Landlord id: {rental_application.landlord.id}")
-        if rental_application.landlord == request_user:
+        user = User.objects.get(id=request_user)
+        owner = Owner.objects.get(user=user)
+        if rental_application.user == owner:
             rental_application.is_approved = True
             rental_application.save()
             return Response({"message": "Rental application approved successfully."})
@@ -112,9 +116,11 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="reject-rental-application")
     def reject_rental_application(self, request, pk=None):
         rental_application = self.get_object()
+        user = request.user
+        owner = Owner.objects.get(user=user)
         if (
             request.user.is_authenticated
-            and rental_application.landlord == request.user
+            and rental_application.landlord == owner
         ):
             rental_application.is_approved = False
             rental_application.save()

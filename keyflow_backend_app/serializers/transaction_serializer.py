@@ -8,7 +8,6 @@ class TransactionSerializer(serializers.ModelSerializer):
     user = UserSerializer(many=False, read_only=True)
     rental_property = RentalPropertySerializer(many=False, read_only=True)
     rental_unit = RentalUnitSerializer(many=False, read_only=True)
-    tenant = UserSerializer(many=False, read_only=True)
     class Meta:
         model = Transaction
         fields = '__all__'

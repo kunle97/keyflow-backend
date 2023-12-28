@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from keyflow_backend_app.models.account_type import Owner, Tenant
 
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
@@ -42,13 +43,16 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super().get_queryset().filter(user=user)
+        owner = Owner.objects.get(user=user)
+        queryset = super().get_queryset().filter(owner=owner)
         return queryset
 
     # Create a function to override the post method to create a lease cancellation request
     def create(self, request, *args, **kwargs):
+        tenant_user_id = request.data.get("tenant")
+        tenant_user = User.objects.get(id=tenant_user_id)
         # Retrieve the unit id from the request
-        tenant = User.objects.get(id=request.data.get("tenant"))
+        tenant = Tenant.objects.get(user=tenant_user)
 
         # Check if the tenant has an active lease agreement cancellation request
         lease_cancellation_request = LeaseCancellationRequest.objects.filter(
@@ -67,7 +71,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         unit_id = request.data.get("rental_unit")
         # Retrieve the unit object from the database
         unit = RentalUnit.objects.get(id=unit_id)
-        user = User.objects.get(id=unit.user.pk)
+        owner=unit.owner
         # Retrieve the lease agreement id from the request
         lease_agreement_id = request.data.get("lease_agreement")
         # Retrieve the lease agreement object from the database
@@ -99,7 +103,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
         # Create a lease cancellation request object
         lease_cancellation_request = LeaseCancellationRequest.objects.create(
-            user=user,
+            owner=owner,
             tenant=tenant,
             rental_unit=unit,
             lease_agreement=lease_agreement,
@@ -111,8 +115,8 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
         # Create a  notification for the landlord that the tenant has requested to cancel the lease agreement
         notification = Notification.objects.create(
-            user=user,
-            message=f"{tenant.first_name} {tenant.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}",
+            user=owner.user,
+            message=f"{tenant.user.first_name} {tenant.user.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}",
             type="lease_cancellation_request",
             title="Lease Cancellation Request",
             resource_url=f"/dashboard/landlord/lease-cancellation-requests/{lease_cancellation_request.id}",
@@ -135,7 +139,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
 
         landlord = request.user
-
+        owner = Owner.objects.get(user=landlord)
         lease_cancellation_request = LeaseCancellationRequest.objects.get(
             id=data["lease_cancellation_request_id"]
         )
@@ -144,7 +148,8 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         lease_template = lease_agreement.lease_template
 
         # Retreive tenant from lease Agreement
-        tenant = User.objects.get(id=lease_agreement.tenant.id)
+        tenant_user = User.objects.get(id=lease_agreement.tenant.id)
+        tenant = Tenant.objects.get(user=tenant_user)
         customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
 
         tenant_payment_methods = stripe.Customer.list_payment_methods(
@@ -160,16 +165,16 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
             customer=customer.id,
             payment_method=tenant_payment_methods.data[0].id,#TODO: Should be tenants default payment method not just first  one in list
             transfer_data={
-                "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                "destination": owner.stripe_account_id  # The Stripe Connected Account ID
             },
             confirm=True,
             # Add Metadata to the transaction signifying that it is a security deposit
             metadata={
                 "type": "revenue",
-                "description": f"{tenant.first_name} {tenant.last_name} Lease Cancellation Fee Payment for unit {unit.name} at {unit.rental_property.name}",
-                "user_id": landlord.id,
+                "description": f"{tenant_user.first_name} {tenant_user.last_name} Lease Cancellation Fee Payment for unit {unit.name} at {unit.rental_property.name}",
+                "user_id": owner.id,
                 "tenant_id": tenant.id,
-                "landlord_id": landlord.id,
+                "landlord_id": owner.id,
                 "rental_property_id": unit.rental_property.id,
                 "rental_unit_id": unit.id,
                 "payment_method_id": tenant_payment_methods.data[0].id,#TODO: Should be tenants default payment method not just first  one in list
@@ -200,10 +205,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
         #Create a notification for the tenant that the lease agreement has been cancelled
         notification = Notification.objects.create(
-            user=tenant,
+            user=tenant_user,
             message=f"Your lease agreement for unit {unit.name} at {unit.rental_property.name} has been cancelled.",
             type="lease_agreement_cancelled",
             title="Lease Agreement Cancelled",
+            resource_url=f"/dashboard/tenant/my-lease/",
         )
 
         # Return a success response
@@ -218,7 +224,6 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     # Create a function handle the denial of a lease cancellation request by deleting the lease cancellation request
     @action(detail=False, methods=["post"], url_path="deny")
     def deny(self, request, pk=None):
-        print(request.data)
         data = request.data.copy()
         lease_cancellation_request = LeaseCancellationRequest.objects.get(
             id=data["lease_cancellation_request_id"]
@@ -231,7 +236,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
         #Create a notification for the tenant that the lease cancellation request has been denied
         notification = Notification.objects.create(
-            user=lease_cancellation_request.tenant,
+            user=lease_cancellation_request.tenant.user,
             message=f"Your lease cancellation request for unit {lease_cancellation_request.rental_unit.name} at {lease_cancellation_request.rental_property.name} has been denied.",
             type="lease_cancellation_request_denied",
             title="Lease Cancellation Request Denied",
@@ -252,7 +257,8 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="tenant")
     def get_tenant_lease_cancellation_requests(self, request, pk=None):
         # Retrieve the tenant object from the database
-        tenant = request.user
+        tenant_user = request.user
+        tenant = Tenant.objects.get(user=tenant_user)
         # Retrieve all of the tenant's lease cancellation requests
         lease_cancellation_requests = LeaseCancellationRequest.objects.filter(
             tenant=tenant

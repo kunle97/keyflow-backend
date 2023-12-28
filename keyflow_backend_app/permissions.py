@@ -9,7 +9,7 @@ class IsLandlordOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
-        return obj.user == request.user and request.user.account_type == 'landlord'
+        return obj.user == request.user and request.user.account_type == 'owner'
 
 class IsTenantOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -106,7 +106,7 @@ class ResourceCreatePermission(BasePermission):
             #retrieve property object from  request_body_property variable
             print(f"Request body proprerty {request_body_property}")
             property_object = RentalProperty.objects.get(pk=request_body_property)
-            property_user_id = property_object.user.id #id of the user who owns the property
+            property_user_id = property_object.owner.user.id #id of the user who owns the property
             if request.method  == 'POST' and (property_user_id != int(request_id)):
                 return False # not grant access
             
@@ -219,7 +219,7 @@ class PropertyDeletePermission(permissions.BasePermission):
 
             #retrieve property object from  request_body_property variable
             property_object = RentalProperty.objects.get(id=request_body_property)
-            property_user_id = property_object.user.id #id of the user who owns the property
+            property_user_id = property_object.owner.user.id #id of the user who owns the property
 
             #Check if the property has units
             property_has_units = RentalUnit.objects.filter(rental_property=property_object).count() > 0

@@ -1,10 +1,10 @@
 from email.policy import default
 from django.db import models
 from datetime import datetime
-from keyflow_backend_app.models.user import User
+from keyflow_backend_app.models.account_type import Owner
 
 class LeaseTemplate(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #Landlord that created the lease term
+    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None) #Landlord that created the lease term
     rent = models.DecimalField(max_digits=10, decimal_places=2)
     term = models.IntegerField() #Integer for duration of lease in months
     template_id = models.CharField(max_length=100, blank=False, null=False, default="") #BoldSign template ID

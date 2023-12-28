@@ -16,14 +16,12 @@ class Transaction(models.Model):
     description = models.TextField()
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE,default=None)
-    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_transaction') #related tenant
     payment_intent_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     payment_method_id = models.CharField(max_length=100, blank=True, null=True, default=None)
-    created_at = models.DateTimeField(default=datetime.now,  blank=True)
-    updated_at = models.DateTimeField(default=datetime.now,  blank=True)
+    timestamp = models.DateTimeField(default=datetime.now,  blank=True)\
 
     class Meta:
         db_table = 'transactions'
 
     def __str__(self):
-        return f"Transaction for {self.user} on {self.date}"
+        return f"Transaction for {self.user} on {self.timestamp}"

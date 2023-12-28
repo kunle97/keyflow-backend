@@ -12,6 +12,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from keyflow_backend_app.models.account_type import Tenant
 from ..models.notification import Notification
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
@@ -54,7 +56,7 @@ class TenantVerificationView(APIView):
         )
 
 
-class TenantViewSet(viewsets.ModelViewSet):
+class OldTenantViewSet(viewsets.ModelViewSet):
     # ... (existing code)
     @action(detail=True, methods=["post"], url_path="make-payment")
     @authentication_classes([JWTAuthentication])
@@ -63,7 +65,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         user_id = request.data.get("user_id")  # retrieve user id from the request
         tenant = User.objects.get(id=user_id)  # retrieve the user object
         unit = RentalUnit.objects.get(tenant=tenant)  # retrieve the unit object
-        landlord = unit.user  # Retrieve landlord object from unit object
+        landlord = unit.owner  # Retrieve landlord object from unit object
         lease_template = (
             unit.lease_template
         )  # Retrieve lease term object from unit object
@@ -89,7 +91,7 @@ class TenantViewSet(viewsets.ModelViewSet):
             description=f"{tenant.first_name} {tenant.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for landlord {landlord.first_name} {landlord.last_name}",
             rental_property=unit.rental_property,
             rental_unit=unit,
-            user=landlord,
+            user=landlord.user,
             tenant=tenant,
             amount=amount,
             payment_method_id=data["payment_method_id"],
@@ -98,7 +100,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 
         # Create a notification for the landlord that the tenant has paid the rent
         notification = Notification.objects.create(
-            user=landlord,
+            user=landlord.user,
             message=f"{tenant.first_name} {tenant.last_name} has paid rent for the amount of ${amount} for unit {unit.name} at {unit.rental_property.name}",
             type="rent_paid",
             title="Rent Paid",
@@ -118,85 +120,13 @@ class TenantViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=["post"])
-    @authentication_classes([JWTAuthentication])
-    def renew_lease(self, request, pk=None):
-        tenant = self.get_object()
-        if tenant.user != request.user:
-            return Response(
-                {"detail": "You do not have permission to renew this lease."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        # TODO: Add logic to create notification
-
-        # Logic for renewing lease
-        lease = LeaseAgreement.objects.create(
-            property=tenant.unit.property,
-            unit=tenant.unit,
-            start_date=timezone.now(),
-            end_date=timezone.now()
-            + timedelta(days=365),  # Example: Renew for one year
-            monthly_rent=tenant.unit.monthly_rent,
-            security_deposit=tenant.unit.security_deposit,
-            terms="Renewed lease terms",
-            signed_date=timezone.now(),
-            is_active=True,
-        )
-        tenant.unit.lease_agreement = lease
-        tenant.unit.save()
-        return Response(
-            {"detail": "Lease renewed successfully."}, status=status.HTTP_200_OK
-        )
-
-    @action(detail=True, methods=["post"])
-    @authentication_classes([JWTAuthentication])
-    def request_cancellation(self, request, pk=None):
-        tenant = self.get_object()
-        if tenant.user != request.user:
-            return Response(
-                {"detail": "You do not have permission to request lease cancellation."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        if tenant.unit.lease_agreement is None:
-            return Response(
-                {"detail": "No active lease to cancel."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Calculate the remaining lease period
-        remaining_days = (tenant.unit.lease_agreement.end_date - timezone.now()).days
-
-        if remaining_days <= 30:
-            # If there's less than 30 days remaining, the lease can't be cancelled
-            return Response(
-                {
-                    "detail": "Lease cannot be cancelled with less than 30 days remaining."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # TODO: Create a notification for the landlord that the tenant has requested a lease cancellation
-
-        # Create a cancellation request
-        cancellation_request = LeaseCancellationRequest.objects.create(
-            tenant=tenant,
-            unit=tenant.unit,
-            request_date=timezone.now(),
-        )
-
-        return Response(
-            {"detail": "Lease cancellation request submitted successfully."},
-            status=status.HTTP_200_OK,
-        )
-
 
 class RetrieveTenantDashboardData(APIView):
     def post(self, request):
         user_id = request.data.get("user_id")
         user = User.objects.get(id=user_id)
-        lease_agreement = LeaseAgreement.objects.get(tenant=user, is_active=True)
+        tenant = Tenant.objects.get(user=user)
+        lease_agreement = LeaseAgreement.objects.get(tenant=tenant, is_active=True)
         unit = lease_agreement.rental_unit
         lease_template = unit.lease_template
 
@@ -222,7 +152,6 @@ class RetrieveTenantDashboardData(APIView):
 # Create an endpoint that registers a tenant
 class TenantRegistrationView(APIView):
     def post(self, request):
-        User = get_user_model()
         data = request.data.copy()
 
         # Hash the password before saving the user
@@ -231,49 +160,54 @@ class TenantRegistrationView(APIView):
         serializer = UserSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
-            user = User.objects.get(email=data["email"])
+            tenant_user = User.objects.get(email=data["email"])
+            
             # Initialize unit here to get the larndlord object
             unit_id = data["unit_id"]
             unit = RentalUnit.objects.get(id=unit_id)
 
             # retrieve landlord from the unit
-            landlord = unit.user
+            landlord = unit.owner
 
             # set the account type to tenant
-            user.account_type = "tenant"
+            tenant_user.account_type = "tenant"
             # Create a stripe customer id for the user
             stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
             customer = stripe.Customer.create(
-                email=user.email,
+                email=tenant_user.email,
                 metadata={
                     "landlord_id": landlord.id,
                 },
             )
-            print(f"Stripe customer id: {customer.id}")
-            user.stripe_customer_id = customer.id
-            print(f"User customer id: {user.stripe_customer_id}")
+            
 
-            user.is_active = False
-            user.save()
+            tenant_user.is_active = False
+            tenant_user.save()
+
+            tenant = Tenant.objects.create(  
+                user=tenant_user,
+                stripe_customer_id=customer.id,
+                owner=landlord,
+            )
 
             # Create a notification for the landlord that a tenant has been added
             notification = Notification.objects.create(
-                user=landlord,
-                message=f"{user.first_name} {user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
+                user=landlord.user,
+                message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
-                resource_url=f"/dashboard/landlord/tenants/{user.id}",
+                resource_url=f"/dashboard/landlord/tenants/{tenant_user.id}",
             )
 
             # Retrieve unit from the request unit_id parameter
 
-            unit.tenant = user
+            unit.tenant = tenant
             unit.save()
 
             # Retrieve lease agreement from the request lease_agreement_id parameter
             lease_agreement_id = data["lease_agreement_id"]
             lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
-            lease_agreement.tenant = user
+            lease_agreement.tenant = tenant
             lease_agreement.save()
 
             # Retrieve rental application from the request approval_hash parameter
@@ -281,7 +215,7 @@ class TenantRegistrationView(APIView):
             rental_application = RentalApplication.objects.get(
                 approval_hash=approval_hash
             )
-            rental_application.tenant = user
+            rental_application.tenant = tenant
             rental_application.save()
 
             # Retrieve price id from lease term using lease_agreement
@@ -294,7 +228,8 @@ class TenantRegistrationView(APIView):
                 customer=customer.id,
             )
 
-            landlord = unit.user
+            landlord = unit.owner
+            landlord_user = landlord.user
             # TODO: implement secutrity deposit flow here. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
             if lease_template.security_deposit > 0:
                 # Retrieve landlord from the unit
@@ -311,9 +246,9 @@ class TenantRegistrationView(APIView):
                     # Add Metadata to the transaction signifying that it is a security deposit
                     metadata={
                         "type": "revenue",
-                        "description": f"{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "user_id": user.id,
-                        "tenant_id": user.id,
+                        "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+                        "user_id": landlord_user.id,
+                        "tenant_id": tenant.id,
                         "landlord_id": landlord.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
@@ -324,19 +259,19 @@ class TenantRegistrationView(APIView):
                 # create a transaction object for the security deposit
                 security_deposit_transaction = Transaction.objects.create(
                     type="security_deposit",
-                    description=f"{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+                    description=f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
-                    user=landlord,
-                    tenant=user,
+                    user=landlord_user,
+                    tenant=tenant_user,
                     amount=int(lease_template.security_deposit),
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id=security_deposit_payment_intent.id,
                 )
                 # Create a notification for the landlord that the security deposit has been paid
                 notification = Notification.objects.create(
-                    user=landlord,
-                    message=f"{user.first_name} {user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
+                    user=landlord_user,
+                    message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
                     type="security_deposit_paid",
                     title="Security Deposit Paid",
                     resource_url=f"/dashboard/landlord/transactions/{security_deposit_transaction.id}",
@@ -373,9 +308,9 @@ class TenantRegistrationView(APIView):
                     ),
                     metadata={
                         "type": "revenue",
-                        "description": f"{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "user_id": user.id,
-                        "tenant_id": user.id,
+                        "description": f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
+                        "user_id": tenant_user.id,
+                        "tenant_id": tenant_user.id,
                         "landlord_id": landlord.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
@@ -401,42 +336,42 @@ class TenantRegistrationView(APIView):
                     default_payment_method=payment_method_id,
                     metadata={
                         "type": "revenue",
-                        "description": f"{user.first_name} {user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "user_id": user.id,
-                        "tenant_id": user.id,
+                        "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+                        "user_id": tenant_user.id,
+                        "tenant_id": tenant.id,
                         "landlord_id": landlord.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
                         "payment_method_id": data["payment_method_id"],
                     },
                 )
-                # Create a notification for the landlord that the tenant has paid the fisrt month's rent
-                notification = Notification.objects.create(
-                    user=landlord,
-                    message=f"{user.first_name} {user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
-                    type="first_month_rent_paid",
-                    title="First Month's Rent Paid",
-                    resource_url=f"/dashboard/landlord/transactions/{transaction.id}",
-                )
+
                 # create a transaction object for the rent payment (stripe subscription)
                 subscription_transaction = Transaction.objects.create(
                     type="rent_payment",
-                    description=f"{user.first_name} {user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
+                    description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
                     user=landlord,
-                    tenant=user,
+                    tenant=tenant_user,
                     amount=int(lease_template.rent),
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id="subscription",
                 )
-
+                # Create a notification for the landlord that the tenant has paid the fisrt month's rent
+                notification = Notification.objects.create(
+                    user=landlord,
+                    message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
+                    type="first_month_rent_paid",
+                    title="First Month's Rent Paid",
+                    resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                )
             # add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id
             lease_agreement.save()
             account_activation_token = AccountActivationToken.objects.create(
-                user=user,
-                email=user.email,
+                user=tenant_user,
+                email=tenant_user.email,
                 token=data["activation_token"],
             )
             return Response(

@@ -32,7 +32,7 @@ SECRET_KEY = "2=ygj!*kw8p+g*-kpm_b@r91io6uswae2*8f1j(o5jr4a*&ja_"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['.vercel.app','.now.sh', 'localhost', '127.0.0.1','keyflow-backend-staging.onrender.com', 'keyflow-frontend.vercel.app/']
+ALLOWED_HOSTS = ['.vercel.app','.now.sh', 'localhost', '127.0.0.1','keyflow-backend-staging.onrender.com', 'keyflow-fontend-staging.onrender.com']
 
 
 # Application definition
@@ -154,9 +154,6 @@ CORS_ORIGIN_WHITELIST = [
     "https://merchant-ui-api.stripe.com",
     "https://js.stripe.com",
     "https://api.boldsign.com",
-    "https://keyflow-frontend-9fxxwghdv-kunle97.vercel.app",
-    "https://keyflow-frontend.vercel.app/"
-    
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -167,15 +164,12 @@ CSRF_TRUSTED_ORIGINS = [
     "https://merchant-ui-api.stripe.com",
     "https://js.stripe.com",
     "https://api.boldsign.com",
-    "https://keyflow-frontend-9fxxwghdv-kunle97.vercel.app",
-    "https://keyflow-frontend.vercel.app"
 ]
 
 CORS_ALLOWED_ORIGINS = [  # JWT Config
     "http://localhost:3000",
     "https://localhost:3000",
     "http://127.0.0.1",
-    "https://keyflow-frontend.vercel.app",
 ]
 
 REST_FRAMEWORK = {

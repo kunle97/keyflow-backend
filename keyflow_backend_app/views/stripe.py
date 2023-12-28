@@ -25,9 +25,6 @@ class StripeWebhookView(View):
         if event.type == 'payment_intent.succeeded':
             payment_intent = event.data.object
             metadata = payment_intent.get('metadata', {})
-            print(f'Event Data {event.data}')
-            print(f'zx Payment intent {payment_intent}')
-            print(f'zx Metadata {metadata}')
             Transaction.objects.create(
               amount=float(payment_intent.amount / 100),  # Convert to currency units
               payment_intent_id=payment_intent.id,
@@ -43,9 +40,6 @@ class StripeWebhookView(View):
         elif event.type == 'customer.subscription.created':
             subscription = event.data.object
             metadata = subscription.get('metadata', {})
-            print(f'Event Data {event.data}')
-            print(f'zx Payment intent {subscription}')
-            print(f'zx Metadata {metadata}')
             Transaction.objects.create(
               subscription_id=subscription.id,
               amount=int(subscription.amount / 100),  # Convert to currency units

@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from keyflow_backend_app.models import lease_renewal_request
+from keyflow_backend_app.models.account_type import Owner, Tenant
 
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
@@ -69,11 +70,13 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super().get_queryset().filter(user=user)
+        owner = Owner.objects.get(user=user)
+        queryset = super().get_queryset().filter(owner=owner)
         return queryset
 
     # Create a function to override the create method to create a lease agreement
     def create(self, request, *args, **kwargs):
+        owner = Owner.objects.get(user=request.user)
         # Retrieve rental_application from the request
         rental_application_id = request.data.get("rental_application")
         # Retrieve the unit id from the request
@@ -96,7 +99,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         #Check if tenant exists if lease is being created on a lease renewal request
         tenant=None
         if request.data.get("tenant"):
-            tenant = User.objects.get(id=request.data.get("tenant"))
+            tenant = Tenant.objects.get(user=request.data.get("tenant"))
 
         #Check if start_date exists if lease is being created on a lease renewal request
         start_date=None
@@ -110,9 +113,9 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
 
         # Create a lease agreement object
         lease_agreement = LeaseAgreement.objects.create(
-            user=request.user,
-            rental_unit=unit,
+            owner=owner,
             tenant=tenant,
+            rental_unit=unit,
             lease_template=lease_template,
             approval_hash=approval_hash,
             document_id=document_id,
@@ -138,7 +141,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         # Retrieve the tenant id from the request
         tenant_id = request.query_params.get("tenant_id")
         # Retrieve the tenant object from the database
-        tenant = User.objects.get(id=tenant_id)
+        tenant = Tenant.objects.get(user=tenant_id)
         # Retrieve all lease agreements that are linked to the tenant
         lease_agreements = LeaseAgreement.objects.filter(tenant=tenant)
         # Return a success response containing the lease agreements as well as a message and a 200 status code
@@ -210,7 +213,7 @@ class SignLeaseAgreementView(APIView):
     
         # Create a notification for the landlord that the tenant has signed the lease agreement
         notification = Notification.objects.create(
-            user=lease_agreement.user,
+            user=lease_agreement.owner.user,
             message=f"{rental_application.first_name} {rental_application.last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
             type="lease_agreement_signed",
             title="Lease Agreement Signed",

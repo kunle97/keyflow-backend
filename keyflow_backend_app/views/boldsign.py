@@ -118,11 +118,15 @@ class CreateDocumentFromTemplateView(APIView):
             "https://api.boldsign.com/v1/template/send?templateId="
             + request.data.get("template_id")
         )
-        tenant_name = (
-            request.data.get("tenant_first_name")
-            + " "
-            + request.data.get("tenant_last_name")
-        )
+        tenant_first_name = request.data.get("tenant_first_name")
+        tenant_last_name = request.data.get("tenant_last_name")
+        
+        if tenant_first_name is None:
+            tenant_first_name = ""
+        if tenant_last_name is None:
+            tenant_last_name = ""
+
+        tenant_name = tenant_first_name + " " + tenant_last_name
         landlord_name = request.user.first_name + " " + request.user.last_name
 
         tenant_email = ""

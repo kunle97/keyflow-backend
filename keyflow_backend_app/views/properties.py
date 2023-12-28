@@ -5,6 +5,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_property import  RentalProperty
 from ..models.rental_unit import  RentalUnit
@@ -29,19 +31,21 @@ class PropertyViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'street', 'created_at', 'id', 'state' ]
     search_fields = ['name', 'street' ]
     filterset_fields = ['city', 'state']
-    def get_serializer_context(self):
+    def get_serializer_context(self): #TODO: Delete if not needed
             # Make sure you include the context in the serializer instance
             return {'request': self.request}
     
     def get_queryset(self):
         user = self.request.user  # Get the current user
-        queryset = super().get_queryset().filter(user=user)
+        owner = Owner.objects.get(user=user)
+        queryset = super().get_queryset().filter(owner=owner)
         return queryset
     
     @action(detail=False, methods=['get'], url_path='filters')
     def retireve_filter_data(self, request):
         user = self.request.user
-        user_properties = RentalProperty.objects.filter(user=user)
+        owner = Owner.objects.get(user=user)
+        user_properties = RentalProperty.objects.filter(owner=owner)
         states = user_properties.values_list('state', flat=True).distinct()
         cities = user_properties.values_list('city', flat=True).distinct()
         return Response({'states':states, 'cities':cities}, status=status.HTTP_200_OK)
@@ -62,12 +66,11 @@ class PropertyViewSet(viewsets.ModelViewSet):
         serializer = UserSerializer(tenants, many=True)
         return Response(serializer.data)
 
+#Used to retrieve property info unauthenticated
 class RetrievePropertyByIdView(APIView):
     def post(self, request):
         property_id = request.data.get('property_id')
-        print(f'zx Property id: {property_id}')
         property = RentalProperty.objects.get(id=property_id)
-        print(f'zx Property: {property}')
         serializer = RentalPropertySerializer(property)
         response_data = serializer.data
         return Response(response_data, status=status.HTTP_200_OK)

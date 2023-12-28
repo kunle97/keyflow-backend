@@ -4,17 +4,15 @@ from django.contrib.auth import get_user_model
 from datetime import datetime
 class User(AbstractUser):
     ACCOUNT_TYPE_CHOICES = (
-        ('landlord', 'Landlord'),
+        ('owner', 'Owner'),
         ('tenant', 'Tenant'),
+        ('staff', 'Staff'),
     )
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=100)
     account_type = models.CharField(max_length=10, choices=ACCOUNT_TYPE_CHOICES)
-    stripe_account_id = models.CharField(max_length=100, blank=True, null=True)
-    stripe_customer_id = models.CharField(max_length=100, blank=True, null=True, default=None)
-    stripe_subscription_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     

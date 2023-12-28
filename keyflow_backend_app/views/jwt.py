@@ -1,5 +1,6 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from ..models.account_type import Owner, Staff, Tenant
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -13,11 +14,13 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['email'] = user.email
         token['account_type'] = user.account_type
         token['is_active'] = user.is_active
-        token['stripe_account_id'] = user.stripe_account_id
-        token['stripe_customer_id'] = user.stripe_customer_id
-        token['is_active'] = user.is_active
-
-        # ...
+        #Check for user acount type and add the corresponding id to the token
+        if user.account_type == 'owner':
+            token['owner_id'] = Owner.objects.get(user=user).id
+        if user.account_type == 'staff':
+            token['staff_id'] = Staff.objects.get(user=user).id
+        if user.account_type == 'tenant':
+            token['tenant_id'] = Tenant.objects.get(user=user).id
 
         return token
     

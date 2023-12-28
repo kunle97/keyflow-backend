@@ -115,7 +115,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         recipient = User.objects.get(id=data["recipient"])
-        sender = User.objects.get(id=data["user"])
+        sender = User.objects.get(id=data["sender"])
         body = data["body"]
         # CHeck if payload has a file attached and upload it then add the file to a variable
         if request.FILES:

@@ -9,6 +9,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from keyflow_backend_app.models.account_type import Owner
 from ..models.rental_unit import RentalUnit 
 from ..models.lease_agreement import LeaseAgreement
 from ..models.maintenance_request import MaintenanceRequest
@@ -51,13 +53,15 @@ class UnitViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super().get_queryset().filter(user=user)
+        owner = Owner.objects.get(user=user)
+        queryset = super().get_queryset().filter(owner=owner)
         return queryset
 
     #Make a create function that creates a unit with all of the expected values as well as a subscription_id to check to see what subscription plan thee user has
     def create(self, request):
         data = request.data.copy()
         user = request.user 
+        owner = Owner.objects.get(user=user)
         rental_property = data['rental_property']
         subscription_id = data['subscription_id']
         product_id = data['product_id']
@@ -75,7 +79,7 @@ class UnitViewSet(viewsets.ModelViewSet):
             for unit in units:
                 RentalUnit.objects.create(
                     rental_property_id=rental_property,
-                    user=user,
+                    owner=owner,
                     name=unit['name'],
                     beds=unit['beds'],
                     baths=unit['baths'],
@@ -90,7 +94,7 @@ class UnitViewSet(viewsets.ModelViewSet):
             for unit in units:
                 RentalUnit.objects.create(
                     rental_property_id=rental_property,
-                    user=user,
+                    owner=owner,
                     name=unit['name'],
                     beds=unit['beds'],
                     baths=unit['baths'],
@@ -99,7 +103,7 @@ class UnitViewSet(viewsets.ModelViewSet):
             #Update the subscriptions quantity to the new number of units
             subscription_item=stripe.SubscriptionItem.modify(
                 subscription['items']['data'][0].id,
-                quantity=RentalUnit.objects.filter(user=user).count(),
+                quantity=RentalUnit.objects.filter(owner=owner).count(),
             )
             return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
         return Response({"message","error Creating unit"}, status=status.HTTP_400_BAD_REQUEST)
@@ -107,6 +111,7 @@ class UnitViewSet(viewsets.ModelViewSet):
     def destroy(self, request, pk=None):
         unit = self.get_object()
         user = request.user
+        owner = Owner.objects.get(user=user)
         data = request.data.copy()
         product_id = data['product_id']
         subscription_id = data['subscription_id']
@@ -121,7 +126,7 @@ class UnitViewSet(viewsets.ModelViewSet):
             #Retrieve the subscription item from the subscription and Update the subscriptions quantity to the new number of units
             subscription_item = stripe.SubscriptionItem.modify(
                 subscription['items']['data'][0].id,
-                quantity=RentalUnit.objects.filter(user=user).count() - 1,
+                quantity=RentalUnit.objects.filter(owner=owner).count() - 1,
             )
             unit.delete()
             return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)

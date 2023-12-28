@@ -8,33 +8,24 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
+from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
 from ..models.rental_unit import RentalUnit
 from ..models.transaction import Transaction
 from ..models.rental_property import RentalProperty
 from ..models.lease_agreement import LeaseAgreement
-from ..models.lease_cancelleation_request import LeaseCancellationRequest
 from ..models.lease_renewal_request import LeaseRenewalRequest
-from ..models.rental_application import RentalApplication
 from ..models.notification import Notification
-from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
-from ..serializers.lease_cancellation_request_serializer import (
-    LeaseCancellationRequestSerializer,
-)
 from ..serializers.lease_renewal_request_serializer import (
     LeaseRenewalRequestSerializer,
 )
 from ..models.lease_template import LeaseTemplate
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
 
 class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseRenewalRequest.objects.all()
@@ -54,14 +45,15 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super().get_queryset().filter(user=user)
+        owner = Owner.objects.get(user=user)
+        queryset = super().get_queryset().filter(owner=owner)
         return queryset
 
     # Create a function to override the post method to create a lease renewal request
     def create(self, request, *args, **kwargs):
         # Retrieve the unit id from the request
-        tenant = User.objects.get(id=request.data.get("tenant"))
-
+        tenant_user = User.objects.get(id=request.data.get("tenant"))
+        tenant = Tenant.objects.get(user=tenant_user)
         # Check if the tenant has an active lease agreement renewal request
         lease_renewal_request = LeaseRenewalRequest.objects.filter(
             tenant=tenant, status="pending"
@@ -78,14 +70,15 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         move_in_date = request.data.get("move_in_date")
         unit_id = request.data.get("rental_unit")
         unit = RentalUnit.objects.get(id=unit_id)
-        user = User.objects.get(id=unit.user.pk)
+        user = User.objects.get(id=unit.owner.user.id)
+        owner = Owner.objects.get(user=user)
         request_date = request.data.get("request_date")
         rental_property_id = request.data.get("rental_property")
         rental_property = RentalProperty.objects.get(id=rental_property_id)
 
         # Create a lease renewal request object
         lease_renewal_request = LeaseRenewalRequest.objects.create(
-            user=user,
+            owner=owner,
             tenant=tenant,
             rental_unit=unit,
             rental_property=rental_property,
@@ -98,7 +91,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         # Create a  notification for the landlord that the tenant has requested to renew the lease agreement
         notification = Notification.objects.create(
             user=user,
-            message=f"{tenant.first_name} {tenant.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
+            message=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
             type="lease_renewal_request",
             title="Lease Renewal Request",
             resource_url=f"/dashboard/landlord/lease-renewal-requests/{lease_renewal_request.id}",
@@ -126,8 +119,6 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):
         data = request.data.copy()
-        landlord = request.user
-
         lease_renewal_request = LeaseRenewalRequest.objects.get(
             id=data["lease_renewal_request_id"]
         )
@@ -136,58 +127,21 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         )
         lease_template = LeaseTemplate.objects.get(id=data["lease_template_id"])
 
-        tenant = User.objects.get(id=lease_agreement.tenant.id)
+        tenant_user = User.objects.get(id=lease_agreement.tenant.id)
+        tenant = Tenant.objects.get(user=tenant_user)
         customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
 
         tenant_payment_methods = stripe.Customer.list_payment_methods(
             customer.id, limit=1
         )
 
-        if (
-            lease_template.lease_renewal_fee is not None
-            and lease_template.lease_renewal_fee > 0
-        ):
-            lease_renewal_fee_payment_intent = stripe.PaymentIntent.create(
-                amount=int(lease_template.lease_renewal_fee * 100),
-                currency="usd",
-                payment_method_types=["card"],
-                customer=customer.id,
-                payment_method=tenant_payment_methods.data[0].id,
-                transfer_data={
-                    "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
-                },
-                confirm=True,
-                # Add Metadata to the transaction signifying that it is a security deposit
-                metadata={
-                    "type": "revenue",
-                    "description": f"{tenant.first_name} {tenant.last_name} Lease Renewal Fee Payment for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
-                    "user_id": landlord.id,
-                    "tenant_id": tenant.id,
-                    "landlord_id": landlord.id,
-                    "rental_property_id": lease_renewal_request.rental_unit.rental_property.id,
-                    "rental_unit_id": lease_renewal_request.rental_unit.id,
-                    "payment_method_id": tenant_payment_methods.data[0].id,
-                },
-            )
-            # Create Transaction for Lease Renewal Fee
-            transaction = Transaction.objects.create(
-                user=landlord,
-                tenant=tenant,
-                rental_property=lease_renewal_request.rental_unit.rental_property,
-                rental_unit=lease_renewal_request.rental_unit,
-                payment_method_id=tenant_payment_methods.data[0].id,
-                payment_intent_id=lease_renewal_fee_payment_intent.id,
-                amount=lease_template.lease_renewal_fee,
-                description=f"{tenant.first_name} {tenant.last_name} Lease Renewal Fee Payment for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
-                type="lease_renewal_fee",
-            )
 
         # Update Lease Renewal Request
         lease_renewal_request.status = "approved"
         lease_renewal_request.save()
         # Create notification for tenant that lease renewal request has been approved
         notification = Notification.objects.create(
-            user=tenant,
+            user=tenant_user,
             message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved.",
             type="lease_renewal_request_approved",
             title="Lease Renewal Request Approved",
@@ -209,7 +163,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         )
         lease_agreement = LeaseAgreement.objects.get(id=data["lease_agreement_id"])
         tenant = lease_agreement.tenant
-        landlord = lease_agreement.user
+        landlord = lease_agreement.owner
         customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
         new_lease_start_date = lease_renewal_request.move_in_date
         new_lease_end_date = new_lease_start_date + relativedelta(
@@ -221,6 +175,59 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             limit=1,
         )
         selected_payment_method = tenant_payment_methods.data[0].id
+        
+
+        if (
+            lease_agreement.lease_template.lease_renewal_fee is not None
+            and lease_agreement.lease_template.lease_renewal_fee > 0
+        ):
+            lease_renewal_fee_payment_intent = stripe.PaymentIntent.create(
+                amount=int(lease_agreement.lease_template.lease_renewal_fee * 100),
+                currency="usd",
+                payment_method_types=["card"],
+                customer=customer.id,
+                payment_method=tenant_payment_methods.data[0].id,
+                transfer_data={
+                    "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                },
+                confirm=True,
+                # Add Metadata to the transaction signifying that it is a security deposit
+                metadata={
+                    "type": "revenue",
+                    "description": f"{tenant.user.first_name} {tenant.user.last_name} Lease Renewal Fee Payment for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
+                    "user_id": landlord.id,
+                    "tenant_id": tenant.id,
+                    "landlord_id": landlord.id,
+                    "rental_property_id": lease_renewal_request.rental_unit.rental_property.id,
+                    "rental_unit_id": lease_renewal_request.rental_unit.id,
+                    "payment_method_id": tenant_payment_methods.data[0].id,
+                },
+            )
+            # Create Transaction for Lease Renewal Fee
+            transaction = Transaction.objects.create(
+                user=landlord.user,
+                rental_property=lease_renewal_request.rental_unit.rental_property,
+                rental_unit=lease_renewal_request.rental_unit,
+                payment_method_id=tenant_payment_methods.data[0].id,
+                payment_intent_id=lease_renewal_fee_payment_intent.id,
+                amount=lease_agreement.lease_template.lease_renewal_fee,
+                description=f"{tenant.user.first_name} {tenant.user.last_name} Lease Renewal Fee Payment for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
+                type="lease_renewal_fee",
+            )
+            # Create Transaction for Lease Renewal Fee
+            transaction = Transaction.objects.create(
+                user=tenant.user,
+                rental_property=lease_renewal_request.rental_unit.rental_property,
+                rental_unit=lease_renewal_request.rental_unit,
+                payment_method_id=tenant_payment_methods.data[0].id,
+                payment_intent_id=lease_renewal_fee_payment_intent.id,
+                amount=lease_agreement.lease_template.lease_renewal_fee,
+                description=f"Lease Renewal Fee Payment for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
+                type="lease_renewal_fee",
+            )
+
+        
+        
         #TODO: implement secutrity deposit flow here. Should not charge tenant untill start of lease. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
         # if lease_agreement.lease_template.security_deposit>0:
         #     #Retrieve landlord from the unit
@@ -284,7 +291,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             cancel_at=int(new_lease_end_date.timestamp()),
             metadata={
                 "type": "lease",
-                "description": f"{tenant.first_name} {tenant.last_name} rent subscription for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
+                "description": f"{tenant.user.first_name} {tenant.user.last_name} rent subscription for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
                 "user_id": landlord.id,
                 "tenant_id": tenant.id,
                 "landlord_id": landlord.id,
@@ -304,8 +311,8 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
 
         #Create a notification for the landlord that the tenant has signed the lease renewal agreement
         notification = Notification.objects.create(
-            user=landlord,
-            message=f"{tenant.first_name} {tenant.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
+            user=landlord.user,
+            message=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
             type="lease_renewal_agreement_signed",
             title="Lease Renewal Agreement Signed",
             resource_url=f"/dashboard/landlord/lease-agreements/{lease_agreement.id}",
@@ -334,7 +341,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
 
         # Create a notification for the tenant that the lease renewal request has been rejected
         notification = Notification.objects.create(
-            user=lease_renewal_request.tenant,
+            user=lease_renewal_request.owner.user,
             message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
             type="lease_renewal_request_rejected",
             title="Lease Renewal Request Rejected",
@@ -353,8 +360,9 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="tenant")
     def get_tenant_lease_renewal_requests(self, request, pk=None):
         user = request.user
+        tenant = Tenant.objects.get(user=user)
         lease_renewal_requests = LeaseRenewalRequest.objects.filter(
-            tenant=user
+            tenant=tenant
         ).order_by("-request_date")
         serializer = LeaseRenewalRequestSerializer(lease_renewal_requests, many=True)
         return Response(

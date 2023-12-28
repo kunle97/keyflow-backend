@@ -1,10 +1,12 @@
 from django.db import models
 from datetime import datetime
-from keyflow_backend_app.models.user import User
+from keyflow_backend_app.models.account_type import Owner,Tenant
 from keyflow_backend_app.models.rental_unit import RentalUnit
 
 class RentalApplication(models.Model):
     # Existing fields
+    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None, related_name='tenant_application_landlord') #related landlord that created the application
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant_application_tenant') #related tenant that created the application
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
     email = models.EmailField(unique=False) 
@@ -23,8 +25,6 @@ class RentalApplication(models.Model):
     evicted = models.BooleanField(default=None)
     employment_history = models.TextField(blank=True, null=True)
     residential_history = models.TextField(blank=True, null=True)
-    landlord = models.ForeignKey(User, on_delete=models.CASCADE, default=None, related_name='tenant_application_landlord') #related landlord that created the application
-    tenant = models.ForeignKey(User, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant_application_tenant') #related tenant that created the application
     comments = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
