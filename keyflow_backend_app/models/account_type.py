@@ -47,7 +47,7 @@ class Tenant(models.Model):
         db_table = "tenants"
 
     def __str__(self):
-        return f"Tenant {self.user}"
+        return f"Tenant {self.user.first_name} {self.user.last_name}"
     
 
 class Vendor(models.Model):

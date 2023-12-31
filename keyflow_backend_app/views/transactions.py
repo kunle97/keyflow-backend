@@ -10,7 +10,7 @@ from rest_framework import filters
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
-    permission_classes = [IsResourceOwner, ResourceCreatePermission]
+    # permission_classes = [IsResourceOwner, ResourceCreatePermission]
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['description', 'type' ]
