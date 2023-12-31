@@ -161,7 +161,7 @@ class IsResourceOwner(permissions.BasePermission):
     
     def has_object_permission(self, request, view, obj):
         # Check if the user is the owner of the resource (e.g., property, unit, lease agreement)
-        return obj.user == request.user
+        return obj.owner.user == request.user
     
     def has_permission(self, request, view):
         # Allow resource creation (POST) only if the user is the owner

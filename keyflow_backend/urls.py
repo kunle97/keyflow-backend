@@ -131,7 +131,8 @@ from keyflow_backend_app.views.dev import (
     generate_messages,
     generate_maintenance_requests,
     generate_lease_cancellation_requests,
-    generate_lease_renewal_requests
+    generate_lease_renewal_requests,
+    generate_transactions,
 )
 
 router = DefaultRouter()
@@ -323,4 +324,5 @@ urlpatterns = [
         generate_lease_renewal_requests,
         name="generate_lease_renewal_requests",
     ),
+    path('api/generate/transactions/', generate_transactions, name='generate_transactions')
 ]

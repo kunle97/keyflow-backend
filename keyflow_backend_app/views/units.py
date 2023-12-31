@@ -48,8 +48,8 @@ class UnitViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
     search_fields = ['name']
-    ordering_fields = ['name', 'beds', 'baths', 'created_at', 'id']
-    filterset_fields = ['name', 'beds', 'baths']
+    ordering_fields = ['name', 'beds', 'baths', 'created_at', 'id', 'is_occupied']
+    filterset_fields = ['name', 'beds', 'baths', 'is_occupied']
 
     def get_queryset(self):
         user = self.request.user

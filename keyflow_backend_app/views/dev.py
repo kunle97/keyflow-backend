@@ -1,4 +1,7 @@
+from itertools import count
 import os
+import time
+from tracemalloc import start
 import stripe
 import random
 from dotenv import load_dotenv
@@ -35,6 +38,15 @@ from django.views.decorators.csrf import csrf_exempt
 faker = Faker()
 load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+visa_payment_method = stripe.PaymentMethod.create(
+    type="card",
+    card={
+        "number": "4242424242424242",
+        "exp_month": 12,
+        "exp_year": 2034,
+        "cvc": "314",
+    },
+)
 
 # ----------TEST FUNCTIONS ----------------
 
@@ -268,7 +280,7 @@ def generate_tenants(request):
 
         # attach the payment method to the customer
         stripe.PaymentMethod.attach(
-            payment_method.id,
+            visa_payment_method.id,
             customer=customer.id,
         )
 
@@ -1008,7 +1020,7 @@ def generate_lease_renewal_requests(request):
     user = User.objects.get(id=user_id)
     owner = Owner.objects.get(user=user)
     int_count = int(count)
-    # Fetch all of the reqest.user's tennats 
+    # Fetch all of the reqest.user's tennats
     landlord_tenants = Owner.objects.filter(owner=owner)
     # find all tenants that have an active Lease agreement
     landlord_tenants = landlord_tenants.filter(
@@ -1046,6 +1058,202 @@ def generate_lease_renewal_requests(request):
     return Response(
         {
             "message": "Lease Renewal Requests generated",
+            "status": status.HTTP_201_CREATED,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+# Create a function to generate a number of transactions for a user
+@csrf_exempt
+@api_view(["POST"])
+def generate_transactions(request):
+    count = request.data.get("count", 1)
+    int_count = int(count)
+    user_id = request.data.get("user_id")
+    user = User.objects.get(id=user_id)
+    owner = Owner.objects.get(user=user)
+    start_date = datetime.strptime(request.data.get("start_date"), "%Y-%m-%d").date()
+    end_date = datetime.strptime(request.data.get("end_date"), "%Y-%m-%d").date()   
+    amountRange = request.data.get("amountRange")
+    transaction_type = request.data.get("type")
+    transaction_target = request.data.get("transaction_target")
+    rental_unit = None
+    rental_property = None
+    tenant = None
+    generated_transactions = []
+    # portfolio = Portfolio.objects.get(id=request.data.get("portfolio"))
+    # Create a list of transaction types including random, security_deposit, rent_payment, late_fee, pet_fee, lease_renewal_fee, lease_cancellation_fee, maintenance_fee, vendor_payment
+    transaction_types_selection = [
+        "security_deposit",
+        "rent_payment",
+        "late_fee",
+        "pet_fee",
+        "lease_renewal_fee",
+        "lease_cancellation_fee",
+        "maintenance_fee",
+        "vendor_payment",
+    ]
+    # Create list of transaction targets including tenant, unit, property, portfolio
+    transaction_targets_selection = [
+        # "tenant",
+        "unit",
+        "property",
+        # "portfolio",
+    ]
+
+    # Create count number of transactions for the user using a while loop
+    while int_count > 0:
+        if transaction_type == "random":
+            transaction_type = random.choice(transaction_types_selection)
+
+        if transaction_target == "random":
+            transaction_target = random.choice(transaction_targets_selection)
+
+        #Choose a random date between the start and end date
+        transaction_date = faker.date_between(start_date=start_date, end_date=end_date)
+        amount = faker.pyfloat(min_value=float(amountRange[0]), max_value=float(amountRange[1]))
+        payment_method_id = faker.sha256(raw_output=False)
+        payment_intent_id = faker.sha256(raw_output=False)
+
+        if transaction_target == "property":
+            # Choose a random unit from the property
+            rental_property = RentalProperty.objects.get(
+                id=request.data.get("property")
+            )
+            rental_unit = rental_property.rental_units.filter(is_occupied=True).order_by("?").first()
+            tenant = rental_unit.tenant
+            customer_id = tenant.stripe_customer_id
+            description =  f"{tenant.user.first_name} {tenant.user.last_name}'s  {transaction_type.replace('_', ' ').capitalize()} for unit {rental_unit.name} at {rental_unit.rental_property.name}"
+            
+            payment_method = stripe.PaymentMethod.create(
+                type="card",
+                card={
+                    "number": "4242424242424242",
+                    "exp_month": 12,
+                    "exp_year": 2034,
+                    "cvc": "314",
+                },
+            )
+
+            #Attach visa payment method to customer 
+            stripe.PaymentMethod.attach(
+                payment_method.id,
+                customer=customer_id,
+            )
+            payment_intent = stripe.PaymentIntent.create(
+                amount=int(amount * 100),
+                currency="usd",
+                payment_method_types=["card"],
+                customer=rental_unit.tenant.stripe_customer_id,
+                payment_method=payment_method.id,
+                transfer_data={
+                    "destination": owner.stripe_account_id  # The Stripe Connected Account ID
+                },
+                confirm=True,
+                # Add Metadata to the transaction signifying that it is a security deposit
+                metadata={
+                    "type": transaction_type,
+                    "description": description,
+                    "user_id": rental_unit.owner.user.id,
+                    "tenant_id": rental_unit.tenant.id,
+                    "landlord_id": rental_unit.owner.id,
+                    "rental_property_id": rental_unit.rental_property.id,
+                    "rental_unit_id": rental_unit.id,
+                    "payment_method_id": payment_method.id,
+                },
+            )
+
+            # Create a transaction for that unit
+            transaction = Transaction.objects.create(
+                type=transaction_type,
+                description=description,
+                rental_property=rental_property,
+                rental_unit=rental_unit,
+                user=user,
+                # Set the amount to a number within the amountRange. Amount range is an array of two numbers
+                amount=amount,
+                payment_method_id=visa_payment_method.id,
+                payment_intent_id=payment_intent.id,
+                timestamp=transaction_date,
+            )
+
+        if transaction_target == "unit":
+            rental_unit = RentalUnit.objects.get(id=request.data.get("unit"))
+            tenant = rental_unit.tenant
+            rental_property = rental_unit.rental_property
+            description =  f"{tenant.user.first_name} {tenant.user.last_name}'s  {transaction_type.replace('_', ' ').capitalize()} for unit {rental_unit.name} at {rental_unit.rental_property.name}"
+            
+            payment_method = stripe.PaymentMethod.create(
+                type="card",
+                card={
+                    "number": "4242424242424242",
+                    "exp_month": 12,
+                    "exp_year": 2034,
+                    "cvc": "314",
+                },
+            )
+
+            payment_intent = stripe.PaymentIntent.create(
+                amount=int(amount * 100),
+                currency="usd",
+                payment_method_types=["card"],
+                customer=rental_unit.tenant.stripe_customer_id,
+                payment_method=payment_method.id,
+                transfer_data={
+                    "destination": owner.stripe_account_id  # The Stripe Connected Account ID
+                },
+                confirm=True,
+                # Add Metadata to the transaction signifying that it is a security deposit
+                metadata={
+                    "type": transaction_type,
+                    "description":description,
+                    "user_id": tenant.user.id,
+                    "tenant_id": tenant.id,
+                    "landlord_id": tenant.owner.id,
+                    "rental_property_id": rental_unit.rental_property.id,
+                    "rental_unit_id": rental_unit.id,
+                    "payment_method_id": payment_method.id,
+                },
+            )
+
+
+            # Create a transaction for that unit
+            transaction = Transaction.objects.create(
+                type=transaction_type,
+                description=description,
+                rental_property=rental_unit.rental_property,
+                rental_unit=rental_unit,
+                user=tenant.owner.user,
+                amount=amount,
+                payment_method_id=payment_method.id,
+                payment_intent_id=payment_intent.id,
+            )
+
+        if transaction_target == "tenant":
+            tenant = Tenant.objects.get(id=request.data.get("tenant"))
+            rental_unit = tenant.rental_unit
+            # Create a transaction for that unit
+            transaction = Transaction.objects.create(
+                type=transaction_type,
+                description=description,
+                rental_property=rental_unit.rental_property,
+                rental_unit=rental_unit,
+                user=user,
+                tenant=tenant,
+                amount=faker.pyint(min_value=amountRange[0], max_value=amountRange[1]),
+                payment_method_id=payment_method_id,
+                payment_intent_id=payment_intent_id,
+            )
+            generated_transactions.append(transaction)
+
+        int_count -= 1
+    
+    
+    # return a succes response
+    return Response(
+        {
+            "message": "Transactions generated",
             "status": status.HTTP_201_CREATED,
         },
         status=status.HTTP_201_CREATED,
