@@ -7,9 +7,18 @@ from keyflow_backend_app.models.rental_property import RentalProperty
 #Create a model for transactions that will be used to create a transaction history for each user
 class Transaction(models.Model):
     TRANSACTION_TYPE_CHOICES = (
-        ('expense', 'Expense'),
-        ('revenue', 'Revenue'),
+        ('security_deposit', 'Security Deposit'),#Revenue 
+        ('rent_payment', 'Rent Payment'),#Revenue 
+        ('late_fee', 'Late Fee'),#Revenue 
+        ('pet_fee', 'Pet Fee'),#Revenue 
+        ('lease_renewal_fee', 'Lease Renewal Fee'),#Revenue 
+        ('lease_cancellation_fee', 'Lease Cancellation Fee'),#Revenue 
+        ('maintenance_fee', 'Maintenance Fee'),#Revenue 
+        ('vendor_payment', 'Vendor Payment'),#Expense
+        ('expense', 'Expense'),#Expense
+        ('revenue', 'Revenue'),#Revenue 
     )
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #landlord related to the transaction
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=TRANSACTION_TYPE_CHOICES)

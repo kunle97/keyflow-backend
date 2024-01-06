@@ -307,6 +307,7 @@ class StaffViewSet(viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     serializer_class = StaffSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
     #Create a queryset to retrieve all tenants for a specific landlord
     def get_queryset(self):
         user = self.request.user
@@ -319,8 +320,16 @@ class TenantViewSet(viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     serializer_class = TenantSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    #Create a queryset to retrieve all tenants for a specific landlord
+    ordering_fields = ['user__first_name', 'user__last_name']
+    search_fields = ['user__first_name', 'user__last_name']
+    filterset_fields = ['user__first_name', 'user__last_name']
 
+    #Create a queryset to retrieve all tenants for a specific landlord
+    def get_queryset(self):
+        user = self.request.user
+        owner = Owner.objects.get(user=user)
+        queryset = super().get_queryset().filter(owner=owner)
+        return queryset
 
     #Createa a register endpoint for tenants
     @action(detail=False, methods=["post"], url_path="register")  #New url path for the register endpoint: api/tenants/register
