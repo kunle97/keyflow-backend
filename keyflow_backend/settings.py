@@ -154,6 +154,7 @@ CORS_ORIGIN_WHITELIST = [
     "https://merchant-ui-api.stripe.com",
     "https://js.stripe.com",
     "https://api.boldsign.com",
+    "https://keyflow-frontend-staging.onrender.com",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -164,12 +165,14 @@ CSRF_TRUSTED_ORIGINS = [
     "https://merchant-ui-api.stripe.com",
     "https://js.stripe.com",
     "https://api.boldsign.com",
+    "https://keyflow-frontend-staging.onrender.com",
 ]
 
 CORS_ALLOWED_ORIGINS = [  # JWT Config
     "http://localhost:3000",
     "https://localhost:3000",
     "http://127.0.0.1",
+    "https://keyflow-frontend-staging.onrender.com",
 ]
 
 REST_FRAMEWORK = {

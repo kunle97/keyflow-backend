@@ -6,6 +6,7 @@ from .account_type_serializer import OwnerSerializer, TenantSerializer
 
 class RentalApplicationSerializer(serializers.ModelSerializer):
     tenant = TenantSerializer(many=False, read_only=True)
+    unit = RentalUnitSerializer(many=False, read_only=True)
     class Meta:
         model = RentalApplication
         fields = '__all__'

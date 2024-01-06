@@ -1,4 +1,3 @@
-
 import os
 from shutil import move
 import stat
@@ -60,7 +59,8 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         "end_date",
     ]
     ordering_fields = [
-        "tenant",
+        "tenant__first_name",
+        "tenant__last_name",
         "is_active",
         "start_date",
         "end_date",
@@ -88,26 +88,28 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         # Retrieve the lease term object from the database
         lease_template = LeaseTemplate.objects.get(id=lease_template_id)
         approval_hash = request.data.get("approval_hash")
-        #Check if  request.data.get("lease_renewal_request") exists if not set it to none
-        lease_renewal_request=None
+        # Check if  request.data.get("lease_renewal_request") exists if not set it to none
+        lease_renewal_request = None
         if request.data.get("lease_renewal_request"):
-            lease_renewal_request = LeaseRenewalRequest.objects.get(id=request.data.get("lease_renewal_request"))
-        
+            lease_renewal_request = LeaseRenewalRequest.objects.get(
+                id=request.data.get("lease_renewal_request")
+            )
+
         # retriueve document_id from the request
         document_id = request.data.get("document_id")
-        
-        #Check if tenant exists if lease is being created on a lease renewal request
-        tenant=None
+
+        # Check if tenant exists if lease is being created on a lease renewal request
+        tenant = None
         if request.data.get("tenant"):
             tenant = Tenant.objects.get(user=request.data.get("tenant"))
 
-        #Check if start_date exists if lease is being created on a lease renewal request
-        start_date=None
+        # Check if start_date exists if lease is being created on a lease renewal request
+        start_date = None
         if request.data.get("start_date"):
             start_date = request.data.get("start_date")
 
-        #Check if end_date exists if lease is being created on a lease renewal request
-        end_date=None
+        # Check if end_date exists if lease is being created on a lease renewal request
+        end_date = None
         if request.data.get("end_date"):
             end_date = request.data.get("end_date")
 
@@ -135,7 +137,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    #Create a function to retrieeve all lease agreement by that are linked to a specific tenant
+    # Create a function to retrieeve all lease agreement by that are linked to a specific tenant
     @action(detail=False, methods=["get"], url_path="get-lease-agreements-by-tenant")
     def get_lease_agreements_by_tenant(self, request):
         # Retrieve the tenant id from the request
@@ -155,15 +157,23 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    #Create a function to reterieve a lease agreement by the lease_renewal_request 
-    @action(detail=False, methods=["get"], url_path="get-lease-agreement-by-lease-renewal-request")
+    # Create a function to reterieve a lease agreement by the lease_renewal_request
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="get-lease-agreement-by-lease-renewal-request",
+    )
     def get_lease_agreement_by_lease_renewal_request(self, request):
         # Retrieve the lease_renewal_request id from the request
         lease_renewal_request_id = request.query_params.get("lease_renewal_request_id")
         # Retrieve the lease_renewal_request object from the database
-        lease_renewal_request = LeaseRenewalRequest.objects.get(id=lease_renewal_request_id)
+        lease_renewal_request = LeaseRenewalRequest.objects.get(
+            id=lease_renewal_request_id
+        )
         # Retrieve the lease agreement object from the database
-        lease_agreement = LeaseAgreement.objects.filter(lease_renewal_request=lease_renewal_request).first()
+        lease_agreement = LeaseAgreement.objects.filter(
+            lease_renewal_request=lease_renewal_request
+        ).first()
         # Return a success response containing the lease agreement as well as a message and a 200 status code
         serializer = LeaseAgreementSerializer(lease_agreement)
         return Response(
@@ -173,7 +183,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
                 "status": status.HTTP_200_OK,
             },
             status=status.HTTP_200_OK,
-        ) 
+        )
 
 
 # Create an endpoint that will handle when a person signs a lease agreement
@@ -210,7 +220,7 @@ class SignLeaseAgreementView(APIView):
         rental_application = RentalApplication.objects.filter(
             approval_hash=approval_hash
         ).first()
-    
+
         # Create a notification for the landlord that the tenant has signed the lease agreement
         notification = Notification.objects.create(
             user=lease_agreement.owner.user,

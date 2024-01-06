@@ -971,7 +971,7 @@ def generate_lease_cancellation_requests(request):
     owner = Owner.objects.get(user=user)
     int_count = int(count)
     # Fetch all of the reqest.user's tennats
-    landlord_tenants = Owner.objects.filter(owner=owner)
+    landlord_tenants = Tenant.objects.filter(owner=owner)
 
     # find all tenants that have an active Lease agreement
     landlord_tenants = landlord_tenants.filter(
@@ -989,7 +989,7 @@ def generate_lease_cancellation_requests(request):
         # fetch tenant's lease agreement from the unit
         lease_agreement = LeaseAgreement.objects.get(tenant=tenant)
         lease_cancellation_request = LeaseCancellationRequest.objects.create(
-            user=unit.user,
+            owner=unit.owner,
             tenant=tenant,
             rental_unit=unit,
             rental_property=unit.rental_property,
@@ -1085,14 +1085,14 @@ def generate_transactions(request):
     # portfolio = Portfolio.objects.get(id=request.data.get("portfolio"))
     # Create a list of transaction types including random, security_deposit, rent_payment, late_fee, pet_fee, lease_renewal_fee, lease_cancellation_fee, maintenance_fee, vendor_payment
     transaction_types_selection = [
-        "security_deposit",
-        "rent_payment",
-        "late_fee",
-        "pet_fee",
-        "lease_renewal_fee",
-        "lease_cancellation_fee",
-        "maintenance_fee",
-        "vendor_payment",
+        "security_deposit",#Revenue 
+        "rent_payment",#Revenue
+        "late_fee",#Revenue
+        "pet_fee",#Revenue
+        "lease_renewal_fee",#Revenue
+        "lease_cancellation_fee",#Revenue
+        "maintenance_fee",#Revenue
+        "vendor_payment",#Expense
     ]
     # Create list of transaction targets including tenant, unit, property, portfolio
     transaction_targets_selection = [
