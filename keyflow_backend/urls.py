@@ -71,6 +71,9 @@ from keyflow_backend_app.views.properties import (
     PropertyViewSet,
     RetrievePropertyByIdView,
 )
+from keyflow_backend_app.views.portfolios import (
+    PortfolioViewSet,
+)
 from keyflow_backend_app.views.rental_applications import (
     RentalApplicationViewSet,
     RetrieveRentalApplicationByApprovalHash,
@@ -141,6 +144,7 @@ router.register(r"owners", OwnerViewSet, basename="owners")
 router.register(r"employees", StaffViewSet, basename="employees")
 router.register(r"tenants", TenantViewSet, basename="tenants")
 router.register(r"properties", PropertyViewSet, basename="rental_properties")
+router.register(r"portfolios", PortfolioViewSet, basename="portfolios")
 router.register(r"units", UnitViewSet, basename="rental_units")
 router.register(r"lease-agreements", LeaseAgreementViewSet, basename="lease-agreements")
 router.register(

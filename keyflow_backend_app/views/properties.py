@@ -24,7 +24,7 @@ from rest_framework.views import APIView
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = RentalPropertySerializer
-    permission_classes = [ PropertyCreatePermission, PropertyDeletePermission]
+    # permission_classes = [PropertyCreatePermission, PropertyDeletePermission]
     authentication_classes = [JWTAuthentication]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
