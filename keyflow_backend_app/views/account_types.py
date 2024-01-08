@@ -619,7 +619,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'You do not have permission to perform this action.'}, status=status.HTTP_403_FORBIDDEN)
     
     #------------Tenant Subscription Methods (Should replace the Function in the ManageTenantSubscriptionView in manage_subscriptions.py)-----------------
-    @action(detail=False, methods=["post"], url_path="turn-off-autopay")
+    @action(detail=False, methods=["post"], url_path="turn-off-autopay") #POST: api/tenants/turn-off-autopay
     def turn_off_autopay(self, request, pk=None):
         # Retrieve user id from request body
         user_id = request.data.get("user_id")

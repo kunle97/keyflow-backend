@@ -63,6 +63,12 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
 
+    def get_permissions(self):
+        # Allow unauthenticated users to access the create method
+        if self.action == "create":
+            return []
+        return [IsAuthenticated()]
+
     # OVerride the defualt create method to create a rental application and send a notification to the landlord
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
