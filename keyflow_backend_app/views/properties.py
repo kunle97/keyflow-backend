@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
@@ -24,8 +25,8 @@ from rest_framework.views import APIView
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = RentalPropertySerializer
-    # permission_classes = [PropertyCreatePermission, PropertyDeletePermission]
-    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated] #TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     ordering_fields = ['name', 'street', 'created_at', 'id', 'state' ]

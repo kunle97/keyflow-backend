@@ -8,7 +8,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 
 from keyflow_backend_app.models.account_type import Owner
 from ..models.rental_unit import RentalUnit 
@@ -42,8 +43,8 @@ class RetrieveUnitByIdView(APIView):
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
     serializer_class = RentalUnitSerializer
-    permission_classes = [ IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
-    authentication_classes = [JWTAuthentication]
+    permission_classes = [ IsAuthenticated,IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     

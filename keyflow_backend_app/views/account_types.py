@@ -10,7 +10,8 @@ from django.contrib.auth.hashers import make_password
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import viewsets, status
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
@@ -44,7 +45,7 @@ load_dotenv()
 
 class OwnerViewSet(viewsets.ModelViewSet):
     queryset = Owner.objects.all()
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     serializer_class = OwnerSerializer
 
     #Replaces the UserREgistrationView(endpoint api/auth/register/)
@@ -307,7 +308,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
 
 class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.all()
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     serializer_class = StaffSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
@@ -320,7 +321,7 @@ class StaffViewSet(viewsets.ModelViewSet):
 
 class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     serializer_class = TenantSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     ordering_fields = ['user__first_name', 'user__last_name']

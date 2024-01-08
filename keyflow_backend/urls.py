@@ -100,11 +100,6 @@ from keyflow_backend_app.views.messages import (
 from keyflow_backend_app.views.stripe_webhooks import (
     StripeSubscriptionPaymentSucceededEventView,
 )
-from keyflow_backend_app.views.jwt import MyTokenObtainPairView
-
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-)
 
 from keyflow_backend_app.views.boldsign import (
     CreateEmbeddedTemplateCreateLinkView,
@@ -242,8 +237,6 @@ urlpatterns = [
         name="retrieve_landlord_subscription_price",
     ),
     path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
-    path("api/token/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     # Stripe Webhooks
     path(
         "api/stripe-webhook/subscription-payment-suceeded/",

@@ -15,7 +15,8 @@ from django.contrib.auth.hashers import make_password
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from ..models.user import User
 from faker import Faker
 from ..models.rental_property import RentalProperty
@@ -53,14 +54,14 @@ visa_payment_method = stripe.PaymentMethod.create(
 
 # test to see if tooken is valid and return user info
 @api_view(["GET"])
-@authentication_classes([JWTAuthentication])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
 def test_token(request):
     return Response("passed for {}".format(request.user.username))
 
 
 # Create a function to retrieve all landlord userss emails
 @api_view(["GET"])
-# @authentication_classes([JWTAuthentication])
+# @authentication_classes([TokenAuthentication, SessionAuthentication])
 def get_landlord_emails(request):
     # Retrieve all landlord users
     landlords = User.objects.filter(account_type="owner").order_by("-id")
@@ -84,8 +85,6 @@ def get_landlord_usernames(request):
     # Return a response
     return Response(landlord_usernames, status=status.HTTP_200_OK)
 
-
-@api_view(["POST"])
 
 # Create a function to retrieve all tenant userss emails
 @api_view(["GET"])

@@ -14,7 +14,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.models import lease_renewal_request
 from keyflow_backend_app.models.account_type import Owner, Tenant
 
@@ -44,8 +45,8 @@ load_dotenv()
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
     serializer_class = LeaseAgreementSerializer
-    permission_classes = [IsLandlordOrReadOnly, IsResourceOwner]
-    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

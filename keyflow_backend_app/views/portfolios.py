@@ -1,5 +1,6 @@
 from rest_framework import viewsets
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.models.account_type import Owner
 from keyflow_backend_app.models.portfolio import Portfolio
 from ..serializers.portfolio_serializer import PortfolioSerializer
@@ -10,7 +11,7 @@ from rest_framework import filters
 class PortfolioViewSet(viewsets.ModelViewSet):
     queryset = Portfolio.objects.all()
     serializer_class = PortfolioSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

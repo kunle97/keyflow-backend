@@ -1,5 +1,6 @@
 from rest_framework import viewsets
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from rest_framework.response import Response
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
@@ -15,7 +16,7 @@ from rest_framework import status
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
     serializer_class = MaintenanceRequestSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

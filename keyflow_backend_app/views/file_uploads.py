@@ -10,7 +10,8 @@ from ..models.user import User
 from ..serializers.uploaded_file_serializer import UploadedFileSerializer
 from rest_framework import viewsets
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from rest_framework.filters import SearchFilter, OrderingFilter
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError
@@ -29,7 +30,8 @@ class UnauthenticatedRetrieveImagesBySubfolderView(APIView): #TODO: secure this 
 class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = UploadedFile.objects.all()
     serializer_class = UploadedFileSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
     filter_backends = [
         DjangoFilterBackend,
         SearchFilter,
@@ -73,7 +75,7 @@ class FileUploadViewSet(viewsets.ModelViewSet):
 
 
 class S3FileDeleteView(APIView):
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
 
     def post(self, request):
         file_id = request.data.get("id")
