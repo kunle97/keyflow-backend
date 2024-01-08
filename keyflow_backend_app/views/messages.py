@@ -3,7 +3,8 @@ from ..models.message import Message
 from ..serializers.message_serializer import MessageSerializer
 from ..serializers.uploaded_file_serializer import UploadedFileSerializer
 from ..serializers.user_serializer import UserSerializer
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.response import Response
@@ -95,7 +96,7 @@ class UserThreadsListView(APIView):
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

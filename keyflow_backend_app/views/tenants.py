@@ -11,7 +11,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 
 from keyflow_backend_app.models.account_type import Tenant
 from ..models.notification import Notification
@@ -59,7 +60,7 @@ class TenantVerificationView(APIView):
 class OldTenantViewSet(viewsets.ModelViewSet):
     # ... (existing code)
     @action(detail=True, methods=["post"], url_path="make-payment")
-    @authentication_classes([JWTAuthentication])
+    @authentication_classes([TokenAuthentication, SessionAuthentication])
     def make_payment_intent(self, request, pk=None):
         data = request.data.copy()
         user_id = request.data.get("user_id")  # retrieve user id from the request

@@ -10,8 +10,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
-
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
+from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
@@ -46,8 +49,8 @@ class RetrieveLeaseTemplateByUnitView(APIView):
 class LeaseTemplateViewSet(viewsets.ModelViewSet):
     queryset = LeaseTemplate.objects.all()
     serializer_class = LeaseTemplateSerializer
-    # permission_classes = [IsResourceOwner]
-    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated] #TODO: Add IsResourceOwner permission
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['term', 'rent', 'security_deposit' ]
     ordering_fields = ['term', 'rent', 'security_deposit', 'created_at' ]

@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
@@ -19,7 +20,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from ..helpers import strtobool
- 
+
+
 class RetrieveRentalApplicationByApprovalHash(APIView):
     def post(self, request):
         approval_hash = request.data.get("approval_hash")
@@ -27,13 +29,15 @@ class RetrieveRentalApplicationByApprovalHash(APIView):
         serializer = RentalApplicationSerializer(rental_application)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
 class RentalApplicationViewSet(viewsets.ModelViewSet):
     queryset = RentalApplication.objects.all()
     serializer_class = RentalApplicationSerializer
     permission_classes = [
-        RentalApplicationCreatePermission
+        IsAuthenticated,
+        RentalApplicationCreatePermission,
     ]  # TODO: Investigate why IsResourceOwner is not working
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -42,7 +46,16 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
 
     search_fields = ["first_name", "last_name", "email"]
     filterset_fields = ["first_name", "last_name", "email", "phone_number"]
-    ordering_fields = ["first_name", "last_name", "email", "phone_number", "created_at","is_approved"], 
+    ordering_fields = (
+        [
+            "first_name",
+            "last_name",
+            "email",
+            "phone_number",
+            "created_at",
+            "is_approved",
+        ],
+    )
 
     def get_queryset(self):
         user = self.request.user  # Get the current user
@@ -65,11 +78,11 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             phone_number=data["phone_number"],
             desired_move_in_date=data["desired_move_in_date"],
             other_occupants=strtobool(data["other_occupants"]),
-            pets= strtobool(data["pets"]),
-            vehicles= strtobool(data["vehicles"]),
-            convicted= strtobool(data["convicted"]),
-            bankrupcy_filed= strtobool(data["bankrupcy"]),
-            evicted= strtobool(data["evicted"]),
+            pets=strtobool(data["pets"]),
+            vehicles=strtobool(data["vehicles"]),
+            convicted=strtobool(data["convicted"]),
+            bankrupcy_filed=strtobool(data["bankrupcy"]),
+            evicted=strtobool(data["evicted"]),
             employment_history=data["employment_history"],
             residential_history=data["residential_history"],
             owner=owner,
@@ -118,10 +131,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         rental_application = self.get_object()
         user = request.user
         owner = Owner.objects.get(user=user)
-        if (
-            request.user.is_authenticated
-            and rental_application.landlord == owner
-        ):
+        if request.user.is_authenticated and rental_application.landlord == owner:
             rental_application.is_approved = False
             rental_application.save()
             rental_application.delete()
