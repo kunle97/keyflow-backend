@@ -97,8 +97,8 @@ from keyflow_backend_app.views.messages import (
     UserThreadsListView,
 )
 
-from keyflow_backend_app.views.stripe import (
-    StripeWebhookView,
+from keyflow_backend_app.views.stripe_webhooks import (
+    StripeSubscriptionPaymentSucceededEventView,
 )
 from keyflow_backend_app.views.jwt import MyTokenObtainPairView
 
@@ -244,7 +244,12 @@ urlpatterns = [
     path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
     path("api/token/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("api/stripe-webhook/", StripeWebhookView.as_view(), name="stripe_webhook"),
+    # Stripe Webhooks
+    path(
+        "api/stripe-webhook/subscription-payment-suceeded/",
+        StripeSubscriptionPaymentSucceededEventView.as_view(),
+        name="subscription_payment_suceeded",
+    ),
     path(
         "api/landlord-tenant-detail/",
         LandlordTenantDetailView.as_view(),
@@ -328,5 +333,9 @@ urlpatterns = [
         generate_lease_renewal_requests,
         name="generate_lease_renewal_requests",
     ),
-    path('api/generate/transactions/', generate_transactions, name='generate_transactions')
+    path(
+        "api/generate/transactions/",
+        generate_transactions,
+        name="generate_transactions",
+    ),
 ]
