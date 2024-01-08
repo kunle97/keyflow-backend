@@ -105,11 +105,14 @@ class OwnerViewSet(viewsets.ModelViewSet):
                     "payment_method_id": payment_method_id,
                 }
             )
+            client_hostname = os.getenv('CLIENT_HOSTNAME')
+            refresh_url = f'{client_hostname}/dashboard/landlord/login'
+            return_url = f'{client_hostname}/dashboard/activate-account/'
             #obtain stripe account link for the user to complete the onboarding process
             account_link = stripe.AccountLink.create(
                 account=stripe_account.id,
-                refresh_url='http://localhost:3000/dashboard/landlord/login',
-                return_url='http://localhost:3000/dashboard/activate-account/',
+                refresh_url=refresh_url,
+                return_url=return_url,
                 type='account_onboarding',
             )
             user.is_active = False #TODO: Remove this for activation flow implementation
