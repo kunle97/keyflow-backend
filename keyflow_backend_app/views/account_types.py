@@ -348,8 +348,8 @@ class TenantViewSet(viewsets.ModelViewSet):
             unit_id = data["unit_id"]
             unit = RentalUnit.objects.get(id=unit_id)
 
-            # retrieve landlord from the unit
-            landlord = unit.owner
+            # retrieve owner from the unit
+            owner = unit.owner
 
             # set the account type to tenant
             tenant_user.account_type = "tenant"
@@ -358,7 +358,7 @@ class TenantViewSet(viewsets.ModelViewSet):
             customer = stripe.Customer.create(
                 email=tenant_user.email,
                 metadata={
-                    "landlord_id": landlord.id,
+                    "owner_id": owner.id,
                 },
             )
             
@@ -369,12 +369,12 @@ class TenantViewSet(viewsets.ModelViewSet):
             tenant = Tenant.objects.create(  
                 user=tenant_user,
                 stripe_customer_id=customer.id,
-                owner=landlord,
+                owner=owner,
             )
 
-            # Create a notification for the landlord that a tenant has been added
+            # Create a notification for the owner that a tenant has been added
             notification = Notification.objects.create(
-                user=landlord.user,
+                user=owner.user,
                 message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
@@ -410,11 +410,11 @@ class TenantViewSet(viewsets.ModelViewSet):
                 customer=customer.id,
             )
 
-            landlord = unit.owner
-            landlord_user = landlord.user
+            owner = unit.owner
+            owner_user = owner.user
             # TODO: implement secutrity deposit flow here. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
             if lease_template.security_deposit > 0:
-                # Retrieve landlord from the unit
+                # Retrieve owner from the unit
                 security_deposit_payment_intent = stripe.PaymentIntent.create(
                     amount=int(lease_template.security_deposit * 100),
                     currency="usd",
@@ -422,16 +422,16 @@ class TenantViewSet(viewsets.ModelViewSet):
                     customer=customer.id,
                     payment_method=data["payment_method_id"],
                     transfer_data={
-                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                     },
                     confirm=True,
                     # Add Metadata to the transaction signifying that it is a security deposit
                     metadata={
                         "type": "revenue",
                         "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "user_id": landlord_user.id,
+                        "user_id": owner_user.id,
                         "tenant_id": tenant.id,
-                        "landlord_id": landlord.id,
+                        "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
                         "payment_method_id": data["payment_method_id"],
@@ -444,7 +444,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                     description=f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
-                    user=landlord_user,
+                    user=owner_user,
                     amount=int(lease_template.security_deposit),
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id=security_deposit_payment_intent.id,
@@ -460,9 +460,9 @@ class TenantViewSet(viewsets.ModelViewSet):
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id=security_deposit_payment_intent.id,
                 )
-                # Create a notification for the landlord that the security deposit has been paid
+                # Create a notification for the owner that the security deposit has been paid
                 notification = Notification.objects.create(
-                    user=landlord_user,
+                    user=owner_user,
                     message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
                     type="security_deposit_paid",
                     title="Security Deposit Paid",
@@ -499,11 +499,11 @@ class TenantViewSet(viewsets.ModelViewSet):
                         ).timestamp()
                     ),
                     metadata={
-                        "type": "revenue",
+                        "type": "rent_payment",
                         "description": f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                         "user_id": tenant_user.id,
                         "tenant_id": tenant_user.id,
-                        "landlord_id": landlord.id,
+                        "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
                         "payment_method_id": data["payment_method_id"],
@@ -518,7 +518,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                         {"price": lease_template.stripe_price_id},
                     ],
                     transfer_data={
-                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                     },
                     cancel_at=int(
                         datetime.fromisoformat(
@@ -527,11 +527,11 @@ class TenantViewSet(viewsets.ModelViewSet):
                     ),
                     default_payment_method=payment_method_id,
                     metadata={
-                        "type": "revenue",
+                        "type": "security_deposit",
                         "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                         "user_id": tenant_user.id,
                         "tenant_id": tenant.id,
-                        "landlord_id": landlord.id,
+                        "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
                         "payment_method_id": data["payment_method_id"],
@@ -544,14 +544,14 @@ class TenantViewSet(viewsets.ModelViewSet):
                     description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
-                    user=landlord_user,
+                    user=owner_user,
                     amount=int(lease_template.rent),
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id="subscription",
                 )
-                # Create a notification for the landlord that the tenant has paid the fisrt month's rent
+                # Create a notification for the owner that the tenant has paid the fisrt month's rent
                 notification = Notification.objects.create(
-                    user=landlord_user,
+                    user=owner_user,
                     message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
                     type="first_month_rent_paid",
                     title="First Month's Rent Paid",
