@@ -7,7 +7,7 @@ from keyflow_backend_app.models.lease_template import LeaseTemplate
 from keyflow_backend_app.models.lease_renewal_request import LeaseRenewalRequest
 
 class LeaseAgreement(models.Model):
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='lease_agreements')
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None, related_name='landlord') #Landlord that created the lease agreement
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     rental_application = models.ForeignKey(RentalApplication, on_delete=models.CASCADE, default=None, blank=True, null=True)
