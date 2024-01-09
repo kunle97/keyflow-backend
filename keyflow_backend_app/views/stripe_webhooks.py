@@ -5,6 +5,8 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views import View
+
+from keyflow_backend_app.models.notification import Notification
 from ..models.transaction import Transaction
 from ..models.rental_property import RentalProperty
 from ..models.rental_unit import RentalUnit
@@ -49,17 +51,19 @@ class StripeSubscriptionPaymentSucceededEventView(View):
                 payment_intent = event.data.object
                 print(f"XZZX Metadata: {metadata}")
                 owner = Owner.objects.get(id=(metadata.get("owner_id", None)))
-                user = User.objects.get(id=owner.user.id)
+                owner_user = User.objects.get(id=owner.user.id)
+                tenant = Tenant.objects.get(id=metadata.get("tenant_id", None))
+                tenant_user = User.objects.get(id=tenant.user.id)
                 rental_property = RentalProperty.objects.get(
                     id=metadata.get("rental_property_id", None)
                 )
                 rental_unit = RentalUnit.objects.get(
                     id=metadata.get("rental_unit_id", None)
                 )
-                tenant = Tenant.objects.get(id=metadata.get("tenant_id", None))
-                Transaction.objects.create(
+
+                subscription_transaction = Transaction.objects.create(
                     amount=rental_unit.lease_template.rent,  # Convert to currency units
-                    user=user,
+                    user=owner_user,
                     type=metadata.get("type", None),
                     description=metadata.get("description", None),
                     rental_property=rental_property,
@@ -69,6 +73,13 @@ class StripeSubscriptionPaymentSucceededEventView(View):
                         "payment_method_id", None
                     ),  # or payment_intent.payment_method.id
                     payment_intent_id=invoice.payment_intent,
+                )
+                notification = Notification.objects.create(
+                    user=owner_user,
+                    message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${rental_unit.lease_template.rent} for unit {rental_unit.name} at {rental_property.name}",
+                    type="rent_payment",
+                    title="Rent Payment",
+                    resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
                 )
             return JsonResponse({"status": "ok"})
         except ValueError as e:
