@@ -554,13 +554,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                 #     payment_intent_id="subscription",
                 # )
                 # Create a notification for the owner that the tenant has paid the fisrt month's rent
-                notification = Notification.objects.create(
-                    user=owner_user,
-                    message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
-                    type="first_month_rent_paid",
-                    title="First Month's Rent Paid",
-                    resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
-                )
+
             # add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id
             lease_agreement.save()
