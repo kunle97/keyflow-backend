@@ -58,7 +58,7 @@ class StripeSubscriptionPaymentSucceededEventView(View):
                 )
                 tenant = Tenant.objects.get(id=metadata.get("tenant_id", None))
                 Transaction.objects.create(
-                    amount=amount / 100,  # Convert to currency units
+                    amount=rental_unit.lease_template.rent,  # Convert to currency units
                     user=user,
                     type=metadata.get("type", None),
                     description=metadata.get("description", None),

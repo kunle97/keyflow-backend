@@ -543,16 +543,16 @@ class TenantViewSet(viewsets.ModelViewSet):
                 )
 
                 # create a transaction object for the rent payment (stripe subscription)
-                subscription_transaction = Transaction.objects.create(
-                    type="rent_payment",
-                    description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
-                    rental_property=unit.rental_property,
-                    rental_unit=unit,
-                    user=owner_user,
-                    amount=int(lease_template.rent),
-                    payment_method_id=data["payment_method_id"],
-                    payment_intent_id="subscription",
-                )
+                # subscription_transaction = Transaction.objects.create(
+                #     type="rent_payment",
+                #     description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
+                #     rental_property=unit.rental_property,
+                #     rental_unit=unit,
+                #     user=owner_user,
+                #     amount=int(lease_template.rent),
+                #     payment_method_id=data["payment_method_id"],
+                #     payment_intent_id="subscription",
+                # )
                 # Create a notification for the owner that the tenant has paid the fisrt month's rent
                 notification = Notification.objects.create(
                     user=owner_user,
