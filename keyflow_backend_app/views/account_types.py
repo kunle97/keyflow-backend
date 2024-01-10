@@ -332,6 +332,12 @@ class TenantViewSet(viewsets.ModelViewSet):
     #Create a queryset to retrieve all tenants for a specific landlord
     def get_queryset(self):
         user = self.request.user
+        
+        if user.account_type == "tenant":
+            tenant = Tenant.objects.get(user=user)
+            queryset = super().get_queryset().filter(user=tenant.user)
+            return queryset
+        
         owner = Owner.objects.get(user=user)
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
@@ -568,6 +574,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                         description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                         rental_property=unit.rental_property,
                         rental_unit=unit,
+                        tenant=tenant,
                         user=owner_user,
                         amount=int(lease_template.rent),
                         payment_method_id=data["payment_method_id"],
@@ -623,7 +630,7 @@ class TenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='transactions') #get: api/tenants/{id}/transactions
     def transactions(self, request, pk=None):
         tenant = self.get_object()
-        transactions = Transaction.objects.filter(user=tenant.user)
+        transactions = Transaction.objects.filter(tenant=tenant)
         serializer = TransactionSerializer(transactions, many=True)
         if tenant.user.id == request.user.id or tenant.owner.user.id == request.user.id:
             return Response(serializer.data)
