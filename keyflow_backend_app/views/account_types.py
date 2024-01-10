@@ -1,4 +1,5 @@
 # Standard library imports
+import json
 import os
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
@@ -484,17 +485,26 @@ class TenantViewSet(viewsets.ModelViewSet):
                 # Calculate the end date by adding months
                 end_date = start_date + relativedelta(months=months_to_add)
 
+                items=[
+                        {"price": lease_template.stripe_price_id},
+                    ]
+                #Retrieve the lease_templates additional_charges
+                additional_charges = lease_template.additional_charges
+                additional_charges_dict = json.loads(additional_charges)
+
+                #Loop through the additional charges and add the stripe_price_id to the items list
+                for charge in additional_charges_dict:
+                    items.append({"price": charge['stripe_price_id']})
+
                 # Convert the end date to a Unix timestamp
                 grace_period_end = int(end_date.timestamp())
                 subscription = stripe.Subscription.create(
                     customer=customer.id,
-                    items=[
-                        {"price": lease_template.stripe_price_id},
-                    ],
+                    items=items,
                     default_payment_method=payment_method_id,
                     trial_end=grace_period_end,
                     transfer_data={
-                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                     },
                     # Cancel the subscription after at the end date specified by lease term
                     cancel_at=int(
@@ -514,13 +524,22 @@ class TenantViewSet(viewsets.ModelViewSet):
                     },
                 )
             else:
+                items=[
+                        {"price": lease_template.stripe_price_id},
+                    ]
+                #Retrieve the lease_templates additional_charges
+                additional_charges = lease_template.additional_charges
+                additional_charges_dict = json.loads(additional_charges)
+
+                #Loop through the additional charges and add the stripe_price_id to the items list
+                for charge in additional_charges_dict:
+                    items.append({"price": charge['stripe_price_id']})
+
                 grace_period_end = lease_agreement.start_date
                 # Create a stripe subscription for the user and make a default payment method
                 subscription = stripe.Subscription.create(
                     customer=customer.id,
-                    items=[
-                        {"price": lease_template.stripe_price_id},
-                    ],
+                    items=items,
                     transfer_data={
                         "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                     },
@@ -543,17 +562,25 @@ class TenantViewSet(viewsets.ModelViewSet):
                 )
 
                 # create a transaction object for the rent payment (stripe subscription)
-                # subscription_transaction = Transaction.objects.create(
-                #     type="rent_payment",
-                #     description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
-                #     rental_property=unit.rental_property,
-                #     rental_unit=unit,
-                #     user=owner_user,
-                #     amount=int(lease_template.rent),
-                #     payment_method_id=data["payment_method_id"],
-                #     payment_intent_id="subscription",
-                # )
-                # Create a notification for the owner that the tenant has paid the fisrt month's rent
+                if os.getenv("ENVIROMENT") == "development":
+                    subscription_transaction = Transaction.objects.create(
+                        type="rent_payment",
+                        description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
+                        rental_property=unit.rental_property,
+                        rental_unit=unit,
+                        user=owner_user,
+                        amount=int(lease_template.rent),
+                        payment_method_id=data["payment_method_id"],
+                        payment_intent_id="subscription",
+                    )
+                    # Create a notification for the owner that the tenant has paid the fisrt month's rent
+                    notification = Notification.objects.create(
+                        user=owner_user,
+                        message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
+                        type="rent_payment",
+                        title="Rent Payment",
+                        resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                    )
 
             # add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id
