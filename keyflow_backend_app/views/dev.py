@@ -265,7 +265,7 @@ def generate_tenants(request):
         )
         # retrieve current landlord users subscriprion
         subscription = stripe.Subscription.retrieve(
-            user.stripe_subscription_id,  # Retrieve the subscription from stripe
+            owner.stripe_subscription_id,  # Retrieve the subscription from stripe
         )
         payment_method = stripe.PaymentMethod.create(
             type="card",
@@ -297,7 +297,7 @@ def generate_tenants(request):
 
         # Create Tenant Obejct
         tenant = Tenant.objects.create(
-            user=tenant,
+            user=tenant_user,
             owner=owner,
             stripe_customer_id=stripe_customer_id,
         )
@@ -326,8 +326,6 @@ def generate_tenants(request):
             description = faker.text(max_nb_chars=200)
             # Create a lease term for the tenant
             lease_template = LeaseTemplate.objects.create(
-                start_date=faker.date_between(start_date="-1y", end_date="today"),
-                end_date=faker.date_between(start_date="today", end_date="+1y"),
                 term=term,
                 rent=rent,
                 owner=owner,
@@ -548,7 +546,7 @@ def generate_tenants(request):
                 rental_property=unit.rental_property,
                 rental_unit=unit,
                 user=owner.user,
-                tenant=user,
+                tenant=tenant,
                 amount=int(lease_template.security_deposit),
                 payment_method_id=payment_method.id,
                 payment_intent_id=security_deposit_payment_intent.id,
