@@ -186,3 +186,4 @@ class UnitViewSet(viewsets.ModelViewSet):
         lease_template = unit.lease_template
         serializer = LeaseTemplateSerializer(lease_template)
         return Response(serializer.data)
+
