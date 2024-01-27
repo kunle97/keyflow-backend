@@ -20,6 +20,7 @@ from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
 from ..models.rental_property import RentalProperty
+from ..models.portfolio import Portfolio
 from ..models.lease_agreement import LeaseAgreement
 from ..models.lease_template import  LeaseTemplate
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
@@ -69,31 +70,29 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
             
             data = request.data.copy()
             additional_charges = data['additional_charges']
-            rent_frequency = data['rent_frequency']
+            additional_charges_dict = json.loads(additional_charges)
 
-            #Check if all additional charge frequencies are the same 
             if additional_charges:
-                additional_charges_dict = json.loads(additional_charges)
+                #Check if all additional charge frequencies are the same 
                 if len(additional_charges_dict) > 1:  # Ensure there are at least two charges for comparison
                     for i, charge1 in enumerate(additional_charges_dict):
                         for j, charge2 in enumerate(additional_charges_dict):
                             if i != j and charge1['frequency'] != charge2['frequency']:
                                 return Response({'message': 'Two additional charges have different frequencies.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            #Check if all additional charge frequencies are the same as the rent frequency
-                additional_charges_dict = json.loads(additional_charges)
+                #Check if all additional charge frequencies are the same as the rent frequency  
                 if len(additional_charges_dict) > 0:
                     for charge in additional_charges_dict:
-                        if charge['frequency'] != rent_frequency:
+                        if charge['frequency'] != data['rent_frequency']:
                             return Response({'message': 'Additional charge frequencies must match the rent frequency.'}, status=status.HTTP_400_BAD_REQUEST)
 
             lease_template = LeaseTemplate.objects.create(
                 owner=owner,
                 rent=data['rent'],
                 term=data['term'],
-                rent_frequency=rent_frequency,
+                rent_frequency=data['rent_frequency'],
                 security_deposit=data['security_deposit'],
-                additional_charges=additional_charges,
+                additional_charges=data['additional_charges'],
                 late_fee=data['late_fee'],
                 gas_included=data['gas_included'],
                 water_included=data['water_included'],
@@ -104,72 +103,7 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
                 grace_period=data['grace_period'],
                 template_id=data['template_id'],
             )
-
-            stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
-            product = stripe.Product.create(
-                name=f'{user.first_name} {user.last_name}\'s (User ID: {user.id}) {data["term"]} month lease @ ${data["rent"]}/month.',
-                type='service',
-                metadata={
-                    "seller_id": owner.stripe_account_id,
-                    "owner_id": owner.id,
-                    "lease_template_id": lease_template.id,
-                },
-            )
-
-            price = stripe.Price.create(
-                unit_amount=data['rent'] * 100,
-                recurring={"interval": data["rent_frequency"]},
-                currency='usd',
-                product=product.id,
-            )
-
-             #Check if all additional charge frequencies are the same 
-            if additional_charges:
-                additional_charges_dict = json.loads(additional_charges)
-                if len(additional_charges_dict) > 1:  # Ensure there are at least two charges for comparison
-                    for i, charge1 in enumerate(additional_charges_dict):
-                        for j, charge2 in enumerate(additional_charges_dict):
-                            if i != j and charge1['frequency'] != charge2['frequency']:
-                                return Response({'message': 'Two or more additional charges have different frequencies.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            #Check if all additional charge frequencies are the same as the rent frequency
-                if len(additional_charges_dict) > 0:
-                    for charge in additional_charges_dict:
-                        if charge['frequency'] != rent_frequency:
-                            return Response({'message': 'Additional charge frequencies must match the rent frequency.'}, status=status.HTTP_400_BAD_REQUEST)
-
-
-            #Convert  additional charges to a dictionary
-            additional_charges_dict = json.loads(additional_charges)
-            if len(additional_charges_dict) > 0:
-                #Loop through the additional charges and create a stripe price and product for each
-                for charge in additional_charges_dict:  #charges have the poreperties of name, amount, frequency
-                    additional_charge_product = stripe.Product.create(
-                        name=f'{charge["name"]} for {user.first_name} {user.last_name}\'s (User ID: {user.id}) {data["term"]} month lease @ ${charge["amount"]}/month.',
-                        type='service',
-                        metadata={
-                            "seller_id": owner.stripe_account_id,
-                            "owner_id": owner.id,
-                            "lease_template_id": lease_template.id,
-                        },
-                    )
-                    charge_amount_int = int(charge["amount"])
-                    unit_amount = charge_amount_int * 100
-
-                    additional_charge_price = stripe.Price.create(
-                        unit_amount=unit_amount,
-                        recurring={"interval": charge["frequency"]},
-                        currency='usd',
-                        product=additional_charge_product.id,
-                    )
-                    charge['stripe_product_id'] = additional_charge_product.id
-                    charge['stripe_price_id'] = additional_charge_price.id
-
-            lease_template.additional_charges = json.dumps(additional_charges_dict)
-            lease_template.stripe_product_id = product.id
-            lease_template.stripe_price_id = price.id
-            lease_template.save()
-
+        
             selected_assignments_dict = json.loads(data['selected_assignments'])
             if selected_assignments_dict and data['assignment_mode']:
                 if data['assignment_mode'] == 'unit':
@@ -184,9 +118,16 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
                         for unit in units:
                             unit.lease_template = lease_template
                             unit.save()
-            else:
-                print("No assignments selected")
-            
+                elif data['assignment_mode'] == 'portfolio':
+                    for assignment in selected_assignments_dict:
+                        portfolio = Portfolio.objects.get(id=assignment['id'])
+                        properties = RentalProperty.objects.filter(portfolio=portfolio)
+                        for property in properties:
+                            units = RentalUnit.objects.filter(rental_property=property)
+                            for unit in units:
+                                unit.lease_template = lease_template
+                                unit.save()
+      
             serializer = LeaseTemplateSerializer(lease_template)
             
             return Response({
@@ -203,6 +144,7 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error creating lease template: {str(e)}")
             return Response({'message': 'Error creating lease template.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     #Create a functiont to handle deleting a lease term
     def destroy(self, request, pk=None):        
         #check if user is authenticated

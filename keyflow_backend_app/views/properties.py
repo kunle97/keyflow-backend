@@ -2,16 +2,15 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
 from rest_framework.permissions import IsAuthenticated 
 import csv
 from rest_framework.parsers import MultiPartParser
-from rest_framework.response import Response
-from rest_framework import status
 from django.core.exceptions import ValidationError
 from io import TextIOWrapper
+from rest_framework.response import Response
+from rest_framework import status
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_property import  RentalProperty

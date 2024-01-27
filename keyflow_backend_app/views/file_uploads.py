@@ -23,8 +23,8 @@ load_dotenv()
 class UnauthenticatedRetrieveImagesBySubfolderView(APIView): #TODO: secure this endpoint 
     def post(self, request):
         subfolder = request.data.get('subfolder')
-        images = UploadedFile.objects.filter(subfolder=subfolder)
-        serializer = UploadedFileSerializer(images, many=True)
+        files = UploadedFile.objects.filter(subfolder=subfolder)
+        serializer = UploadedFileSerializer(files, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class FileUploadViewSet(viewsets.ModelViewSet):

@@ -1,7 +1,8 @@
 import json
 import os
+from symbol import term
 from dotenv import load_dotenv
-from datetime import timedelta, timezone, datetime,date
+from datetime import timedelta, timezone, datetime, date
 from django.utils import timezone as tz
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets
@@ -12,10 +13,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
-from rest_framework.permissions import IsAuthenticated 
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 from keyflow_backend_app.models.account_type import Tenant
+from keyflow_backend_app.models.tenant_invite import TenantInvite
 from ..models.notification import Notification
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
@@ -48,6 +50,27 @@ class TenantVerificationView(APIView):
         lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
         # check if the approval hash is valid with the lease agreement
         if lease_agreement.approval_hash != approval_hash:
+            return Response(
+                {"message": "Invalid data.", "status": status.HTTP_400_BAD_REQUEST},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # return a response for the lease being signed successfully
+        return Response(
+            {"message": "Approval hash valid.", "status": status.HTTP_200_OK},
+            status=status.HTTP_200_OK,
+        )
+
+
+class TenantInviteVerificationView(APIView):
+    # Create a function that verifies the tenant invite and approval hash
+    def post(self, request):
+        approval_hash = request.data.get("approval_hash")
+        tenant_invite_id = request.data.get("tenant_invite_id")
+
+        tenant_invite = TenantInvite.objects.get(id=tenant_invite_id)
+        # check if the approval hash is valid with the lease agreement
+        if tenant_invite.approval_hash != approval_hash:
             return Response(
                 {"message": "Invalid data.", "status": status.HTTP_400_BAD_REQUEST},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -125,8 +148,6 @@ class OldTenantViewSet(viewsets.ModelViewSet):
         )
 
 
-
-
 class RetrieveTenantDashboardData(APIView):
     def post(self, request):
         # Retrieve user id from request body
@@ -138,22 +159,29 @@ class RetrieveTenantDashboardData(APIView):
         if LeaseAgreement.objects.filter(tenant=tenant, is_active=True).exists():
             lease_agreement = LeaseAgreement.objects.get(tenant=tenant, is_active=True)
             unit = lease_agreement.rental_unit
+            lease_terms = json.loads(str(unit.lease_terms))
 
             # Calculate payment dates for the lease
-            payment_dates = self.calculate_payment_dates(lease_agreement, unit)
+            payment_dates = self.calculate_payment_dates(
+                lease_agreement, unit, lease_terms
+            )
 
             # Calculate late fees for overdue payments
-            late_fees = self.calculate_late_fees(lease_agreement, payment_dates)
+            late_fees = self.calculate_late_fees(
+                lease_agreement, payment_dates, lease_terms
+            )
 
-            #total remaining amount due for the lease
-            total_balance = self.calculate_total_balance(lease_agreement) 
+            # total remaining amount due for the lease
+            total_balance = self.calculate_total_balance(lease_agreement, unit, lease_terms)
 
-            #The total amount due in the current rent pay period
-            current_balance = self.calculate_current_balance(lease_agreement)
+            # The total amount due in the current rent pay period
+            current_balance = self.calculate_current_balance(lease_agreement, unit, lease_terms)
 
             # Serialize data
             unit_serializer = RentalUnitSerializer(unit)
-            lease_template_serializer = LeaseTemplateSerializer(lease_agreement.lease_template)
+            lease_template_serializer = LeaseTemplateSerializer(
+                lease_agreement.lease_template
+            )
             lease_agreement_serializer = LeaseAgreementSerializer(lease_agreement)
 
             unit_data = unit_serializer.data
@@ -166,48 +194,60 @@ class RetrieveTenantDashboardData(APIView):
                     "lease_template": lease_template_data,
                     "lease_agreement": lease_agreement_data,
                     "payment_dates": payment_dates,
-                    'late_fees': late_fees,
-                    'total_balance': total_balance,
-                    'current_balance': current_balance,
+                    "late_fees": late_fees,
+                    "total_balance": total_balance,
+                    "current_balance": current_balance,
                     "status": status.HTTP_200_OK,
                 },
                 status=status.HTTP_200_OK,
             )
         else:
             return Response(
-                {"next_payment_date": None, "payment_dates": [], "status": status.HTTP_200_OK},
+                {
+                    "next_payment_date": None,
+                    "payment_dates": [],
+                    "status": status.HTTP_200_OK,
+                },
                 status=status.HTTP_200_OK,
             )
 
-    def calculate_late_fees(self, lease_agreement, payment_dates):
-        transactions = Transaction.objects.filter(tenant=lease_agreement.tenant, type="rent_payment")
-        late_fee_amount = lease_agreement.lease_template.late_fee
-
+    def calculate_late_fees(self, lease_agreement, payment_dates, lease_terms):
+        transactions = Transaction.objects.filter(
+            tenant=lease_agreement.tenant, type="rent_payment"
+        )
+        late_fee_amount = next(
+            (item for item in lease_terms if item["name"] == "late_fee"),
+            None,
+        )
+        print(f"ZX Late Fee Amount: {late_fee_amount}")
         # Get today's date for comparison
         today_date = date.today()
 
         # Check for missed payments not found in payment_dates
         for transaction in transactions:
             payment_date = transaction.timestamp.date()
-            is_payment_found = any(payment["payment_date"] == payment_date for payment in payment_dates)
+            is_payment_found = any(
+                payment["payment_date"] == payment_date for payment in payment_dates
+            )
             is_payment_overdue = payment_date < today_date
 
             if not is_payment_found or is_payment_overdue:
-                payment_dates.append({
-                    "title": "Rent Due",
-                    "payment_date": payment_date,
-                    "transaction_paid": False,
-                    "is_late": True,
-                })
+                payment_dates.append(
+                    {
+                        "title": "Rent Due",
+                        "payment_date": payment_date,
+                        "transaction_paid": False,
+                        "is_late": True,
+                    }
+                )
 
         # Recalculate overdue payments with updated payment_dates
         overdue_payments = sum(1 for payment in payment_dates if payment["is_late"])
-
         # Calculate late fee by multiplying late fee amount with the number of overdue payments
-        late_fees = late_fee_amount * overdue_payments
-        return late_fees
+        late_fees = float(late_fee_amount["value"]) * int(overdue_payments)
+        return float(late_fees)
 
-    def calculate_payment_dates(self, lease_agreement, unit):
+    def calculate_payment_dates(self, lease_agreement, unit, lease_terms):
         lease_start_date = lease_agreement.start_date
         lease_end_date = lease_agreement.end_date
         payment_dates = []
@@ -229,21 +269,29 @@ class RetrieveTenantDashboardData(APIView):
 
             event_title = "Rent Due" if not transaction_exists else "Rent Paid"
 
-            payment_dates.append({
-                "title": event_title,
-                "payment_date": transaction_date,
-                "transaction_paid": transaction_exists,
-                "is_late": is_late,
-            })
+            payment_dates.append(
+                {
+                    "title": event_title,
+                    "payment_date": transaction_date,
+                    "transaction_paid": transaction_exists,
+                    "is_late": is_late,
+                }
+            )
 
+            rent_frequency = next(
+                (item for item in lease_terms if item["name"] == "rent_frequency"),
+                None,
+            )
+            # Get the value property from the rent_frequency object
+            rent_frequency_value = rent_frequency["value"]
             # Move to the next payment date based on lease frequency
-            if lease_agreement.lease_template.rent_frequency == 'month':
+            if rent_frequency_value == "month":
                 lease_start_date += relativedelta(months=1)
-            elif lease_agreement.lease_template.rent_frequency == 'year':
+            elif rent_frequency_value == "year":
                 lease_start_date += relativedelta(years=1)
-            elif lease_agreement.lease_template.rent_frequency == 'week':
+            elif rent_frequency_value == "week":
                 lease_start_date += relativedelta(weeks=1)
-            elif lease_agreement.lease_template.rent_frequency == 'day':
+            elif rent_frequency_value == "day":
                 lease_start_date += relativedelta(days=1)
             else:
                 # Handle other frequencies here
@@ -252,40 +300,58 @@ class RetrieveTenantDashboardData(APIView):
 
         return payment_dates
 
-    def calculate_current_balance(self, lease_agreement):
-        rent = lease_agreement.lease_template.rent
-        term = lease_agreement.lease_template.term
-        frequency = lease_agreement.lease_template.rent_frequency
-        additional_charges_dict = json.loads(lease_agreement.lease_template.additional_charges)
+    def calculate_current_balance(self, lease_agreement, unit, lease_terms):
+        rent_pref = next(
+            (item for item in lease_terms if item["name"] == "rent"),
+            None,
+        )
+        rent = rent_pref["value"]
+        term_pref = next(
+            (item for item in lease_terms if item["name"] == "rent"),
+            None,
+        )
+        term = term_pref["value"]
+        frequency_pref = next(
+            (item for item in lease_terms if item["name"] == "rent_frequency"),
+            None,
+        )
+        frequency = frequency_pref["value"]
+
+        additional_charges_dict = json.loads(unit.additional_charges)
+
 
         # Get today's date for comparison
         today_date = date.today()
 
         # Initialize variables to track total amount due up to the current date
-        total_due = 0
+        total_due = 0.0
 
         # Calculate the total amount due up to the current date
         current_date = lease_agreement.start_date
         while current_date <= today_date:
-            total_due += rent
+            total_due += float(rent)
             for charge in additional_charges_dict:
                 if charge["frequency"] == frequency:
-                    total_due += charge["amount"]
+                    total_due += float(charge["amount"])
 
-            if frequency == 'month':
+            if frequency == "month":
                 current_date += relativedelta(months=1)
-            elif frequency == 'year':
+            elif frequency == "year":
                 current_date += relativedelta(years=1)
-            elif frequency == 'week':
+            elif frequency == "week":
                 current_date += relativedelta(weeks=1)
-            elif frequency == 'day':
+            elif frequency == "day":
                 current_date += relativedelta(days=1)
             else:
                 # Handle other frequencies as needed
                 break
 
         # Get all rent payment transactions made by the tenant
-        transactions = Transaction.objects.filter(tenant=lease_agreement.tenant, type="rent_payment", timestamp__lte=today_date)
+        transactions = Transaction.objects.filter(
+            tenant=lease_agreement.tenant,
+            type="rent_payment",
+            timestamp__lte=today_date,
+        )
 
         # Calculate the total amount paid up to the current date
         total_paid = sum(transaction.amount for transaction in transactions)
@@ -294,25 +360,43 @@ class RetrieveTenantDashboardData(APIView):
         total_due -= total_paid
         return total_due
 
-    def calculate_total_balance(self, lease_agreement):
-        rent = lease_agreement.lease_template.rent
-        term = lease_agreement.lease_template.term
-        frequency = lease_agreement.lease_template.rent_frequency
-        additional_charges_dict = json.loads(lease_agreement.lease_template.additional_charges)
+    def calculate_total_balance(self, lease_agreement, unit, lease_terms):
+        rent_pref = next(
+            (item for item in lease_terms if item["name"] == "rent"),
+            None,
+        )
+        rent = rent_pref["value"]
+        term_pref = next(
+            (item for item in lease_terms if item["name"] == "term"),
+            None,
+        )
+        term = term_pref["value"]
+        print(f"ZX Term: {term}")
+        frequency_pref = next(
+            (item for item in lease_terms if item["name"] == "rent_frequency"),
+            None,
+        )
+        frequency = frequency_pref["value"]
+
+        additional_charges_dict = json.loads(unit.additional_charges)
 
         # Get today's date for comparison
         today_date = date.today()
 
         # Calculate the total rent due for the entire lease term
-        total_rent_due = 0
+        total_rent_due = 0.0
         for i in range(term):
-            total_rent_due += rent
+            total_rent_due += float(rent)
             for charge in additional_charges_dict:
                 if charge["frequency"] == frequency:
-                    total_rent_due += charge["amount"]
+                    total_rent_due += float(charge["amount"])
 
         # Get all rent payment transactions made by the tenant
-        transactions = Transaction.objects.filter(tenant=lease_agreement.tenant, type="rent_payment", timestamp__lte=today_date)
+        transactions = Transaction.objects.filter(
+            tenant=lease_agreement.tenant,
+            type="rent_payment",
+            timestamp__lte=today_date,
+        )
 
         # Calculate the total amount paid
         total_paid = sum(transaction.amount for transaction in transactions)
@@ -320,6 +404,7 @@ class RetrieveTenantDashboardData(APIView):
         # Calculate the current balance
         current_balance = total_rent_due - total_paid
         return current_balance
+
 
 # Create an endpoint that registers a tenant
 class TenantRegistrationView(APIView):
@@ -333,7 +418,7 @@ class TenantRegistrationView(APIView):
         if serializer.is_valid():
             serializer.save()
             tenant_user = User.objects.get(email=data["email"])
-            
+
             # Initialize unit here to get the larndlord object
             unit_id = data["unit_id"]
             unit = RentalUnit.objects.get(id=unit_id)
@@ -351,12 +436,11 @@ class TenantRegistrationView(APIView):
                     "landlord_id": landlord.id,
                 },
             )
-            
 
             tenant_user.is_active = False
             tenant_user.save()
 
-            tenant = Tenant.objects.create(  
+            tenant = Tenant.objects.create(
                 user=tenant_user,
                 stripe_customer_id=customer.id,
                 owner=landlord,
