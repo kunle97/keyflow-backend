@@ -1,6 +1,5 @@
 import json
 import os
-from symbol import term
 from dotenv import load_dotenv
 from datetime import timedelta, timezone, datetime, date
 from django.utils import timezone as tz
