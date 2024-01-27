@@ -1,6 +1,8 @@
 # views.py
 import os
+import stat
 from django.http import JsonResponse, FileResponse
+from rest_framework.response import Response
 from dotenv import load_dotenv
 from django.views.decorators.csrf import csrf_exempt
 import requests
@@ -96,19 +98,21 @@ class CreateEmbeddedTemplateEditView(APIView):
 
         response = requests.request("POST", url, headers=headers, data=payload)
         if response.status_code == 201:
-            return JsonResponse(
+             return JsonResponse(
                 {
                     "message": "Template created successfully",
                     "url": response.json()["editUrl"],
                     "status": response.status_code,
-                }
+                },
+                status=response.status_code,
             )
         else:
-            return JsonResponse(
+            return Response(
                 {
                     "error": "Failed to create document",
                     "status_code": response.status_code,
-                }
+                },
+                status=response.status_code,
             )
 
 
@@ -227,11 +231,12 @@ class CreateSigningLinkView(APIView):
         if "signLink" in response.json():
             return JsonResponse(response.json())
         else:
-            return JsonResponse(
+            return Response(
                 {
                     "error": "Failed to retrieve signing link",
                     "status_code": 500,
-                }
+                },
+                status=500,
             )
 
 

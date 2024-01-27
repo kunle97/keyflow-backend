@@ -18,6 +18,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.models import lease_renewal_request
 from keyflow_backend_app.models.account_type import Owner, Tenant
+from keyflow_backend_app.models.uploaded_file import UploadedFile
 
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
@@ -78,16 +79,13 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
     # Create a function to override the create method to create a lease agreement
     def create(self, request, *args, **kwargs):
         owner = Owner.objects.get(user=request.user)
+        lease_agreement = None
         # Retrieve rental_application from the request
         rental_application_id = request.data.get("rental_application")
         # Retrieve the unit id from the request
         unit_id = request.data.get("rental_unit")
         # Retrieve the unit object from the database
         unit = RentalUnit.objects.get(id=unit_id)
-        # Retrieve the lease term id from the request
-        lease_template_id = request.data.get("lease_template")
-        # Retrieve the lease term object from the database
-        lease_template = LeaseTemplate.objects.get(id=lease_template_id)
         approval_hash = request.data.get("approval_hash")
         # Check if  request.data.get("lease_renewal_request") exists if not set it to none
         lease_renewal_request = None
@@ -95,9 +93,6 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
             lease_renewal_request = LeaseRenewalRequest.objects.get(
                 id=request.data.get("lease_renewal_request")
             )
-
-        # retriueve document_id from the request
-        document_id = request.data.get("document_id")
 
         # Check if tenant exists if lease is being created on a lease renewal request
         tenant = None
@@ -114,19 +109,38 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         if request.data.get("end_date"):
             end_date = request.data.get("end_date")
 
-        # Create a lease agreement object
-        lease_agreement = LeaseAgreement.objects.create(
-            owner=owner,
-            tenant=tenant,
-            rental_unit=unit,
-            lease_template=lease_template,
-            approval_hash=approval_hash,
-            document_id=document_id,
-            rental_application_id=rental_application_id,
-            start_date=start_date,
-            end_date=end_date,
-            lease_renewal_request=lease_renewal_request,
-        )
+        if request.data.get("document_id"):
+            # retriueve document_id from the request
+            document_id = request.data.get("document_id")
+            # Create a lease agreement object
+            lease_agreement = LeaseAgreement.objects.create(
+                owner=owner,
+                tenant=tenant,
+                rental_unit=unit,
+                approval_hash=approval_hash,
+                document_id=document_id,
+                rental_application_id=rental_application_id,
+                start_date=start_date,
+                end_date=end_date,
+                lease_renewal_request=lease_renewal_request,
+            )
+
+        if request.data.get("signed_lease_document_file"):
+            signed_lease_document_file = request.data.get("signed_lease_document_file")
+            # file = UploadedFile.objects.get(id=signed_lease_document_file)
+            # Create a lease agreement object
+            lease_agreement = LeaseAgreement.objects.create(
+                owner=owner,
+                tenant=tenant,
+                rental_unit=unit,
+                approval_hash=approval_hash,
+                signed_lease_document_file=signed_lease_document_file,
+                rental_application_id=rental_application_id,
+                start_date=start_date,
+                end_date=end_date,
+                lease_renewal_request=lease_renewal_request,
+                is_active=True,
+            )
 
         # Return a success response containing the lease agreement object as well as a message and a 201 stuats code
         serializer = LeaseAgreementSerializer(lease_agreement)
@@ -222,10 +236,19 @@ class SignLeaseAgreementView(APIView):
             approval_hash=approval_hash
         ).first()
 
+        tenant_first_name = ""
+        tenant_last_name = ""
+        if lease_agreement.tenant_invite:
+            tenant_first_name = lease_agreement.tenant_invite.first_name
+            tenant_last_name = lease_agreement.tenant_invite.last_name
+        elif lease_agreement.rental_application:
+            tenant_first_name = lease_agreement.rental_application.first_name
+            tenant_last_name = lease_agreement.rental_application.last_name
+
         # Create a notification for the landlord that the tenant has signed the lease agreement
         notification = Notification.objects.create(
             user=lease_agreement.owner.user,
-            message=f"{rental_application.first_name} {rental_application.last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
+            message=f"{tenant_first_name} {tenant_last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
             type="lease_agreement_signed",
             title="Lease Agreement Signed",
             resource_url=f"/dashboard/landlord/lease-agreements/{lease_agreement.id}",

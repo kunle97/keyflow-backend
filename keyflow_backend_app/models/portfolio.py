@@ -8,7 +8,7 @@ class Portfolio(models.Model):
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
-    db_table = 'portfolios'
-
+    class Meta:
+        db_table = 'portfolios'
     def __str__(self):
         return f"{self}"

@@ -1,4 +1,5 @@
 import os
+from tempfile import template
 from dotenv import load_dotenv
 import json
 import stripe
@@ -57,6 +58,36 @@ class UnitViewSet(viewsets.ModelViewSet):
         owner = Owner.objects.get(user=user)
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
+    def partial_update(self, request, *args, **kwargs):
+        unit = self.get_object()
+        serializer = self.get_serializer(unit)
+        if 'signed_lease_document_file' in request.data:
+            file_id = request.data.get('signed_lease_document_file')
+            if file_id is not None:
+                file = UploadedFile.objects.get(id=file_id)
+                unit.signed_lease_document_file = file
+                unit.save()
+
+                return super().partial_update(request, *args, **kwargs)
+            else:
+                unit.signed_lease_document_file = None
+                unit.save()
+                return super().partial_update(request, *args, **kwargs)
+        if 'template_id' in request.data:
+            template_id = request.data.get('template_id')
+            print(template_id)
+            if template_id is  None:
+                print("template_id is None")
+                unit.template_id = None
+                unit.save()
+                return super().partial_update(request, *args, **kwargs)
+            else:
+                unit.template_id = template_id
+                unit.save()
+                return super().partial_update(request, *args, **kwargs)
+        return super().partial_update(request, *args, **kwargs)
+
+
 
     #Make a create function that creates a unit with all of the expected values as well as a subscription_id to check to see what subscription plan thee user has
     def create(self, request):
@@ -65,6 +96,9 @@ class UnitViewSet(viewsets.ModelViewSet):
         owner = Owner.objects.get(user=user)
         rental_property = data['rental_property']
         subscription_id = data['subscription_id']
+        default_lease_terms = data['lease_terms']  
+        #Convert defauult lease_terms to dictionary 
+        lease_terms_dict = json.loads(default_lease_terms)
         product_id = data['product_id']
         units = json.loads(data['units']) #Retrieve the javascript object from from the request in the 'units' property and convert it to a python object 
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
@@ -78,28 +112,29 @@ class UnitViewSet(viewsets.ModelViewSet):
                 return Response({'message': 'You have reached the maximum number of units for your subscription plan. Please upgrade to a higher plan.'}, status=status.HTTP_400_BAD_REQUEST)
             #Create the unit
             for unit in units:
-                RentalUnit.objects.create(
+                rental_unit = RentalUnit.objects.create(
                     rental_property_id=rental_property,
                     owner=owner,
                     name=unit['name'],
                     beds=unit['beds'],
                     baths=unit['baths'],
-                    size=unit['size'],  
+                    size=unit['size'],
+                    lease_terms=default_lease_terms
                 )
-
             return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
         
         #If user has the pro plan, increase the metered usage for the user based on the new number of units
         if product_id == os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID'):
             #Create the unit 
             for unit in units:
-                RentalUnit.objects.create(
+                rental_unit = RentalUnit.objects.create(
                     rental_property_id=rental_property,
                     owner=owner,
                     name=unit['name'],
                     beds=unit['beds'],
                     baths=unit['baths'],
-                    size=unit['size'],  
+                    size=unit['size'],
+                    lease_terms=data['lease_terms']  
                 )
             #Update the subscriptions quantity to the new number of units
             subscription_item=stripe.SubscriptionItem.modify(
@@ -108,6 +143,7 @@ class UnitViewSet(viewsets.ModelViewSet):
             )
             return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
         return Response({"message","error Creating unit"}, status=status.HTTP_400_BAD_REQUEST)
+    
     #Create a function that override the dlete function to delete the unit and decrease the metered usage for the user
     def destroy(self, request, pk=None):
         unit = self.get_object()
@@ -156,7 +192,7 @@ class UnitViewSet(viewsets.ModelViewSet):
 
     #manage leases (mainly used by landlords)
     @action(detail=True, methods=['post'])
-    def assign_lease(self, request, pk=None):
+    def assign_lease(self, request, pk=None): 
         unit = self.get_object()
         lease_id = request.data.get('lease_id')
         lease = LeaseAgreement.objects.get(id=lease_id)

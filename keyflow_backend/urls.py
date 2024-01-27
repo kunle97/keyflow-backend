@@ -91,6 +91,9 @@ from keyflow_backend_app.views.tenants import (
 from keyflow_backend_app.views.transactions import (
     TransactionViewSet,
 )
+from keyflow_backend_app.views.tenant_invites import (
+    TenantInviteViewSet,
+)
 
 from keyflow_backend_app.views.messages import (
     MessageViewSet,
@@ -167,6 +170,7 @@ router.register(r"lease-templates", LeaseTemplateViewSet, basename="lease-templa
 router.register(r"notifications", NotificationViewSet, basename="notifications")
 router.register(r"messages", MessageViewSet, basename="messages")
 router.register(r"file-uploads", FileUploadViewSet, basename="file-uploads")
+router.register(r"tenant-invites", TenantInviteViewSet, basename="tenant-invites")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -180,6 +184,11 @@ urlpatterns = [
     ),
     path(
         "api/auth/tenant/register/verify/",
+        TenantVerificationView.as_view(),
+        name="tenant_register_verify",
+    ),
+    path(
+        "api/auth/invite/tenant/register/verify/",
         TenantVerificationView.as_view(),
         name="tenant_register_verify",
     ),
