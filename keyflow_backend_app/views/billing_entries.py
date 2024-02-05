@@ -70,11 +70,20 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
         amount = data["amount"]
         description = data["description"]
         tenant = None
+        rental_unit = None
+        rental_property = None
+
         # Check if tennt exists
         tenant_id = request.data.get("tenant", None)
         if Tenant.objects.filter(id=tenant_id).exists():
             tenant = Tenant.objects.get(id=request.data.get("tenant"))
-
+            rental_unit = RentalUnit.objects.get(tenant=tenant)
+            rental_property = rental_unit.rental_property
+        
+        #Check for if Rental unit exists when request_unit is passed in the request
+        if RentalUnit.objects.get(id=request.data.get("rental_unit")):
+            rental_unit = RentalUnit.objects.get(id=request.data.get("rental_unit"))
+            rental_property = rental_unit.rental_property
         billing_entry_status = data["status"]
         collection_method = request.data.get("collection_method", None)
         stripe_invoice = None
@@ -139,8 +148,6 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     status=billing_entry_status,
                     stripe_invoice_id=stripe_invoice.id,
                 )
-                rental_unit = RentalUnit.objects.get(tenant=tenant)
-                rental_property = rental_unit.rental_property
                 # Create Transaction for the billing entry
                 transaction = Transaction.objects.create(
                     amount=amount,
@@ -242,6 +249,8 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                 type=type,
                 tenant=tenant,
                 user=owner.user,
+                rental_unit=rental_unit,
+                rental_property=rental_property,
             )
             serializer = BillingEntrySerializer(billing_entry)
             return Response(
