@@ -11,6 +11,7 @@ class BillingEntry(models.Model):
     status = models.CharField(max_length=50)
     description = models.TextField()
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='billing_entries')
+    rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='billing_entries')
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None, related_name='billing_entries')
     description = models.TextField()
     due_date = models.DateTimeField(default=None,  blank=True, null=True)

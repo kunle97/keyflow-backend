@@ -1,3 +1,4 @@
+import time
 import stripe
 import os
 from dotenv import load_dotenv
@@ -75,14 +76,13 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
 
         # Check if tennt exists
         tenant_id = request.data.get("tenant", None)
-        if Tenant.objects.filter(id=tenant_id).exists():
+        if type in expense_types and tenant_id is None:
+            rental_unit = RentalUnit.objects.get(id=request.data.get("rental_unit"))
+            rental_property = rental_unit.rental_property
+        #Check for if Rental unit exists when request_unit is passed in the request
+        else:
             tenant = Tenant.objects.get(id=request.data.get("tenant"))
             rental_unit = RentalUnit.objects.get(tenant=tenant)
-            rental_property = rental_unit.rental_property
-        
-        #Check for if Rental unit exists when request_unit is passed in the request
-        if RentalUnit.objects.get(id=request.data.get("rental_unit")):
-            rental_unit = RentalUnit.objects.get(id=request.data.get("rental_unit"))
             rental_property = rental_unit.rental_property
         billing_entry_status = data["status"]
         collection_method = request.data.get("collection_method", None)
@@ -94,14 +94,13 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             due_date_timestamp = int(datetime.fromisoformat(due_date_str).timestamp())
             # Create variable date_time to convert duedate_str to store  in a DateTimeField
             due_date_time_field = datetime.fromisoformat(due_date_str)
-            print("Due Date", due_date)
 
             # Create a stripe invoice for the billing entry
             stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
             # retrieve thestripe cusotmer object
-            tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
 
             if collection_method == "send_invoice":
+                tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
                 # Create a stripe invoice object if type is not in the expense_types list
                 if type not in expense_types:
                     stripe_invoice = stripe.Invoice.create(
@@ -144,21 +143,23 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     due_date=due_date_time_field,
                     description=description,
                     tenant=tenant,
+                    rental_unit=rental_unit,
                     owner=owner,
                     status=billing_entry_status,
                     stripe_invoice_id=stripe_invoice.id,
                 )
-                # Create Transaction for the billing entry
-                transaction = Transaction.objects.create(
-                    amount=amount,
-                    billing_entry=billing_entry,
-                    description=description,
-                    type=type,
-                    tenant=tenant,
-                    user=owner.user,
-                    rental_unit=rental_unit,
-                    rental_property=rental_property,
-                )
+                if billing_entry_status == "paid":
+                    # Create Transaction for the billing entry
+                    transaction = Transaction.objects.create(
+                        amount=amount,
+                        billing_entry=billing_entry,
+                        description=description,
+                        type=type,
+                        tenant=tenant,
+                        user=owner.user,
+                        rental_unit=rental_unit,
+                        rental_property=rental_property,
+                    )
                 serializer = BillingEntrySerializer(billing_entry)
                 return Response(
                     {
@@ -168,6 +169,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_201_CREATED,
                 )
             elif collection_method == "charge_automatically":
+                tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
                 if type not in expense_types:
                     # Create a stripe invoice object
                     stripe_invoice = stripe.Invoice.create(
@@ -209,20 +211,22 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     description=description,
                     tenant=tenant,
                     owner=owner,
+                    rental_unit=rental_unit,
                     status=billing_entry_status,
                     stripe_invoice_id=stripe_invoice.id,
                 )
                 rental_unit = RentalUnit.objects.get(tenant=tenant)
                 rental_property = rental_unit.rental_property
-                # Create Transaction for the billing entry
-                transaction = Transaction.objects.create(
-                    amount=amount,
-                    billing_entry=billing_entry,
-                    description=description,
-                    type="revenue",
-                    tenant=tenant,
-                    user=owner.user,
-                )
+                if billing_entry_status == "paid":
+                    # Create Transaction for the billing entry
+                    transaction = Transaction.objects.create(
+                        amount=amount,
+                        billing_entry=billing_entry,
+                        description=description,
+                        type="revenue",
+                        tenant=tenant,
+                        user=owner.user,
+                    )
 
                 serializer = BillingEntrySerializer(billing_entry)
                 return Response(
@@ -232,35 +236,44 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     },
                     status=status.HTTP_201_CREATED,
                 )
+            elif collection_method == None:
+                #Handle case for expense types
+                billing_entry = BillingEntry.objects.create(
+                    type=type,
+                    amount=amount,
+                    due_date=due_date_time_field,
+                    description=description,
+                    tenant=tenant,
+                    owner=owner,
+                    rental_unit=rental_unit,
+                    status=billing_entry_status,
+                )
+                if billing_entry_status == "paid":
+                    # Create Transaction for the billing entry
+                    transaction = Transaction.objects.create(
+                        amount=amount,
+                        billing_entry=billing_entry,
+                        description=description,
+                        type=type,
+                        tenant=tenant,
+                        user=owner.user,
+                        rental_unit=rental_unit,
+                        rental_property=rental_property,
+                        timestamp=due_date_time_field,
+                    )
+                serializer = BillingEntrySerializer(billing_entry)
+                return Response(
+                    {
+                        "message": "Billing entry created successfully.",
+                        "data": serializer.data,
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
         else:
-            billing_entry = BillingEntry.objects.create(
-                type=type,
-                amount=amount,
-                description=description,
-                tenant=tenant,
-                owner=owner,
-                status=billing_entry_status,
-            )
-            # Create Transaction for the billing entry
-            transaction = Transaction.objects.create(
-                amount=amount,
-                billing_entry=billing_entry,
-                description=description,
-                type=type,
-                tenant=tenant,
-                user=owner.user,
-                rental_unit=rental_unit,
-                rental_property=rental_property,
-            )
-            serializer = BillingEntrySerializer(billing_entry)
             return Response(
-                {
-                    "message": "Billing entry created successfully.",
-                    "data": serializer.data,
-                },
-                status=status.HTTP_201_CREATED,
+                {"message": "Due date  or transaction date is required to create a billing entry."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-
     def partial_update(self, request, *args, **kwargs):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
         user = self.request.user
