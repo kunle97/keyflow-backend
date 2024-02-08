@@ -116,7 +116,9 @@ from keyflow_backend_app.views.file_uploads import (
     S3FileDeleteView,
     UnauthenticatedRetrieveImagesBySubfolderView,
 )
-
+from keyflow_backend_app.views.billing_entries import (
+    BillingEntryViewSet,
+)
 from keyflow_backend_app.views.mailchimp import RequestDemoSubscribeView
 from keyflow_backend_app.views.dev import (
     test_token,
@@ -171,6 +173,7 @@ router.register(r"notifications", NotificationViewSet, basename="notifications")
 router.register(r"messages", MessageViewSet, basename="messages")
 router.register(r"file-uploads", FileUploadViewSet, basename="file-uploads")
 router.register(r"tenant-invites", TenantInviteViewSet, basename="tenant-invites")
+router.register(r"billing-entries", BillingEntryViewSet, basename="billing-entries")
 
 urlpatterns = [
     path("admin/", admin.site.urls),

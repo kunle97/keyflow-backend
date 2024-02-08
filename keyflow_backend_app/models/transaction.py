@@ -1,9 +1,12 @@
 from django.db import models
 from datetime import datetime
+from keyflow_backend_app.models import billing_entry
 from keyflow_backend_app.models.account_type import Tenant
 from keyflow_backend_app.models.user import User
 from keyflow_backend_app.models.rental_unit import RentalUnit 
 from keyflow_backend_app.models.rental_property import RentalProperty
+from keyflow_backend_app.models.billing_entry import BillingEntry
+
 
 #Create a model for transactions that will be used to create a transaction history for each user
 class Transaction(models.Model):
@@ -24,12 +27,13 @@ class Transaction(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='transactions') #tenant related to the transaction
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=TRANSACTION_TYPE_CHOICES)
+    billing_entry = models.ForeignKey(BillingEntry, on_delete=models.CASCADE,default=None, blank=True, null=True)
     description = models.TextField()
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None, blank=True, null=True)
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE,default=None, blank=True, null=True)
     payment_intent_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     payment_method_id = models.CharField(max_length=100, blank=True, null=True, default=None)
-    timestamp = models.DateTimeField(default=datetime.now,  blank=True)\
+    timestamp = models.DateTimeField(default=datetime.now,  blank=True)
 
     class Meta:
         db_table = 'transactions'
