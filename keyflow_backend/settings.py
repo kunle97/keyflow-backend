@@ -39,6 +39,8 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "keyflow-backend-staging.onrender.com",
     "keyflow-fontend-staging.onrender.com",
+    "keyflow.co",
+    "keyflow-frontend-production.onrender.com/"
 ]
 
 
@@ -162,6 +164,8 @@ CORS_ORIGIN_WHITELIST = [
     "https://js.stripe.com",
     "https://api.boldsign.com",
     "https://keyflow-frontend-staging.onrender.com",
+    "https://keyflow.co",
+    "https://keyflow-frontend-production.onrender.com"
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -173,6 +177,8 @@ CSRF_TRUSTED_ORIGINS = [
     "https://js.stripe.com",
     "https://api.boldsign.com",
     "https://keyflow-frontend-staging.onrender.com",
+    "https://keyflow.co",
+    "https://keyflow-frontend-production.onrender.com"
 ]
 
 CORS_ALLOWED_ORIGINS = [  # JWT Config
@@ -180,6 +186,8 @@ CORS_ALLOWED_ORIGINS = [  # JWT Config
     "https://localhost:3000",
     "http://127.0.0.1",
     "https://keyflow-frontend-staging.onrender.com",
+    "https://keyflow.co",
+    "https://keyflow-frontend-production.onrender.com"
 ]
 
 REST_FRAMEWORK = {

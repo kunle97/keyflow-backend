@@ -316,7 +316,7 @@ urlpatterns = [
         "api/generate/rental-applications/",
         generate_rental_applications,
         name="generate_rental_applications",
-    ),
+),
     path(
         "api/generate/lease-templates/",
         generate_lease_templates,
