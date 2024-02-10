@@ -40,7 +40,7 @@ ALLOWED_HOSTS = [
     "keyflow-backend-staging.onrender.com",
     "keyflow-fontend-staging.onrender.com",
     "keyflow.co",
-    "keyflow-frontend-production.onrender.com/"
+    "keyflow-frontend-production.onrender.com"
 ]
 
 
