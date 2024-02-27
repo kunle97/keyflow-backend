@@ -4,6 +4,7 @@ from operator import le
 import os
 from datetime import timedelta, datetime
 import re
+from symbol import term
 from dotenv import load_dotenv
 
 # Third-party library imports
@@ -406,6 +407,154 @@ class TenantViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
 
+    def calculate_rent_periods(self, lease_start_date, rent_frequency, term):
+        rent_periods = []
+        current_date = lease_start_date
+        end_date = None
+        print(f"ZX reent_frequency: {rent_frequency}")
+        if rent_frequency == "month":
+            end_date = lease_start_date + relativedelta(months=term)
+        elif rent_frequency == "week":
+            end_date = lease_start_date + relativedelta(weeks=term)
+        elif rent_frequency == "day":
+            end_date = lease_start_date + relativedelta(days=term)
+        elif rent_frequency == "year":
+            end_date = lease_start_date + relativedelta(years=term)
+        print(f"ZX current_date: {current_date}")
+        print(f"ZX end_date: {end_date}")
+        while current_date < end_date:
+            period_start = current_date
+            period_end = None
+            if rent_frequency == "month":
+                period_end = current_date + relativedelta(months=1)
+            elif rent_frequency == "week":
+                period_end = current_date + relativedelta(weeks=1)
+            elif rent_frequency == "day":
+                period_end = current_date + relativedelta(days=1)
+            elif rent_frequency == "year":
+                period_end = current_date + relativedelta(years=1)
+
+            rent_periods.append((period_start, period_end))
+            current_date = period_end
+
+        return rent_periods
+
+    def create_invoice_for_period(
+        self,
+        period_start,
+        rent_amount,
+        customer_id,
+        due_date,
+        unit,
+        additional_charges_dict,
+        lease_agreement
+    ):
+        # Set time part of due_date to end of the day
+        due_date_end_of_day = datetime.combine(due_date, datetime.max.time())
+
+        # Create Stripe Invoice for the specified rent payment period
+        invoice = stripe.Invoice.create(
+            customer=customer_id,
+            auto_advance=True,
+            collection_method="send_invoice",
+            due_date=int(due_date_end_of_day.timestamp()),
+            metadata={
+                "type": "rent_payment",
+                "description": "Rent payment",
+                "tenant_id": unit.tenant.id,
+                "owner_id": unit.owner.id,
+                "rental_property_id": unit.rental_property.id,
+                "rental_unit_id": unit.id,
+                "lease_agreement_id": lease_agreement.id, #TODO: Add lease agreement ot metadata
+            },
+            transfer_data={"destination": unit.owner.stripe_account_id},
+        )
+
+        price = stripe.Price.create(
+            unit_amount=int(rent_amount * 100),
+            currency="usd",
+            product_data={
+                "name": f"Rent for unit {unit.name} at {unit.rental_property.name}"
+            },
+        )
+
+        # Create a Stripe invoice item for the specified rent payment period
+        invoice_item = stripe.InvoiceItem.create(
+            customer=customer_id,
+            price=price.id,
+            currency="usd",
+            description="Rent payment",
+            invoice=invoice.id,
+        )
+        print(f"ZX invoice: {additional_charges_dict}")
+        if len(additional_charges_dict) > 0:
+            # Create an invoice item for each additional charge
+            for charge in additional_charges_dict:
+                charge_amount = charge["amount"]
+                charge_name = charge["name"]
+                charge_product_name = str(
+                    f"{charge_name} for unit {unit.name} at {unit.rental_property.name}"
+                )
+                print(charge_product_name)
+                print(f"ZX charge_amount: {charge_amount}")
+                print(f"ZX charge_name: {charge_name}")
+                charge_product = stripe.Product.create(
+                    name=charge_product_name,
+                    type="service",
+                )
+                charge_price = stripe.Price.create(
+                    unit_amount=int(charge_amount) * 100,
+                    currency="usd",
+                    product=charge_product.id,
+                )
+                invoice_item = stripe.InvoiceItem.create(
+                    customer=customer_id,
+                    price=charge_price.id,
+                    currency="usd",
+                    description=f"{charge['name']} for unit {unit.name} at {unit.rental_property.name}",
+                    invoice=invoice.id,
+                )
+        stripe.Invoice.finalize_invoice(invoice.id)
+        return invoice
+
+    def create_rent_invoices(
+        self,
+        lease_start_date,
+        rent_amount,
+        rent_frequency,
+        lease_term,
+        customer_id,
+        unit,
+        additional_charges_dict,
+        lease_agreement
+    ):
+        rent_periods = self.calculate_rent_periods(
+            lease_start_date, rent_frequency, lease_term
+        )
+        current_date = datetime.now().date()
+        due_date = None
+        for period_start, period_end in rent_periods:
+            if period_start >= current_date:
+                # calculate the due date for current invoice
+                if rent_frequency == "month":
+                    due_date = period_start + relativedelta(months=1)
+                elif rent_frequency == "week":
+                    due_date = period_start + relativedelta(weeks=1)
+                elif rent_frequency == "day":
+                    due_date = period_start + relativedelta(days=1)
+                elif rent_frequency == "year":
+                    due_date = period_start + relativedelta(years=1)
+                # Create Stripe invoice for each rent payment period
+                self.create_invoice_for_period(
+                    period_start,
+                    rent_amount,
+                    customer_id,
+                    due_date,
+                    unit,
+                    additional_charges_dict,
+                    lease_agreement
+                )
+
     @action(detail=False, methods=["post"], url_path="register")
     def register(self, request):
         data = request.data.copy()
@@ -458,11 +607,13 @@ class TenantViewSet(viewsets.ModelViewSet):
             lease_agreement.save()
 
             if lease_agreement.signed_lease_document_file:
-                #REtreieve the signed lease document file metadata from the unit
-                signed_lease_document_file_metadata = json.loads(unit.signed_lease_document_metadata)
-                start_date = signed_lease_document_file_metadata['lease_start_date']
-                end_date = signed_lease_document_file_metadata['lease_end_date']
-                date_signed = signed_lease_document_file_metadata['date_signed']
+                # REtreieve the signed lease document file metadata from the unit
+                signed_lease_document_file_metadata = json.loads(
+                    unit.signed_lease_document_metadata
+                )
+                start_date = signed_lease_document_file_metadata["lease_start_date"]
+                end_date = signed_lease_document_file_metadata["lease_end_date"]
+                date_signed = signed_lease_document_file_metadata["date_signed"]
                 lease_agreement.start_date = start_date
                 lease_agreement.end_date = end_date
                 lease_agreement.signed_date = date_signed
@@ -489,7 +640,6 @@ class TenantViewSet(viewsets.ModelViewSet):
                 (item for item in lease_terms if item["name"] == "security_deposit"),
                 None,
             )
-            print(f"security_deposit: {security_deposit}")
             # Get the value property from the security_deposit object
             security_deposit_value = float(security_deposit["value"])
             # Retrieve rent frequency from the preferences list
@@ -515,56 +665,94 @@ class TenantViewSet(viewsets.ModelViewSet):
             # Get the value property from the grace object
             grace_period_value = int(grace_period["value"])
 
+            term = next(
+                (item for item in lease_terms if item["name"] == "term"),
+                None,
+            )
+            term_value = int(term["value"])
+
             if security_deposit_value > 0:
-                security_deposit_payment_intent = stripe.PaymentIntent.create(
-                    amount=int(security_deposit_value * 100),
-                    currency="usd",
-                    payment_method_types=["card"],
+                security_deposit_invoice = stripe.Invoice.create(
                     customer=customer.id,
-                    payment_method=data["payment_method_id"],
-                    transfer_data={"destination": owner.stripe_account_id},
-                    confirm=True,
+                    auto_advance=True,
+                    collection_method="send_invoice",
+                    # Set duedate for today
+                    due_date=int(datetime.now().timestamp())+1000,
                     metadata={
-                        "type": "revenue",
-                        "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "user_id": owner_user.id,
+                        "type": "security_deposit",
+                        "description": "Security Deposit Payment",
                         "tenant_id": tenant.id,
                         "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
-                        "payment_method_id": data["payment_method_id"],
                     },
                 )
-
-                owner_security_deposit_transaction = Transaction.objects.create(
-                    type="security_deposit",
-                    description=f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                    rental_property=unit.rental_property,
-                    rental_unit=unit,
-                    user=owner_user,
-                    amount=security_deposit_value,
-                    payment_method_id=data["payment_method_id"],
-                    payment_intent_id=security_deposit_payment_intent.id,
+                # Create stripe price for security deposit
+                price = stripe.Price.create(
+                    unit_amount=int(security_deposit_value * 100),
+                    currency="usd",
+                    product_data={
+                        "name": str(
+                            f"Security Deposit for unit {unit.name} at {unit.rental_property.name}"
+                        )
+                    },
                 )
-
-                tenant_security_deposit_transaction = Transaction.objects.create(
-                    type="security_deposit",
-                    description=f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                    rental_property=unit.rental_property,
-                    rental_unit=unit,
-                    user=tenant_user,
-                    amount=security_deposit_value,
-                    payment_method_id=data["payment_method_id"],
-                    payment_intent_id=security_deposit_payment_intent.id,
+                stripe.InvoiceItem.create(
+                    customer=customer.id,
+                    price=price.id,
+                    currency="usd",
+                    description=f"{tenant.user.first_name} {tenant.user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+                    invoice=security_deposit_invoice.id,
                 )
+            # security_deposit_payment_intent = stripe.PaymentIntent.create(#Change to invoice
+            #     amount=int(security_deposit_value * 100),
+            #     currency="usd",
+            #     payment_method_types=["card"],
+            #     customer=customer.id,
+            #     payment_method=data["payment_method_id"],
+            #     transfer_data={"destination": owner.stripe_account_id},
+            #     confirm=True,
+            #     metadata={
+            #         "type": "revenue",
+            #         "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+            #         "user_id": owner_user.id,
+            #         "tenant_id": tenant.id,
+            #         "owner_id": owner.id,
+            #         "rental_property_id": unit.rental_property.id,
+            #         "rental_unit_id": unit.id,
+            #         "payment_method_id": data["payment_method_id"],
+            #     },
+            # )
 
-                notification = Notification.objects.create(
-                    user=owner_user,
-                    message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${security_deposit_value} for unit {unit.name} at {unit.rental_property.name}",
-                    type="security_deposit_paid",
-                    title="Security Deposit Paid",
-                    resource_url=f"/dashboard/landlord/transactions/{owner_security_deposit_transaction.id}",
-                )
+            # owner_security_deposit_transaction = Transaction.objects.create(
+            #     type="security_deposit",
+            #     description=f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+            #     rental_property=unit.rental_property,
+            #     rental_unit=unit,
+            #     user=owner_user,
+            #     amount=security_deposit_value,
+            #     payment_method_id=data["payment_method_id"],
+            #     payment_intent_id=security_deposit_payment_intent.id,
+            # )
+
+            # tenant_security_deposit_transaction = Transaction.objects.create(
+            #     type="security_deposit",
+            #     description=f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+            #     rental_property=unit.rental_property,
+            #     rental_unit=unit,
+            #     user=tenant_user,
+            #     amount=security_deposit_value,
+            #     payment_method_id=data["payment_method_id"],
+            #     payment_intent_id=security_deposit_payment_intent.id,
+            # )
+
+            # notification = Notification.objects.create(
+            #     user=owner_user,
+            #     message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${security_deposit_value} for unit {unit.name} at {unit.rental_property.name}",
+            #     type="security_deposit_paid",
+            #     title="Security Deposit Paid",
+            #     resource_url=f"/dashboard/landlord/transactions/{owner_security_deposit_transaction.id}",
+            # )
 
             if grace_period_value != 0:
                 start_date = datetime.fromisoformat(str(lease_agreement.start_date))
@@ -616,24 +804,35 @@ class TenantViewSet(viewsets.ModelViewSet):
                     items.append({"price": additional_charge_price.id})
 
                 grace_period_end = int(end_date.timestamp())
-                subscription = stripe.Subscription.create(
-                    customer=customer.id,
-                    items=items,
-                    default_payment_method=payment_method_id,
-                    trial_end=grace_period_end,
-                    transfer_data={"destination": owner.stripe_account_id},
-                    cancel_at=int(
-                        datetime.fromisoformat(str(lease_agreement.end_date)).timestamp()
-                    ),
-                    metadata={
-                        "type": "rent_payment",
-                        "description": f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "tenant_id": tenant.id,
-                        "owner_id": owner.id,
-                        "rental_property_id": unit.rental_property.id,
-                        "rental_unit_id": unit.id,
-                        "payment_method_id": data["payment_method_id"],
-                    },
+                # subscription = stripe.Subscription.create(
+                #     customer=customer.id,
+                #     items=items,
+                #     default_payment_method=payment_method_id,
+                #     trial_end=grace_period_end,
+                #     transfer_data={"destination": owner.stripe_account_id},
+                #     cancel_at=int(
+                #         datetime.fromisoformat(str(lease_agreement.end_date)).timestamp()
+                #     ),
+                #     metadata={
+                #         "type": "rent_payment",
+                #         "description": f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
+                #         "tenant_id": tenant.id,
+                #         "owner_id": owner.id,
+                #         "rental_property_id": unit.rental_property.id,
+                #         "rental_unit_id": unit.id,
+                #         "payment_method_id": data["payment_method_id"],
+                #     },
+                # )
+                print(f"ZX register function rent_Frequency: {rent_frequency_value}")
+                self.create_rent_invoices(
+                    lease_agreement.start_date,
+                    rent_value,
+                    rent_frequency_value,
+                    term_value,
+                    customer.id,
+                    unit,
+                    additional_charges_dict,
+                    lease_agreement
                 )
             else:
                 rent = next(
@@ -649,7 +848,6 @@ class TenantViewSet(viewsets.ModelViewSet):
                 lease_agreement_product_name = str(
                     f"Rent for unit {unit.name} at {unit.rental_property.name}"
                 )
-                print(lease_agreement_product_name)
                 lease_agreement_product = stripe.Product.create(
                     name=lease_agreement_product_name,
                     type="service",
@@ -667,44 +865,55 @@ class TenantViewSet(viewsets.ModelViewSet):
                     },
                 )
 
-                items = [{"price": lease_agreement_price.id}]
+                # items = []
+
+                # for charge in additional_charges_dict:
+                #     charge_product_name = str(f"{charge['name']} for unit {unit.name} at {unit.rental_property.name}")
+                #     print(charge_product_name)
+                #     charge_product = stripe.Product.create(
+                #         name=charge_product_name,
+                #         type="service",
+                #     )
+                #     additional_charge_price = stripe.Price.create(
+                #         unit_amount=int(charge["amount"]) * 100,
+                #         currency="usd",
+                #         recurring={"interval": charge["frequency"]},
+                #         product=charge_product.id,
+                #     )
+                #     items.append({"price": additional_charge_price.id})
+
+                # subscription = stripe.Subscription.create(
+                #     customer=customer.id,
+                #     items=items,
+                #     transfer_data={"destination": owner.stripe_account_id},
+                #     cancel_at=int(
+                #         datetime.fromisoformat(str(lease_agreement.end_date)).timestamp()
+                #     ),
+                #     default_payment_method=payment_method_id,
+                #     metadata={
+                #         "type": "security_deposit",
+                #         "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
+                #         "user_id": tenant_user.id,
+                #         "tenant_id": tenant.id,
+                #         "owner_id": owner.id,
+                #         "rental_property_id": unit.rental_property.id,
+                #         "rental_unit_id": unit.id,
+                #         "payment_method_id": data["payment_method_id"],
+                #     },
+                # )
+                # Create as stripe  invoice for security deposit
+
 
                 additional_charges_dict = json.loads(unit.additional_charges)
-
-                for charge in additional_charges_dict:
-                    charge_product_name = str(f"{charge['name']} for unit {unit.name} at {unit.rental_property.name}")
-                    print(charge_product_name)
-                    charge_product = stripe.Product.create(
-                        name=charge_product_name,
-                        type="service",
-                    )
-                    additional_charge_price = stripe.Price.create(
-                        unit_amount=int(charge["amount"]) * 100,
-                        currency="usd",
-                        recurring={"interval": charge["frequency"]},
-                        product=charge_product.id,
-                    )
-                    items.append({"price": additional_charge_price.id})
-
-                grace_period_end = lease_agreement.start_date
-                subscription = stripe.Subscription.create(
-                    customer=customer.id,
-                    items=items,
-                    transfer_data={"destination": owner.stripe_account_id},
-                    cancel_at=int(
-                        datetime.fromisoformat(str(lease_agreement.end_date)).timestamp()
-                    ),
-                    default_payment_method=payment_method_id,
-                    metadata={
-                        "type": "security_deposit",
-                        "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "user_id": tenant_user.id,
-                        "tenant_id": tenant.id,
-                        "owner_id": owner.id,
-                        "rental_property_id": unit.rental_property.id,
-                        "rental_unit_id": unit.id,
-                        "payment_method_id": data["payment_method_id"],
-                    },
+                self.create_rent_invoices(
+                    lease_agreement.start_date,
+                    rent_value,
+                    rent_frequency_value,
+                    term_value,
+                    customer.id,
+                    unit,
+                    additional_charges_dict,
+                    lease_agreement
                 )
 
                 if os.getenv("ENVIROMENT") == "development":
@@ -727,9 +936,6 @@ class TenantViewSet(viewsets.ModelViewSet):
                         title="Rent Payment",
                         resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
                     )
-
-            lease_agreement.stripe_subscription_id = subscription.id
-            lease_agreement.save()
 
             account_activation_token = AccountActivationToken.objects.create(
                 user=tenant_user,
@@ -996,3 +1202,87 @@ class TenantViewSet(viewsets.ModelViewSet):
                 {"payment_dates": [], "status": status.HTTP_200_OK},
                 status=status.HTTP_200_OK,
             )
+
+    # Create a method to retrieve all stripe invoices for a specific tenant
+    @action(
+        detail=True, methods=["post"], url_path="invoices"
+    )  # POST: api/tenants/{id}/invoices
+    def invoices(self, request, pk=None):
+        tenant = self.get_object()
+        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+        invoices = stripe.Invoice.list(limit=25, customer=tenant.stripe_customer_id)
+        return Response({"invoices": invoices}, status=status.HTTP_200_OK)
+
+    # Create A method to pay an invoice
+    @action(
+        detail=True, methods=["post"], url_path="pay-invoice"
+    )  # POST: api/tenants/{id}/pay-invoice
+    def pay_invoice(self, request, pk=None):
+        unit = RentalUnit.objects.get(tenant=self.get_object())
+        #Check if unit exists
+        if unit is None:
+            return Response(
+                {"status": 404, "message": "Unit not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        invoice_id = request.data.get("invoice_id")
+        invoice = stripe.Invoice.retrieve(invoice_id)
+        payment_method_id = request.data.get("payment_method_id")
+        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+
+        #Check if the invoice is past due and charge the late fee if it is
+        if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
+            #retrieve the late fee from the unit's lease terms
+            lease_terms = json.loads(unit.lease_terms)
+            late_fee = next(
+                (item for item in lease_terms if item["name"] == "late_fee"),
+                None,
+            )
+            late_fee_value = float(late_fee["value"])
+            #Charge the late fee by creating payment intent
+            stripe.PaymentIntent.create(
+                amount=int(late_fee_value * 100),
+                currency="usd",
+                customer=invoice.customer,
+                payment_method=payment_method_id,
+                off_session=True,
+                confirm=True,
+                metadata={
+                    "type": "late_fee",
+                    "description": "Late Fee Payment",
+                    "tenant_id": invoice.metadata["tenant_id"],
+                    "owner_id": invoice.metadata["owner_id"],
+                    "rental_property_id": invoice.metadata["rental_property_id"],
+                    "rental_unit_id": invoice.metadata["rental_unit_id"],
+                    "payment_method_id": payment_method_id,
+                },
+            )
+        # Pay the invoice
+        stripe.Invoice.pay(invoice_id, payment_method=payment_method_id)
+
+
+        return Response(
+            {
+                "invoice": invoice,
+                "status": 200,
+                "message": "Invoice paid successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )
+    #Create a method to retrieve a specific invoice
+    @action(
+        detail=True, methods=["post"], url_path="retrieve-invoice"
+    )  # POST: api/tenants/{id}/retrieve-invoice
+    def retrieve_invoice(self, request, pk=None):
+        invoice_id = request.data.get("invoice_id")
+        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+        invoice = stripe.Invoice.retrieve(invoice_id)
+        return Response(
+            {
+                "invoice": invoice,
+                "status": 200,
+                "message": "Invoice retrieved successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )

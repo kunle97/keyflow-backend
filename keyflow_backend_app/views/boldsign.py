@@ -1,6 +1,7 @@
 # views.py
 import os
 import stat
+from turtle import st
 from django.http import JsonResponse, FileResponse
 from rest_framework.response import Response
 from dotenv import load_dotenv
@@ -98,7 +99,7 @@ class CreateEmbeddedTemplateEditView(APIView):
 
         response = requests.request("POST", url, headers=headers, data=payload)
         if response.status_code == 201:
-             return JsonResponse(
+            return JsonResponse(
                 {
                     "message": "Template created successfully",
                     "url": response.json()["editUrl"],
@@ -124,7 +125,7 @@ class CreateDocumentFromTemplateView(APIView):
         )
         tenant_first_name = request.data.get("tenant_first_name")
         tenant_last_name = request.data.get("tenant_last_name")
-        
+
         if tenant_first_name is None:
             tenant_first_name = ""
         if tenant_last_name is None:
@@ -228,13 +229,25 @@ class CreateSigningLinkView(APIView):
 
         headers = {"X-API-KEY": BOLDSIGN_API_KEY}
         response = requests.request("GET", url, headers=headers, params=params)
-        if "signLink" in response.json():
-            return JsonResponse(response.json())
+        print("Response:")
+        print(response.status_code)
+        if response.status_code == 429:
+            return JsonResponse(
+                {
+                    "error": "Too many requests. Please try again later.",
+                    "status": 429,
+                },
+                status=429,
+            )
+        if response.status_code == 200:
+            return JsonResponse(
+                {"data": response.json(), "status": response.status_code}, status=200
+            )
         else:
             return Response(
                 {
                     "error": "Failed to retrieve signing link",
-                    "status_code": 500,
+                    "status": 500,
                 },
                 status=500,
             )
