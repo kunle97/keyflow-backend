@@ -315,7 +315,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         current_date = datetime.now().date()
         due_date = None
         for period_start, period_end in rent_periods:
-            if period_start >= current_date:
+            if period_start.date() >= current_date:
                 # calculate the due date for current invoice
                 if rent_frequency == "month":
                     due_date = period_start + relativedelta(months=1)

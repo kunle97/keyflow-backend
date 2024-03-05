@@ -411,7 +411,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         rent_periods = []
         current_date = lease_start_date
         end_date = None
-        print(f"ZX reent_frequency: {rent_frequency}")
         if rent_frequency == "month":
             end_date = lease_start_date + relativedelta(months=term)
         elif rent_frequency == "week":
@@ -420,25 +419,26 @@ class TenantViewSet(viewsets.ModelViewSet):
             end_date = lease_start_date + relativedelta(days=term)
         elif rent_frequency == "year":
             end_date = lease_start_date + relativedelta(years=term)
-        print(f"ZX current_date: {current_date}")
-        print(f"ZX end_date: {end_date}")
+
         while current_date < end_date:
             period_start = current_date
             period_end = None
             if rent_frequency == "month":
-                period_end = current_date + relativedelta(months=1)
+                next_period_end = current_date + relativedelta(months=1)
             elif rent_frequency == "week":
-                period_end = current_date + relativedelta(weeks=1)
+                next_period_end = current_date + relativedelta(weeks=1)
             elif rent_frequency == "day":
-                period_end = current_date + relativedelta(days=1)
+                next_period_end = current_date + relativedelta(days=1)
             elif rent_frequency == "year":
-                period_end = current_date + relativedelta(years=1)
+                next_period_end = current_date + relativedelta(years=1)
+            
+            # Ensure the period end does not exceed the lease end date
+            period_end = min(next_period_end, end_date)
 
             rent_periods.append((period_start, period_end))
             current_date = period_end
 
         return rent_periods
-
     def create_invoice_for_period(
         self,
         period_start,
@@ -531,29 +531,22 @@ class TenantViewSet(viewsets.ModelViewSet):
         rent_periods = self.calculate_rent_periods(
             lease_start_date, rent_frequency, lease_term
         )
-        current_date = datetime.now().date()
-        due_date = None
+        grace_period_days = 0  # Assuming a 5-day grace period; adjust as needed
+
         for period_start, period_end in rent_periods:
-            if period_start >= current_date:
-                # calculate the due date for current invoice
-                if rent_frequency == "month":
-                    due_date = period_start + relativedelta(months=1)
-                elif rent_frequency == "week":
-                    due_date = period_start + relativedelta(weeks=1)
-                elif rent_frequency == "day":
-                    due_date = period_start + relativedelta(days=1)
-                elif rent_frequency == "year":
-                    due_date = period_start + relativedelta(years=1)
-                # Create Stripe invoice for each rent payment period
-                self.create_invoice_for_period(
-                    period_start,
-                    rent_amount,
-                    customer_id,
-                    due_date,
-                    unit,
-                    additional_charges_dict,
-                    lease_agreement
-                )
+            # Assuming the due date is at the start of the period plus a grace period
+            due_date = period_start + relativedelta(days=+grace_period_days)
+
+            # Create Stripe invoice for each rent payment period
+            self.create_invoice_for_period(
+                period_start,
+                rent_amount,
+                customer_id,
+                due_date,
+                unit,
+                additional_charges_dict,
+                lease_agreement
+            )
 
     @action(detail=False, methods=["post"], url_path="register")
     def register(self, request):
@@ -601,8 +594,8 @@ class TenantViewSet(viewsets.ModelViewSet):
             unit.is_occupied = True
             unit.save()
 
-            lease_agreement_id = data["lease_agreement_id"]
-            lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+            lease_agreement =  LeaseAgreement.objects.filter(rental_unit=unit).first()
+            lease_agreement = LeaseAgreement.objects.get(id=lease_agreement.id)
             lease_agreement.tenant = tenant
             lease_agreement.save()
 
@@ -685,6 +678,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                         "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
+                        "lease_agreement_id": lease_agreement.id,
                     },
                 )
                 # Create stripe price for security deposit
@@ -704,6 +698,8 @@ class TenantViewSet(viewsets.ModelViewSet):
                     description=f"{tenant.user.first_name} {tenant.user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                     invoice=security_deposit_invoice.id,
                 )
+                stripe.Invoice.finalize_invoice(security_deposit_invoice.id)
+
             # security_deposit_payment_intent = stripe.PaymentIntent.create(#Change to invoice
             #     amount=int(security_deposit_value * 100),
             #     currency="usd",
@@ -835,6 +831,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                     lease_agreement
                 )
             else:
+                start_date = datetime.fromisoformat(str(lease_agreement.start_date))
                 rent = next(
                     (item for item in lease_terms if item["name"] == "rent"),
                     None,
@@ -906,7 +903,7 @@ class TenantViewSet(viewsets.ModelViewSet):
 
                 additional_charges_dict = json.loads(unit.additional_charges)
                 self.create_rent_invoices(
-                    lease_agreement.start_date,
+                    start_date,
                     rent_value,
                     rent_frequency_value,
                     term_value,
@@ -1232,32 +1229,33 @@ class TenantViewSet(viewsets.ModelViewSet):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
 
         #Check if the invoice is past due and charge the late fee if it is
-        if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
-            #retrieve the late fee from the unit's lease terms
-            lease_terms = json.loads(unit.lease_terms)
-            late_fee = next(
-                (item for item in lease_terms if item["name"] == "late_fee"),
-                None,
-            )
-            late_fee_value = float(late_fee["value"])
-            #Charge the late fee by creating payment intent
-            stripe.PaymentIntent.create(
-                amount=int(late_fee_value * 100),
-                currency="usd",
-                customer=invoice.customer,
-                payment_method=payment_method_id,
-                off_session=True,
-                confirm=True,
-                metadata={
-                    "type": "late_fee",
-                    "description": "Late Fee Payment",
-                    "tenant_id": invoice.metadata["tenant_id"],
-                    "owner_id": invoice.metadata["owner_id"],
-                    "rental_property_id": invoice.metadata["rental_property_id"],
-                    "rental_unit_id": invoice.metadata["rental_unit_id"],
-                    "payment_method_id": payment_method_id,
-                },
-            )
+        # if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
+        #     #retrieve the late fee from the unit's lease terms
+        #     lease_terms = json.loads(unit.lease_terms)
+        #     late_fee = next(
+        #         (item for item in lease_terms if item["name"] == "late_fee"),
+        #         None,
+        #     )
+        #     late_fee_value = float(late_fee["value"])
+        #     #Charge the late fee by creating payment intent
+        #     stripe.PaymentIntent.create(
+        #         amount=int(late_fee_value * 100),
+        #         currency="usd",
+        #         customer=invoice.customer,
+        #         payment_method=payment_method_id,
+        #         off_session=True,
+        #         confirm=True,
+        #         metadata={
+        #             "type": "late_fee",
+        #             "description": "Late Fee Payment",
+        #             "tenant_id": invoice.metadata["tenant_id"],
+        #             "owner_id": invoice.metadata["owner_id"],
+        #             "rental_property_id": invoice.metadata["rental_property_id"],
+        #             "rental_unit_id": invoice.metadata["rental_unit_id"],
+        #             "payment_method_id": payment_method_id,
+        #         },
+        #     )
+
         # Pay the invoice
         stripe.Invoice.pay(invoice_id, payment_method=payment_method_id)
 

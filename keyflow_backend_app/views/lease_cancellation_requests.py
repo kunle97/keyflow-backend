@@ -1,4 +1,6 @@
+from operator import is_
 import stripe
+import json
 from django.http import JsonResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -73,10 +75,12 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         # Retrieve the unit object from the database
         unit = RentalUnit.objects.get(id=unit_id)
         owner=unit.owner
-        # Retrieve the lease agreement id from the request
-        lease_agreement_id = request.data.get("lease_agreement")
+        # Retrieve the lease agreement using the unit id
+        lease_agreement = LeaseAgreement.objects.filter(
+            rental_unit=unit, tenant=tenant, is_active=True
+        ).first()
         # Retrieve the lease agreement object from the database
-        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement.id)
         # Retrieve the reason from the request
         reason = request.data.get("reason")
         # Retrieve the comments from the request
@@ -146,10 +150,16 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         )
         lease_agreement_id = data["lease_agreement_id"]
         lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
-        lease_template = lease_agreement.lease_template
+        lease_terms = json.loads(lease_agreement.rental_unit.lease_terms)
+        lease_cancellation_fee = next(
+            (item for item in lease_terms if item["name"] == "lease_cancellation_fee"),
+            None,
+        )
+
 
         # Retreive tenant from lease Agreement
-        tenant_user = User.objects.get(id=lease_agreement.tenant.id)
+        tenant_user = User.objects.get(id=lease_agreement.tenant.user.id)
+        print("Tenant User: ", tenant_user)
         tenant = Tenant.objects.get(user=tenant_user)
         customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
 
@@ -157,10 +167,19 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
             customer.id,
             limit=1,
         )
+
+        #Retrieve all customers invoices
+        invoices = stripe.Invoice.list(customer=customer.id, limit=100)["data"]
+        #fetch invoice with the metadata's lease_agreement_id property equal to the lease_agreement_id and void each invoice
+        for invoice in invoices:
+            if invoice.metadata["type"] == "rent_payment" and int(invoice.metadata["lease_agreement_id"]) == lease_agreement.id and invoice.status == "open":
+                #Retrieve the invoice using the invoice's id attribute and void it
+                stripe.Invoice.void_invoice(invoice.id)
+
         unit = RentalUnit.objects.get(id=lease_agreement.rental_unit.id)
         # Create a stripe charge for the tenant for cancellation fee
         lease_cancellation_fee_payment_intent = stripe.PaymentIntent.create(
-            amount=int(lease_template.lease_cancellation_fee * 100),
+            amount=int(int(lease_cancellation_fee['value']) * 100),
             currency="usd",
             payment_method_types=["card"],
             customer=customer.id,
@@ -187,14 +206,6 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         unit.is_occupied = False
         unit.tenant = None
         unit.save()
-
-        # Delete Subscription
-        # Retreive the stripe subscription id from the lease agreement
-        stripe_subscription_id = lease_agreement.stripe_subscription_id
-        # Retrieve the stripe subscription from stripe
-        subscription = stripe.Subscription.retrieve(stripe_subscription_id)
-        # Cancel the subscription
-        subscription.delete()
 
         # Delete Lease Cancellation Request
         # lease_cancellation_request.delete()

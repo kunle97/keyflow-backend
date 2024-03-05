@@ -102,6 +102,7 @@ from keyflow_backend_app.views.messages import (
 
 from keyflow_backend_app.views.stripe_webhooks import (
     StripeSubscriptionPaymentSucceededEventView,
+    StripeInvoicePaymentSucceededEventView,
 )
 
 from keyflow_backend_app.views.boldsign import (
@@ -254,6 +255,11 @@ urlpatterns = [
         "api/stripe-webhook/subscription-payment-suceeded/",
         StripeSubscriptionPaymentSucceededEventView.as_view(),
         name="subscription_payment_suceeded",
+    ),
+    path(
+        "api/stripe-webhook/invoice-payment-suceeded/",
+        StripeInvoicePaymentSucceededEventView.as_view(),
+        name="invoice_payment_suceeded",
     ),
     path(
         "api/landlord-tenant-detail/",
