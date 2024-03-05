@@ -767,45 +767,50 @@ def generate_rental_applications(request):
     subscription = stripe.Subscription.retrieve(
         owner.stripe_subscription_id,  # Retrieve the subscription from stripe
     )
-    # ---------UNIT GENEREATION LOGIC----------------
-    # if unit_mode is 'new' create a new unit for the tenant
-    if unit_mode == "new":
-        # Choose a random lease template
-        lease_template = LeaseTemplate.objects.all().order_by("?").first()
-        unit = RentalUnit.objects.create(
-            name=faker.bothify(
-                text="?#"
-            ),  # Generate a 2 charachter string that the first character is a random letter and the 2nd character is a random number  using faker
-            rental_property=property,
-            beds=faker.pyint(min_value=1, max_value=5),
-            baths=faker.pyint(min_value=1, max_value=5),
-            owner=owner,
-            is_occupied=False,
-            lease_template=lease_template,
-        )
-
-        # Update the subscriptions quantity to the new number of units
-        subscription_item = stripe.SubscriptionItem.modify(
-            subscription["items"]["data"][0].id,
-            quantity=RentalUnit.objects.filter(owner=owner).count(),
-        )
-    # else if unit_mode is 'random' choose a random unoccumpued unit for the tenant
-    elif unit_mode == "random":
-        # Find a unit where the lease_tempalte field is NOT null
-        unit = (
-            RentalUnit.objects.filter(
-                is_occupied=False, owner=owner, lease_template__isnull=False
-            )
-            .order_by("?")
-            .first()
-        )
-    # else if unit_mode is 'specific' assign the tenant to the specific unit
-    elif unit_mode == "specific":
-        # Retrieve the unit
-        unit = RentalUnit.objects.get(id=rental_unit_id)
 
     # create a entries for rental applications with faker data with count number in a loop
     while int_count > 0:
+        # ---------UNIT GENEREATION LOGIC----------------
+        # if unit_mode is 'new' create a new unit for the tenant
+        if unit_mode == "new":
+            # Choose a random lease template
+            lease_template = LeaseTemplate.objects.all().order_by("?").first()
+            unit = RentalUnit.objects.create(
+                name=faker.bothify(
+                    text="?#"
+                ),  # Generate a 2 charachter string that the first character is a random letter and the 2nd character is a random number  using faker
+                rental_property=property,
+                beds=faker.pyint(min_value=1, max_value=5),
+                baths=faker.pyint(min_value=1, max_value=5),
+                owner=owner,
+                is_occupied=False,
+                lease_template=lease_template,
+            )
+
+            # Update the subscriptions quantity to the new number of units
+            subscription_item = stripe.SubscriptionItem.modify(
+                subscription["items"]["data"][0].id,
+                quantity=RentalUnit.objects.filter(owner=owner).count(),
+            )
+        # else if unit_mode is 'random' choose a random unoccumpued unit for the tenant
+        elif unit_mode == "random":
+            # Find a unit where the lease_tempalte field is NOT null
+            unit = (
+                RentalUnit.objects.filter(
+                    is_occupied=False, owner=owner, lease_template__isnull=False
+                )
+                #Check if the unit has a lease term
+                .exclude(lease_template__isnull=True)
+                .exclude(document_id__isnull=True)
+                #Check if lease term does not e=qual  '[]'
+                .exclude(lease_template__exact="[]")
+                .order_by("?")
+                .first()
+            )
+        # else if unit_mode is 'specific' assign the tenant to the specific unit
+        elif unit_mode == "specific":
+            # Retrieve the unit
+            unit = RentalUnit.objects.get(id=rental_unit_id)
         first_name = faker.first_name()
         last_name = faker.last_name()
         # Create a username from the first and last name and random number
