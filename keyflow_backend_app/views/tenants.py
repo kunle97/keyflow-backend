@@ -384,7 +384,7 @@ class RetrieveTenantDashboardData(APIView):
 
         # Calculate the total rent due for the entire lease term
         total_rent_due = 0.0
-        for i in range(term):
+        for i in range(int(term)):
             total_rent_due += float(rent)
             for charge in additional_charges_dict:
                 if charge["frequency"] == frequency:
