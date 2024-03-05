@@ -1,7 +1,5 @@
 # views.py
 import os
-import stat
-from turtle import st
 from django.http import JsonResponse, FileResponse
 from rest_framework.response import Response
 from dotenv import load_dotenv
