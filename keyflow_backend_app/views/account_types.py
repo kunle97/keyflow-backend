@@ -3,8 +3,6 @@ import json
 from operator import le
 import os
 from datetime import timedelta, datetime
-import re
-from symbol import term
 from dotenv import load_dotenv
 
 # Third-party library imports
