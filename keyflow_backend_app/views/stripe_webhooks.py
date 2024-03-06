@@ -118,7 +118,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                 payment_intent = event.data.object
                 print(f"ZXZX Invoice: {invoice}")
                 print(f"XZZX Metadata: {metadata}")
-                if metadata.type == "rent_payment":
+                if metadata.get("type", None) == "rent_payment":
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
                         #retrieve the late fee from the unit's lease terms
                         lease_terms = json.loads(unit.lease_terms)
@@ -173,7 +173,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                         title="Rent Payment",
                         resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
                     )
-                if metadata.type == "security_deposit":
+                if metadata.get("type", None) == "security_deposit":
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
                         #retrieve the late fee from the unit's lease terms
                         lease_terms = json.loads(unit.lease_terms)
