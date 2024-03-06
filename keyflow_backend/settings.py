@@ -187,7 +187,9 @@ CORS_ALLOWED_ORIGINS = [  # JWT Config
     "http://127.0.0.1",
     "https://keyflow-frontend-staging.onrender.com",
     "https://keyflow.co",
-    "https://keyflow-frontend-production.onrender.com"
+    "https://keyflow-frontend-production.onrender.com",
+    "https://merchant-ui-api.stripe.com",
+    "https://js.stripe.com",
 ]
 
 REST_FRAMEWORK = {
