@@ -119,6 +119,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                 print(f"ZXZX Invoice: {invoice}")
                 print(f"XZZX Metadata: {metadata}")
                 if metadata.get("type", None) == "rent_payment":
+                    print("Stripe Webhook: Rent Payment has been paid")
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
                         #retrieve the late fee from the unit's lease terms
                         lease_terms = json.loads(unit.lease_terms)
