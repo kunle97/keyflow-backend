@@ -113,12 +113,13 @@ class StripeInvoicePaymentSucceededEventView(View):
                 """
 
                 invoice = event.data.object
+                invoice_metadata = invoice.metadata
                 amount = invoice.amount_paid
                 metadata = invoice.lines.data[0].metadata
                 payment_intent = event.data.object
                 print(f"ZXZX Invoice: {invoice}")
                 print(f"XZZX Metadata: {metadata}")
-                if invoice.metadata.get("type", None) == "rent_payment":
+                if invoice_metadata.get("type", None) == "rent_payment":
                     print("Stripe Webhook: Rent Payment has been paid")
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
                         #retrieve the late fee from the unit's lease terms
@@ -136,34 +137,34 @@ class StripeInvoicePaymentSucceededEventView(View):
                             metadata={
                                 "type": "late_fee",
                                 "description": "Late Fee Payment",
-                                "tenant_id": invoice.metadata["tenant_id"],
-                                "owner_id": invoice.metadata["owner_id"],
-                                "rental_property_id": invoice.metadata["rental_property_id"],
-                                "rental_unit_id": invoice.metadata["rental_unit_id"],
+                                "tenant_id": invoice_metadata.get("tenant_id",None),
+                                "owner_id": invoice_metadata.get("owner_id", None),
+                                "rental_property_id": invoice_metadata.get("rental_property_id", None),
+                                "rental_unit_id": invoice_metadata.get("rental_unit_id", None),
                             },
                         )
-                    owner = Owner.objects.get(id=(metadata.get("owner_id", None)))
+                    owner = Owner.objects.get(id=(invoice_metadata.get("owner_id", None)))
                     owner_user = User.objects.get(id=owner.user.id)
-                    tenant = Tenant.objects.get(id=metadata.get("tenant_id", None))
+                    tenant = Tenant.objects.get(id=invoice_metadata.get("tenant_id", None))
                     tenant_user = User.objects.get(id=tenant.user.id)
                     rental_property = RentalProperty.objects.get(
-                        id=metadata.get("rental_property_id", None)
+                        id=invoice_metadata.get("rental_property_id", None)
                     )
                     rental_unit = RentalUnit.objects.get(
-                        id=metadata.get("rental_unit_id", None)
+                        id=invoice_metadata.get("rental_unit_id", None)
                     )
                     
                     invoice_transaction = Transaction.objects.create(
                         amount=float(invoice.amount_paid/100),  # Convert to currency units
                         user=owner_user,
-                        type=metadata.get("type", None),
+                        type=invoice_metadata.get("type", None),
                         description=f"Rent Payment for {rental_unit.name} at {rental_property.name} by {tenant_user.first_name} {tenant_user.last_name}",
                         rental_property=rental_property,
                         rental_unit=rental_unit,
                         tenant=tenant,  # related tenant
-                        payment_method_id=metadata.get(
-                            "payment_method_id", None
-                        ),  # or payment_intent.payment_method.id
+                        # payment_method_id=invoice_metadata.get(
+                        #     "payment_method_id", None
+                        # ),  # or payment_intent.payment_method.id
                         payment_intent_id=invoice.payment_intent,
                     )
 
@@ -172,9 +173,9 @@ class StripeInvoicePaymentSucceededEventView(View):
                         message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${rental_unit.lease_template.rent} for unit {rental_unit.name} at {rental_property.name}",
                         type="rent_payment",
                         title="Rent Payment",
-                        resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                        resource_url=f"/dashboard/landlord/transactions/{invoice_transaction.id}",
                     )
-                if invoice.metadata.get("type", None) == "security_deposit":
+                if invoice_metadata.get("type", None) == "security_deposit":
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
                         #retrieve the late fee from the unit's lease terms
                         lease_terms = json.loads(unit.lease_terms)
