@@ -170,7 +170,7 @@ class StripeInvoicePaymentSucceededEventView(View):
 
                     notification = Notification.objects.create(
                         user=owner_user,
-                        message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${rental_unit.lease_template.rent} for unit {rental_unit.name} at {rental_property.name}",
+                        message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
                         type="rent_payment",
                         title="Rent Payment",
                         resource_url=f"/dashboard/landlord/transactions/{invoice_transaction.id}",
