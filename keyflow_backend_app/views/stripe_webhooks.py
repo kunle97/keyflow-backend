@@ -192,43 +192,43 @@ class StripeInvoicePaymentSucceededEventView(View):
                             metadata={
                                 "type": "late_fee",
                                 "description": "Late Fee Payment",
-                                "tenant_id": invoice.metadata["tenant_id"],
-                                "owner_id": invoice.metadata["owner_id"],
-                                "rental_property_id": invoice.metadata["rental_property_id"],
-                                "rental_unit_id": invoice.metadata["rental_unit_id"],
+                                "tenant_id": invoice_metadata.get("tenant_id",None),
+                                "owner_id": invoice_metadata.get("owner_id", None),
+                                "rental_property_id": invoice_metadata.get("rental_property_id", None),
+                                "rental_unit_id": invoice_metadata.get("rental_unit_id", None),
                             },
                         )
-                    owner = Owner.objects.get(id=(metadata.get("owner_id", None)))
+                    owner = Owner.objects.get(id=(invoice_metadata.get("owner_id", None)))
                     owner_user = User.objects.get(id=owner.user.id)
-                    tenant = Tenant.objects.get(id=metadata.get("tenant_id", None))
+                    tenant = Tenant.objects.get(id=invoice_metadata.get("tenant_id", None))
                     tenant_user = User.objects.get(id=tenant.user.id)
                     rental_property = RentalProperty.objects.get(
-                        id=metadata.get("rental_property_id", None)
+                        id=invoice_metadata.get("rental_property_id", None)
                     )
                     rental_unit = RentalUnit.objects.get(
-                        id=metadata.get("rental_unit_id", None)
+                        id=invoice_metadata.get("rental_unit_id", None)
                     )
                     
                     invoice_transaction = Transaction.objects.create(
                         amount=float(invoice.amount_paid/100),  # Convert to currency units
                         user=owner_user,
-                        type=metadata.get("type", None),
+                        type=invoice_metadata.get("type", None),
                         description=f"Security Deposit Payment for {rental_unit.name} at {rental_property.name} by {tenant_user.first_name} {tenant_user.last_name}",
                         rental_property=rental_property,
                         rental_unit=rental_unit,
                         tenant=tenant,  # related tenant
-                        payment_method_id=metadata.get(
-                            "payment_method_id", None
-                        ),  # or payment_intent.payment_method.id
+                        # payment_method_id=invoice_metadata.get(
+                        #     "payment_method_id", None
+                        # ),  # or payment_intent.payment_method.id
                         payment_intent_id=invoice.payment_intent,
                     )
 
                     notification = Notification.objects.create(
                         user=owner_user,
-                        message=f"{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${invoice.amount_paid} for unit {rental_unit.name} at {rental_property.name}",
+                        message=f"{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
                         type="security_deposit",
                         title="Security Deposit Payment",
-                        resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                        resource_url=f"/dashboard/landlord/transactions/{invoice_transaction.id}",
                     )
                 else:
                     return JsonResponse({"status": "ok"})
