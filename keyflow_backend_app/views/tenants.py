@@ -218,7 +218,6 @@ class RetrieveTenantDashboardData(APIView):
             (item for item in lease_terms if item["name"] == "late_fee"),
             None,
         )
-        print(f"ZX Late Fee Amount: {late_fee_amount}")
         # Get today's date for comparison
         today_date = date.today()
 
