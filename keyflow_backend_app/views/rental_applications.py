@@ -66,6 +66,26 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         unit = RentalUnit.objects.get(id=data["unit_id"])
         user = unit.owner.user
         owner = unit.owner
+        pets = data["pets"]
+        vehicles = data["vehicles"]
+        convicted = data["convicted"]
+        bankrupcy = data["bankrupcy"]
+        evicted = data["evicted"]
+        #Check if the pets field is a string and convert it to a boolean
+        if isinstance(pets, str):
+            pets = strtobool(pets)
+        #Check if the vehicles field is a string and convert it to a boolean
+        if isinstance(vehicles, str):
+            vehicles = strtobool(vehicles)
+        #Check if the convicted field is a string and convert it to a boolean
+        if isinstance(convicted, str):
+            convicted = strtobool(convicted)
+        #Check if the bankrupcy field is a string and convert it to a boolean
+        if isinstance(bankrupcy, str):
+            bankrupcy = strtobool(bankrupcy)
+        #Check if the evicted field is a string and convert it to a boolean
+        if isinstance(evicted, str):
+            evicted = strtobool(evicted)
         rental_application = RentalApplication.objects.create(
             unit=unit,
             first_name=data["first_name"],
@@ -74,12 +94,12 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             email=data["email"],
             phone_number=data["phone_number"],
             desired_move_in_date=data["desired_move_in_date"],
-            other_occupants=strtobool(data["other_occupants"]),
-            pets=strtobool(data["pets"]),
-            vehicles=strtobool(data["vehicles"]),
-            convicted=strtobool(data["convicted"]),
-            bankrupcy_filed=strtobool(data["bankrupcy"]),
-            evicted=strtobool(data["evicted"]),
+            other_occupants=data["other_occupants"],
+            pets=pets,
+            vehicles=vehicles,
+            convicted=convicted,
+            bankrupcy_filed=bankrupcy,
+            evicted=evicted,
             employment_history=data["employment_history"],
             residential_history=data["residential_history"],
             owner=owner,
