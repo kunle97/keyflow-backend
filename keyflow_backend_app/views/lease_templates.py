@@ -100,6 +100,8 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
                 repairs_included=data['repairs_included'],
                 lease_cancellation_fee=data['lease_cancellation_fee'],
                 lease_cancellation_notice_period=data['lease_cancellation_notice_period'],
+                lease_renewal_fee=data['lease_renewal_fee'],
+                lease_renewal_notice_period=data['lease_renewal_notice_period'],
                 grace_period=data['grace_period'],
                 template_id=data['template_id'],
             )
