@@ -13,6 +13,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -50,6 +51,9 @@ from keyflow_backend_app.views.lease_templates import (
 )
 from keyflow_backend_app.views.maintenance_requests import (
     MaintenanceRequestViewSet,
+)
+from keyflow_backend_app.views.maintenance_request_events import (
+    MaintenanceRequestEventViewSet,
 )
 from keyflow_backend_app.views.manage_subscriptions import (
     ManageTenantSubscriptionView,
@@ -150,6 +154,11 @@ router.register(r"units", UnitViewSet, basename="rental_units")
 router.register(r"lease-agreements", LeaseAgreementViewSet, basename="lease-agreements")
 router.register(
     r"maintenance-requests", MaintenanceRequestViewSet, basename="maintenance-requests"
+)
+router.register(
+    r"maintenance-request-events",
+    MaintenanceRequestEventViewSet,
+    basename="maintenance-request-events",
 )
 router.register(
     r"lease-cancellation-requests",
@@ -322,7 +331,7 @@ urlpatterns = [
         "api/generate/rental-applications/",
         generate_rental_applications,
         name="generate_rental_applications",
-),
+    ),
     path(
         "api/generate/lease-templates/",
         generate_lease_templates,
