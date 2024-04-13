@@ -1,8 +1,10 @@
+from datetime import timedelta
 import os
 import time
 from dotenv import load_dotenv
 from django.contrib.auth.hashers import make_password
-from pytz import timezone
+from django.utils import timezone
+from keyflow_backend_app.models.expiring_token import ExpiringToken
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import viewsets
@@ -49,61 +51,83 @@ class UserLoginView(APIView):
         email = request.data.get("email")
         password = request.data.get("password")
         user = User.objects.filter(email=email).first()
-        print(email)
-        print(user)
+        
         if user is None:
             return Response(
-                {
-                    "message": "Error logging you in.",
-                    "status": status.HTTP_404_NOT_FOUND,
-                },
+                {"message": "Error logging you in.", "status": status.HTTP_404_NOT_FOUND},
                 status=status.HTTP_404_NOT_FOUND,
             )
         if not user.check_password(password):
             return Response(
-                {
-                    "message": "Invalid email or password.",
-                    "status": status.HTTP_400_BAD_REQUEST,
-                },
+                {"message": "Invalid email or password.", "status": status.HTTP_400_BAD_REQUEST},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # Check if user accoun is active
+        
         if user.is_active is False:
             return Response(
-                {
-                    "message": "User account is not active. Please check your email for an activation link.",
-                    "status": status.HTTP_400_BAD_REQUEST,
-                },
+                {"message": "User account is not active. Please check your email for an activation link.", "status": status.HTTP_400_BAD_REQUEST},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # Check if user is a owner 
+
+        expiration_date = timezone.now() + timedelta(days=7)  # Set expiration to 7 days
+        # Check if user is an owner
         if user.account_type == "owner":
             owner = Owner.objects.get(user=user)
-            # create a token for the user on success full login
-            token = Token.objects.create(user=user)
+            # Check if the user already has an active token
+            existing_token = ExpiringToken.objects.filter(user=user).first()
+            if existing_token:
+                if existing_token.is_expired():
+                    existing_token.delete()
+                    token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date)
+                    token.key = Token.generate_key()
+                    token.save()
+                else:
+                    token = existing_token
+            else:
+                token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date)
+                token.key = Token.generate_key()
+                token.save()
+
+
             user_serializer = UserSerializer(instance=user)
             return Response(
                 {
                     "message": "User logged in successfully.",
                     "user": user_serializer.data,
                     "token": token.key,
+                    "token_expiration_date": expiration_date,
                     "statusCode": status.HTTP_200_OK,
                     "owner_id": owner.pk,
                     "isAuthenticated": True,
                 },
                 status=status.HTTP_200_OK,
             )
+        
         # Check if user is a tenant
         if user.account_type == "tenant":
             tenant = Tenant.objects.get(user=user)
-            # create a token for the user on success full login
-            token = Token.objects.create(user=user)
+            existing_token = ExpiringToken.objects.filter(user=user).first()
+            if existing_token:
+                if existing_token.is_expired():
+                    existing_token.delete()
+                    token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date)
+                    token.key = Token.generate_key()
+                    token.save()
+                else:
+                    token = existing_token
+            else:
+                token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date)
+                token.key = Token.generate_key()
+                token.save()
+
+
             user_serializer = UserSerializer(instance=user)
             return Response(
                 {
                     "message": "User logged in successfully.",
                     "user": user_serializer.data,
                     "token": token.key,
+                    "token_expiration_date": expiration_date,
                     "statusCode": status.HTTP_200_OK,
                     "tenant_id": tenant.pk,
                     "isAuthenticated": True,
@@ -111,18 +135,25 @@ class UserLoginView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-
 # create a logout endpoint that deletes the token
 class UserLogoutView(APIView):
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [TokenAuthentication]
 
     def post(self, request):
-        request.user.auth_token.delete()
-        return Response(
-            {"message": "User logged out successfully.", "status": status.HTTP_200_OK},
-            status=status.HTTP_200_OK,
-        )
-
+        user = request.user
+        # Check if the user has an expiring token
+        expiring_token = ExpiringToken.objects.filter(user=user).first()
+        if expiring_token:
+            expiring_token.delete()  # Delete the expiring token
+            return Response(
+                {"message": "User logged out successfully.", "status": status.HTTP_200_OK},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"message": "No active token found for the user.", "status": status.HTTP_404_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
 # class UserRegistrationView(APIView):
 
