@@ -1,10 +1,8 @@
-from django.utils import timezone
-from rest_framework.authtoken.models import Token
+from .models.expiring_token import ExpiringToken 
 from rest_framework.authentication import TokenAuthentication
-from .models import expiring_token
 
 class ExpiringTokenAuthentication(TokenAuthentication):
-    model = expiring_token
+    model = ExpiringToken
 
     def authenticate_credentials(self, key):
         try:

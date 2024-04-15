@@ -10,3 +10,6 @@ class ExpiringToken(Token):
         
     def is_expired(self):
         return timezone.now() > self.expiration_date
+
+    def __str__(self):
+        return super().__str__()

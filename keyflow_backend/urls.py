@@ -23,6 +23,7 @@ from keyflow_backend_app.views.auth import (
     UserLogoutView,
     UserActivationView,
 )
+from keyflow_backend_app.views.expiring_tokens import TokenValidationView
 from keyflow_backend_app.views.landlords import (
     LandlordTenantDetailView,
     LandlordTenantListView,
@@ -188,6 +189,7 @@ router.register(r"billing-entries", BillingEntryViewSet, basename="billing-entri
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(router.urls)),
+    path('api/auth/validate-token/', TokenValidationView.as_view(), name='token-validation'),
     path("api/auth/login/", UserLoginView.as_view(), name="login"),
     path("api/auth/logout/", UserLogoutView.as_view(), name="logout"),
     path(
