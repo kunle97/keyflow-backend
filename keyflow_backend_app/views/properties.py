@@ -24,7 +24,9 @@ from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from ..decorators import check_token_expiry
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
@@ -37,9 +39,11 @@ class PropertyViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'street', 'created_at', 'id', 'state' ]
     search_fields = ['name', 'street' ]
     filterset_fields = ['city', 'state']
+
     def get_serializer_context(self): #TODO: Delete if not needed
             # Make sure you include the context in the serializer instance
             return {'request': self.request}
+    
     
     def get_queryset(self):
         user = self.request.user  # Get the current user
@@ -47,6 +51,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
     
+    @check_token_expiry
     @action(detail=False, methods=['get'], url_path='filters')
     def retireve_filter_data(self, request):
         user = self.request.user
@@ -55,7 +60,8 @@ class PropertyViewSet(viewsets.ModelViewSet):
         states = user_properties.values_list('state', flat=True).distinct()
         cities = user_properties.values_list('city', flat=True).distinct()
         return Response({'states':states, 'cities':cities}, status=status.HTTP_200_OK)
-
+    
+    @check_token_expiry
     #GET: api/properties/{id}/units
     @action(detail=True, methods=['get'])
     def units(self, request, pk=None): 
@@ -64,6 +70,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         serializer = RentalUnitSerializer(units, many=True)
         return Response(serializer.data)
    
+    @check_token_expiry
     #GET: api/properties/{id}/tenants
     @action(detail=True, methods=['get'])
     def tenants(self, request, pk=None):
@@ -74,7 +81,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     
     
 
-
+    @check_token_expiry
     @action(detail=False, methods=['post'], url_path="upload-csv-properties") #POST: api/properties/upload-csv-properties
     def upload_csv_propertiess(self, request, pk=None):
         file_obj = request.FILES['file']
@@ -106,7 +113,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         except ValidationError as e:
             return Response({'message': f'Error processing CSV: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
-
+    @check_token_expiry
     @action(detail=True, methods=['post'], url_path="upload-csv-units") #POST: api/properties/{id}/upload-csv
     def upload_csv_units(self, request, pk=None):
         file_obj = request.FILES['file']
