@@ -1,12 +1,11 @@
 # Standard library imports
 import json
-from operator import le
 import os
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
-
 # Third-party library imports
 import stripe
+from postmarker.core import PostmarkClient
 from dateutil.relativedelta import relativedelta
 from django.contrib.auth.hashers import make_password
 from rest_framework.decorators import action
@@ -129,7 +128,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 False  # TODO: Remove this for activation flow implementation
             )
             user.save()
-
+            
             Owner.objects.create(
                 user=user,
                 stripe_account_id=stripe_account.id,
@@ -143,6 +142,19 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 email=user.email,
                 token=data["activation_token"],
             )
+
+            client_hostname = os.getenv("CLIENT_HOSTNAME")
+            #Send Activation Email
+            postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+            activation_link = f'{client_hostname}/dashboard/activate-user-account/{account_activation_token.token}'
+            postmark.emails.send(
+                From="info@keyflow.co",
+                To=user.email,
+                # To="info@keyflow.co", #TODO: Change this to user.email when postmark account is approved
+                Subject='Activate your Keyflow account',
+                HtmlBody=f'Hi {user.first_name},<br/><br/>Thank you for registering with KeyFlow. Please click the link below to activate your account.<br/><br/><a href="{activation_link}">Activate Account</a><br/><br/>Regards,<br/>KeyFlow Team',
+            )
+
             return Response(
                 {
                     "message": "User registered successfully.",
@@ -360,7 +372,22 @@ class OwnerViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-
+    #Create a function that retireves the owner's preferences
+    @action(detail=True, methods=["get"], url_path="preferences") #GET: api/owners/{id}/preferences
+    def preferences(self, request, pk=None):
+        owner = self.get_object()
+        preferences = json.loads(owner.preferences)
+        return Response({"preferences":preferences},status=status.HTTP_200_OK)
+   
+    #Create a function that handles updates to the owner's preferences
+    @action(detail=True, methods=["post"], url_path="update-preferences") #POST: api/owners/{id}/update-preferences
+    def update_preferences(self, request, pk=None):
+        owner = self.get_object()
+        preferences = request.data.get("preferences")
+        owner.preferences = json.dumps(preferences)
+        owner.save()
+        return Response({"preferences":preferences},status=status.HTTP_200_OK)
+    
 class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.all()
     authentication_classes = [TokenAuthentication, SessionAuthentication]
@@ -580,14 +607,35 @@ class TenantViewSet(viewsets.ModelViewSet):
                 owner=owner,
             )
 
-            notification = Notification.objects.create(
-                user=owner.user,
-                message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
-                type="tenant_registered",
-                title="Tenant Registered",
-                resource_url=f"/dashboard/landlord/tenants/{tenant_user.id}",
+            owner_preferences = json.loads(owner.preferences)
+            new_tenant_registration_complete = next(
+                item for item in owner_preferences if item["name"] == "new_tenant_registration_complete"
             )
-
+            new_tenant_registration_complete_values = new_tenant_registration_complete["values"]
+            for value in new_tenant_registration_complete_values:
+                if value["name"] == "push" and value["value"] == True:
+                    notification = Notification.objects.create(
+                        user=owner.user,
+                        message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
+                        type="tenant_registered",
+                        title="Tenant Registered",
+                        resource_url=f"/dashboard/landlord/tenants/{tenant_user.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create a postmark email notification to the Landlord
+                    postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = owner.user.email
+                    postmark.emails.send(
+                        From=os.getenv('KEYFLOW_SENDER_EMAIL'), 
+                        To=to_email,
+                        Subject='Tenant Registration',
+                        HtmlBody=f'Hi {owner.user.first_name},<br/><br/>{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}.<br/><br/>Regards,<br/>KeyFlow Team',
+                    )
+            
             unit.tenant = tenant
             unit.is_occupied = True
             unit.save()
@@ -932,10 +980,41 @@ class TenantViewSet(viewsets.ModelViewSet):
                         resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
                     )
 
+                    #Create a postmark email notification to the Landlord
+                    postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = owner_user.email
+                    postmark.emails.send(
+                        From=os.getenv('KEYFLOW_SENDER_EMAIL'),
+                        To=owner_user.email,
+                        Subject='Rent Payment',
+                        HtmlBody=f'Hi {owner_user.first_name},<br/><br/>{tenant_user.first_name} {tenant_user.last_name} has paid the first month\'s rent for the amount of ${rent_value} for unit {unit.name} at {unit.rental_property.name}.<br/><br/>Regards,<br/>KeyFlow Team',
+                    )
+
+
             account_activation_token = AccountActivationToken.objects.create(
                 user=tenant_user,
                 email=tenant_user.email,
                 token=data["activation_token"],
+            )
+
+            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+            client_hostname = os.getenv("CLIENT_HOSTNAME")
+            to_email = ""
+            if os.getenv("ENVIRONMENT") == "development":
+                to_email = "keyflowsoftware@gmail.com"
+            else:
+                to_email = tenant_user.email 
+            activation_link = f'{client_hostname}/dashboard/activate-user-account/{account_activation_token.token}'
+            postmark.emails.send(
+                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                To=to_email,
+                # To="info@keyflow.co", #TODO: Change this to user.email when postmark is verified
+                Subject='Activate your Keyflow account',
+                HtmlBody=f'Hi {tenant_user.first_name},<br/><br/>Thank you for registering with KeyFlow. Please click the link below to activate your account.<br/><br/><a href="{activation_link}">Activate Account</a><br/><br/>Regards,<br/>KeyFlow Team',
             )
 
             return Response(
@@ -1282,3 +1361,20 @@ class TenantViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+    #Create a function that retireves the owner's preferences
+    @action(detail=True, methods=["get"], url_path="preferences") #GET: api/tenants/{id}/preferences
+    def preferences(self, request, pk=None):
+        tenant = self.get_object()
+        print(tenant.preferences)
+        preferences = json.loads(tenant.preferences)
+        return Response({"preferences":preferences},status=status.HTTP_200_OK)
+   
+    #Create a function that handles updates to the owner's preferences
+    @action(detail=True, methods=["post"], url_path="update-preferences") #POST: api/tenants/{id}/update-preferences
+    def update_preferences(self, request, pk=None):
+        tenant = self.get_object()
+        preferences = request.data.get("preferences")
+        tenant.preferences = json.dumps(preferences)
+        tenant.save()
+        return Response({"preferences":preferences},status=status.HTTP_200_OK)
+    

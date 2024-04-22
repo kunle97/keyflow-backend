@@ -147,7 +147,7 @@ from keyflow_backend_app.views.dev import (
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="users")
 router.register(r"owners", OwnerViewSet, basename="owners")
-router.register(r"employees", StaffViewSet, basename="employees")
+router.register(r"staff", StaffViewSet, basename="staff")
 router.register(r"tenants", TenantViewSet, basename="tenants")
 router.register(r"properties", PropertyViewSet, basename="rental_properties")
 router.register(r"portfolios", PortfolioViewSet, basename="portfolios")

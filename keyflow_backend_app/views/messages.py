@@ -1,4 +1,8 @@
+import os
+import json
+from postmarker.core import PostmarkClient
 from rest_framework import viewsets
+from keyflow_backend_app.models.account_type import Owner, Tenant
 from ..models.message import Message
 from ..serializers.message_serializer import MessageSerializer
 from ..serializers.uploaded_file_serializer import UploadedFileSerializer
@@ -138,12 +142,45 @@ class MessageViewSet(viewsets.ModelViewSet):
             notification_title = (
                 f"New Message from {sender.first_name} {sender.last_name}"
             )
+        
+        preferences = {}
 
-        # Create notification for the recipient
-        notification_title = f"New Message from {sender.first_name} {sender.last_name}"
-        notification = Notification.objects.create(
-            title=notification_title, message=body, user=recipient, type="message", resource_url=f"/dashboard/messages/"
+        if recipient.account_type == "tenant":
+            tenant = Tenant.objects.get(user=recipient)
+            preferences = json.loads(tenant.preferences)
+        elif recipient.account_type == "owner":
+            owner = Owner.objects.get(user=recipient)
+            preferences = json.loads(owner.preferences)
+
+        message_recieved_preferences = next(
+            (item for item in preferences if item["name"] == "message_received"), None
         )
+        message_recieved_preferences_values = message_recieved_preferences["values"]
+        for value in message_recieved_preferences_values:
+            if value["name"] == "push" and value["value"] == True:
+                # Create notification for the recipient
+                notification_title = f"New Message from {sender.first_name} {sender.last_name}"
+
+                notification = Notification.objects.create(
+                    title=notification_title, message=body, user=recipient, type="message", resource_url=f"/dashboard/messages/"
+                )
+            if value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                #Create an email notification for the recipient
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = recipient.email
+                # Send email to recipient
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject=f"New Message from {sender.first_name} {sender.last_name}",
+                    HtmlBody=f"<p>{body}</p><p><a href='{client_hostname}/dashboard/messages/'>View Message</a></p>",
+                )
+
         # return a response with a success message and status code
         return Response(
             {"message": "Message sent successfully", "status": status.HTTP_201_CREATED},

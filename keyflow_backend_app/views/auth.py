@@ -1,5 +1,6 @@
 from datetime import timedelta
 import os
+from postmarker.core import PostmarkClient
 import time
 from dotenv import load_dotenv
 from django.contrib.auth.hashers import make_password
@@ -15,6 +16,8 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
+
+from keyflow_backend_app.serializers.account_type_serializer import OwnerSerializer, TenantSerializer
 from ..models.notification import Notification
 from ..models.user import User
 from ..models.account_type import Owner, Tenant
@@ -84,10 +87,12 @@ class UserLoginView(APIView):
                 owner = Owner.objects.get(user=user)
                 token = self.manage_token(user, expiration_date)
                 user_serializer = UserSerializer(instance=user)
+                owner_serializer = OwnerSerializer(instance=owner)
                 return Response(
                     {
                         "message": "User logged in successfully.",
                         "user": user_serializer.data,
+                        "owner": owner_serializer.data,
                         "token": token.key,
                         "token_expiration_date": expiration_date,
                         "statusCode": status.HTTP_200_OK,
@@ -108,10 +113,12 @@ class UserLoginView(APIView):
                 tenant = Tenant.objects.get(user=user)
                 token = self.manage_token(user, expiration_date)
                 user_serializer = UserSerializer(instance=user)
+                tenant_serializer = TenantSerializer(instance=tenant)
                 return Response(
                     {
                         "message": "User logged in successfully.",
                         "user": user_serializer.data,
+                        "tenant": tenant_serializer.data,
                         "token": token.key,
                         "token_expiration_date": expiration_date,
                         "statusCode": status.HTTP_200_OK,
@@ -200,6 +207,20 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.check_password(old_password):
             user.set_password(new_password)
             user.save()
+            #Create an email notification for the user that the password has been changed
+            postmark   =  PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+            to_email = ""
+            if os.getenv("ENVIRONMENT") == "development":
+                to_email = "keyflowsoftware@gmail.com"
+            else:
+                to_email = user.email
+            postmark.emails.send(
+                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                To=to_email,
+                Subject="Keyflow Password Changed",
+                HtmlBody=f"Your password has been changed successfully. If you did not make this change, please contact us immediately.",
+            )
+            
             return Response(
                 {
                     "message": "Password changed successfully.",

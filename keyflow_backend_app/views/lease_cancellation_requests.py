@@ -1,6 +1,7 @@
-from operator import is_
+import os
 import stripe
 import json
+from postmarker.core import PostmarkClient
 from django.http import JsonResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -117,15 +118,40 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
             comments=comments,
             request_date=request_date,
         )
-
-        # Create a  notification for the landlord that the tenant has requested to cancel the lease agreement
-        notification = Notification.objects.create(
-            user=owner.user,
-            message=f"{tenant.user.first_name} {tenant.user.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}",
-            type="lease_cancellation_request",
-            title="Lease Cancellation Request",
-            resource_url=f"/dashboard/landlord/lease-cancellation-requests/{lease_cancellation_request.id}",
+          #Retrieve the owner's preferences
+        owner_preferences = json.loads(lease_agreement.owner.preferences)
+        #Retrieve the object in the array who's "name" key value is "lease_cancellation_request_created"
+        lease_cancellation_request_created = next(
+            item for item in owner_preferences if item["name"] == "lease_cancellation_request_created"
         )
+        #Retrieve the "values" key value of the object
+        lease_cancellation_request_created_values = lease_cancellation_request_created["values"]
+        client_hostname = os.getenv("CLIENT_HOSTNAME")
+        #loop through the values array and check if the value is "email" or "push"
+        for value in lease_cancellation_request_created_values:
+            if value["name"] == "push" and value["value"] == True:
+                # Create a  notification for the landlord that the tenant has requested to cancel the lease agreement
+                notification = Notification.objects.create(
+                    user=owner.user,
+                    message=f"{tenant.user.first_name} {tenant.user.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}",
+                    type="lease_cancellation_request",
+                    title="Lease Cancellation Request",
+                    resource_url=f"/dashboard/landlord/lease-cancellation-requests/{lease_cancellation_request.id}",
+                )
+            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                #Create an email notification for the landlord that the tenant has requested to cancel the lease agreement using postmark
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = owner.user.email
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="Lease Cancellation Request",
+                    HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}. <a href='{client_hostname}/dashboard/landlord/lease-cancellation-requests/{lease_cancellation_request.id}'>Click here to view the request.</a>",
+                )
 
         # Return a success response containing the lease cancellation request object as well as a message and a 201 stuats code
         serializer = LeaseCancellationRequestSerializer(lease_cancellation_request)
@@ -215,14 +241,35 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         # Delete Lease Agreement
         lease_agreement.delete()
 
-        #Create a notification for the tenant that the lease agreement has been cancelled
-        notification = Notification.objects.create(
-            user=tenant_user,
-            message=f"Your lease agreement for unit {unit.name} at {unit.rental_property.name} has been cancelled.",
-            type="lease_agreement_cancelled",
-            title="Lease Agreement Cancelled",
-            resource_url=f"/dashboard/tenant/my-lease/",
+        tenant_preferences = json.loads(tenant.preferences)
+        lease_cancellation_request_approved = next(
+            item for item in tenant_preferences if item["name"] == "lease_cancellation_request_approved"
         )
+        lease_cancellation_request_approved_values = lease_cancellation_request_approved["values"]
+        for value in lease_cancellation_request_approved_values:
+            if value["name"] == "push" and value["value"] == True:
+                #Create a notification for the tenant that the lease agreement has been cancelled
+                notification = Notification.objects.create(
+                    user=tenant_user,
+                    message=f"Your lease agreement for unit {unit.name} at {unit.rental_property.name} has been cancelled.",
+                    type="lease_agreement_cancelled",
+                    title="Lease Agreement Cancelled",
+                    resource_url=f"/dashboard/tenant/my-lease/",
+                )
+            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":           
+                #Create an email notification for the tenant that the lease agreement has been cancelled using postmark
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = tenant_user.email
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="Lease Agreement Cancelled",
+                    HtmlBody=f"Your lease agreement for unit {unit.name} at {unit.rental_property.name} has been cancelled.",
+                )
 
         # Return a success response
         return Response(
@@ -242,18 +289,40 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         )
 
         # Delete Lease Cancellation Request
-        # lease_cancellation_request.delete()
         lease_cancellation_request.status = "denied"
         lease_cancellation_request.save()
+        lease_cancellation_request.delete()
 
-        #Create a notification for the tenant that the lease cancellation request has been denied
-        notification = Notification.objects.create(
-            user=lease_cancellation_request.tenant.user,
-            message=f"Your lease cancellation request for unit {lease_cancellation_request.rental_unit.name} at {lease_cancellation_request.rental_property.name} has been denied.",
-            type="lease_cancellation_request_denied",
-            title="Lease Cancellation Request Denied",
-            resource_url=f"/dashboard/tenant/lease-cancellation-requests/{lease_cancellation_request.id}",
+        tenant_preferences = json.loads(lease_cancellation_request.tenant.preferences)
+        lease_cancellation_request_denied = next(
+            item for item in tenant_preferences if item["name"] == "lease_cancellation_request_denied"
         )
+
+        lease_cancellation_request_denied_values = lease_cancellation_request_denied["values"]
+        for value in lease_cancellation_request_denied_values:
+            if value["name"] == "push" and value["value"] == True:
+                #Create a notification for the tenant that the lease cancellation request has been denied
+                notification = Notification.objects.create(
+                    user=lease_cancellation_request.tenant.user,
+                    message=f"Your lease cancellation request for unit {lease_cancellation_request.rental_unit.name} at {lease_cancellation_request.rental_property.name} has been denied.",
+                    type="lease_cancellation_request_denied",
+                    title="Lease Cancellation Request Denied",
+                    resource_url=f"/dashboard/tenant/lease-cancellation-requests/{lease_cancellation_request.id}",
+                )
+            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                #Create an email notification for the tenant that the lease cancellation request has been denied using postmark
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = lease_cancellation_request.tenant.user.email
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="Lease Cancellation Request Denied",
+                    HtmlBody=f"Your lease cancellation request for unit {lease_cancellation_request.rental_unit.name} at {lease_cancellation_request.rental_property.name} has been denied.",
+                )
 
         # Return a success response
         return Response(
