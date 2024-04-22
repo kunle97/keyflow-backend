@@ -1,9 +1,11 @@
-import time
+import json
 import stripe
 import os
+from postmarker.core import PostmarkClient
 from dotenv import load_dotenv
 from rest_framework import viewsets
 
+from keyflow_backend_app.models.notification import Notification
 from keyflow_backend_app.models.rental_unit import RentalUnit
 from ..models.account_type import Owner, Tenant
 from ..models.billing_entry import BillingEntry
@@ -99,6 +101,14 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
             # retrieve thestripe cusotmer object
 
+            tenant_preferences = json.loads(tenant.preferences)
+            #Retrieve the object in the array who's "name" key value is "invoice_recieved"
+            invoice_recieved = next(
+                item for item in tenant_preferences if item["name"] == "bill_created"
+            )
+            #Retrieve the "values" key value of the object
+            invoice_recieved_values = invoice_recieved["values"]
+
             if collection_method == "send_invoice":
                 tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
                 # Create a stripe invoice object if type is not in the expense_types list
@@ -135,6 +145,38 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     )
                     stripe.Invoice.finalize_invoice(stripe_invoice.id)
                     stripe.Invoice.send_invoice(stripe_invoice.id)
+
+
+                    for value in invoice_recieved_values:
+                        if value["name"] == "push" and value["value"] == True:
+                            #Create a notification for the tenant that a new invoice has been sent
+                            notification = Notification.objects.create(
+                                user=tenant.user,
+                                message=f"A new invoice has been recieved for {description}",
+                                type="invoice_recieved",
+                                title="Invoice Recieved",
+                                resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}",
+                            )
+                        elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                            #Create an email notification using postmark for the tenant that a new invoice has been recieved
+                            client_hostname = os.getenv("CLIENT_HOSTNAME")
+                            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                            to_email = tenant.user.email
+                            if os.getenv("ENVIRONMENT") == "development":
+                                to_email = "keyflowsoftware@gmail.com"
+                            else:
+                                to_email = tenant.user.email
+                            postmark.emails.send(
+                                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                                To=to_email,
+                                Subject="New Invoice Recieved",
+                                HtmlBody=f"""
+                                A new invoice has been recieved for {description}.
+                                <a href='{client_hostname}/dashboard/tenant/bills/{stripe_invoice.id}'>View Invoice</a>
+                                """,
+                            )
+
+
 
                 # Create Billing Entry for the owner
                 billing_entry = BillingEntry.objects.create(
@@ -202,6 +244,34 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                         description=description,
                     )
                     stripe.Invoice.finalize_invoice(stripe_invoice.id)
+                    for value in invoice_recieved_values:
+                        if value["name"] == "push" and value["value"] == True:
+                            #Create a notification for the tenant that thier account has been charged for the invoice
+                            notification = Notification.objects.create(
+                                user=tenant.user,
+                                message=f"Your account has been charged for {description}",
+                                type="account_charged",
+                                title="Account Charged",
+                                resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}",
+                            )
+                        elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                            #Create a corresponding email notification
+                            client_hostname = os.getenv("CLIENT_HOSTNAME")
+                            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                            to_email = tenant.user.email
+                            if os.getenv("ENVIRONMENT") == "development":
+                                to_email = "keyflowsoftware@gmail.com"
+                            else:
+                                to_email = tenant.user.email
+                            postmark.emails.send(
+                                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                                To=to_email,
+                                Subject="Account Charged",
+                                HtmlBody=f"""
+                                Your account has been charged for {description}.
+                                <a href='{client_hostname}/dashboard/tenant/bills/{stripe_invoice.id}'>View Invoice</a>
+                                """,
+                            )
 
                 # Create Billing Entry for the owner
                 billing_entry = BillingEntry.objects.create(

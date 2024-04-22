@@ -9,6 +9,8 @@ import json
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 
+from keyflow_backend_app.models.account_type import Owner
+
 load_dotenv()
 BOLDSIGN_API_KEY = os.getenv("BOLDSIGN_API_KEY")
 BOLDSIGN_API_BASE_URL = (
@@ -130,7 +132,9 @@ class CreateDocumentFromTemplateView(APIView):
             tenant_last_name = ""
 
         tenant_name = tenant_first_name + " " + tenant_last_name
-        landlord_name = request.user.first_name + " " + request.user.last_name
+        owner = Owner.objects.get(id=request.data.get("owner_id"))
+        owner_user = owner.user
+        landlord_name = owner_user.first_name + " " + owner_user.last_name
 
         tenant_email = ""
         if os.getenv("ENVIRONMENT") == "development":
@@ -142,7 +146,7 @@ class CreateDocumentFromTemplateView(APIView):
         if os.getenv("ENVIRONMENT") == "development":
             landlord_email = "landlord@boldsign.dev"
         else:
-            landlord_email = request.user.email
+            landlord_email = owner_user.email
 
         payload = {
             "title": request.data.get("document_title"),
