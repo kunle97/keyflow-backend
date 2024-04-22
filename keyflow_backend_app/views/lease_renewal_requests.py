@@ -1,6 +1,8 @@
 from datetime import timedelta, datetime
 import json
-
+import os
+import resource
+from postmarker.core import PostmarkClient
 from tracemalloc import start
 import stripe
 from django.http import JsonResponse
@@ -94,14 +96,37 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             rent_frequency=request.data.get("rent_frequency"),
         )
 
-        # Create a  notification for the landlord that the tenant has requested to renew the lease agreement
-        notification = Notification.objects.create(
-            user=user,
-            message=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
-            type="lease_renewal_request",
-            title="Lease Renewal Request",
-            resource_url=f"/dashboard/landlord/lease-renewal-requests/{lease_renewal_request.id}",
+        owner_preferences = json.loads(owner.preferences)
+        lease_renewal_request_created_preferences = next(
+            (item for item in owner_preferences if item["name"] == "lease_renewal_request_created"),
+            None,
         )
+        lease_renewal_request_created_values = lease_renewal_request_created_preferences["values"]
+        for value in lease_renewal_request_created_values:
+            if value["name"] == "push" and value["value"] == True:
+                # Create a  notification for the landlord that the tenant has requested to renew the lease agreement
+                notification = Notification.objects.create(
+                    user=user,
+                    message=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
+                    type="lease_renewal_request",
+                    title="Lease Renewal Request",
+                    resource_url=f"/dashboard/landlord/lease-renewal-requests/{lease_renewal_request.id}",
+                )
+            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                #Create an email notification for the landlord that the tenant has requested to renew the lease agreement
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = user.email
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="New Lease Renewal Request",
+                    HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}. Click <a href='{client_hostname}/dashboard/landlord/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
+                )
 
         # Return a success response containing the lease renewal request object as well as a message and a 201 stuats code
         serializer = LeaseRenewalRequestSerializer(lease_renewal_request)
@@ -131,8 +156,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             id=data["current_lease_agreement_id"]
         )
 
-        tenant_user = User.objects.get(id=lease_agreement.tenant.id)
-        tenant = Tenant.objects.get(user=tenant_user)
+        tenant = lease_renewal_request.tenant
         customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
 
         tenant_payment_methods = stripe.Customer.list_payment_methods(
@@ -142,14 +166,40 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         # Update Lease Renewal Request
         lease_renewal_request.status = "approved"
         lease_renewal_request.save()
-        # Create notification for tenant that lease renewal request has been approved
-        notification = Notification.objects.create(
-            user=tenant_user,
-            message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved.",
-            type="lease_renewal_request_approved",
-            title="Lease Renewal Request Approved",
-            resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
+        
+        tenant_preferences = json.loads(tenant.preferences)
+        lease_renewal_request_approved = next(
+            (item for item in tenant_preferences if item["name"] == "lease_renewal_request_approved"),
+            None,
         )
+        lease_renewal_request_approved_values = lease_renewal_request_approved["values"]
+        for value in lease_renewal_request_approved_values:
+            if value["name"] == "push" and value["value"] == True:
+                # Create notification for tenant that lease renewal request has been approved
+                notification = Notification.objects.create(
+                    user=tenant.user,
+                    message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved.",
+                    type="lease_renewal_request_approved",
+                    title="Lease Renewal Request Approved",
+                    resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
+                )
+            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                #Create an email notification for the tenant that the lease renewal request has been approved
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = tenant.user.email
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="Lease Renewal Request Approved",
+                    HtmlBody=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved. Click <a href='{client_hostname}/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
+                )
+      
+
         return Response(
             {
                 "message": "Lease renewal request approved.",
@@ -169,14 +219,38 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
 
         # Delete Lease Renewal Request
         lease_renewal_request.delete()
-
-        # Create a notification for the tenant that the lease renewal request has been rejected
-        notification = Notification.objects.create(
-            user=lease_renewal_request.owner.user,
-            message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
-            type="lease_renewal_request_rejected",
-            title="Lease Renewal Request Rejected",
+    
+        tenant_preferences = json.loads(lease_renewal_request.tenant.preferences)
+        lease_renewal_request_denied = next(
+            (item for item in tenant_preferences if item["name"] == "lease_renewal_request_rejected"),
+            None,
         )
+        lease_renewal_request_denied_values = lease_renewal_request_denied["values"]
+        for value in lease_renewal_request_denied_values:
+            if value["name"] == "push" and value["value"] == True:
+                # Create a notification for the tenant that the lease renewal request has been rejected
+                notification = Notification.objects.create(
+                    user=lease_renewal_request.tenant.user,
+                    message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
+                    type="lease_renewal_request_rejected",
+                    title="Lease Renewal Request Rejected",
+                    resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
+                )
+            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                #Create an email notification for the tenant that the lease renewal request has been rejected
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = lease_renewal_request.tenant.user.email
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="Lease Renewal Request Rejected",
+                    HtmlBody=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
+                )
 
         return Response(
             {
@@ -413,77 +487,6 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                 type="lease_renewal_fee",
             )
 
-        # TODO: implement secutrity deposit flow here. Should not charge tenant untill start of lease. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
-        # if lease_agreement.lease_template.security_deposit>0:
-        #     #Retrieve landlord from the unit
-        #     security_deposit_payment_intent = stripe.PaymentIntent.create(
-        #         amount=int(lease_agreement.lease_template.security_deposit*100),
-        #         currency='usd',
-        #         payment_method_types=['card'],
-        #         customer=customer.id,
-        #         payment_method=selected_payment_method, #TODO: Should be tenants default payment method not just first  one in list
-        #         transfer_data={
-        #             "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
-        #         },
-        #         confirm=True,
-        #         #Add Metadata to the transaction signifying that it is a security deposit
-        #         metadata={
-        #             "type": "revenue",
-        #             "description": f'{tenant.first_name} {tenant.last_name} Security Deposit Payment for unit {lease_agreement.rental_unit.name} at {lease_agreement.rental_unit.rental_property.name}',
-        #             "user_id": landlord.id,
-        #             "tenant_id": tenant.id,
-        #             "landlord_id": landlord.id,
-        #             "rental_property_id": lease_agreement.rental_unit.rental_property.id,
-        #             "rental_unit_id": lease_agreement.rental_unit.id,
-        #             "payment_method_id": selected_payment_method,#TODO: Should be tenants default payment method not just first one in list
-        #         }
-
-        #     )
-
-        #     #create a transaction object for the security deposit
-        #     security_deposit_transaction = Transaction.objects.create(
-        #         type = 'revenue',
-        #         description = f'{tenant.first_name} {tenant.last_name} Security Deposit Payment for unit {lease_agreement.rental_unit.name} at {lease_agreement.rental_unit.rental_property.name}',
-        #         rental_property = lease_agreement.rental_unit.rental_property,
-        #         rental_unit = lease_agreement.rental_unit,
-        #         user=landlord,
-        #         tenant=tenant,
-        #         amount=int(lease_agreement.lease_template.security_deposit),
-        #         payment_method_id=selected_payment_method,
-        #         payment_intent_id=security_deposit_payment_intent.id,
-
-        #     )
-        #     #Create a notification for the landlord that the security deposit has been paid
-        #     notification = Notification.objects.create(
-        #         user=landlord,
-        #         message=f'{tenant.first_name} {tenant.last_name} has paid the security deposit for the amount of ${lease_agreement.lease_template.security_deposit} for unit {lease_agreement.rental_unit.name} at {lease_agreement.rental_unit.rental_property.name}',
-        #         type='security_deposit_paid',
-        #         title='Security Deposit Paid',
-        #         resource_url=f'/dashboard/landlord/transactions/{security_deposit_transaction.id}'
-        #     )
-
-        # Create Stripe Subscription
-        # subscription = stripe.Subscription.create(
-        #     customer=customer.id,
-        #     items=[
-        #         {"price": lease_agreement.lease_template.stripe_price_id},
-        #     ],
-        #     trial_end=int(new_lease_start_date.timestamp()),
-        #     transfer_data={
-        #         "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
-        #     },
-        #     cancel_at=int(new_lease_end_date.timestamp()),
-        #     metadata={
-        #         "type": "lease",
-        #         "description": f"{tenant.user.first_name} {tenant.user.last_name} rent subscription for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
-        #         "user_id": landlord.id,
-        #         "tenant_id": tenant.id,
-        #         "landlord_id": landlord.id,
-        #         "rental_property_id": lease_renewal_request.rental_unit.rental_property.id,
-        #         "rental_unit_id": lease_renewal_request.rental_unit.id,
-        #         "payment_method_id": tenant_payment_methods.data[0].id,
-        #     },
-        # )
         security_deposit = next(
             (item for item in lease_terms if item["name"] == "security_deposit"),
             None,
@@ -520,12 +523,18 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         term_value = int(term["value"])
 
         if security_deposit_value > 0:
+            # Get current timestamp
+            current_timestamp = int(datetime.now().timestamp())
+
+            # Add 5 hours (in seconds) to the current timestamp
+            due_date_timestamp = current_timestamp + (5 * 60 * 60)
+
             security_deposit_invoice = stripe.Invoice.create(
                 customer=customer.id,
                 auto_advance=True,
                 collection_method="send_invoice",
                 # Set duedate for today
-                due_date=int(datetime.now().timestamp()),
+                due_date=due_date_timestamp,
                 metadata={
                     "type": "security_deposit",
                     "description": "Security Deposit Payment",
@@ -573,14 +582,38 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         lease_agreement.is_active = False  # TODO: Need to set a CronJob to set this to true on the start_date in Prod
         lease_agreement.save()
 
-        # Create a notification for the landlord that the tenant has signed the lease renewal agreement
-        notification = Notification.objects.create(
-            user=landlord.user,
-            message=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
-            type="lease_renewal_agreement_signed",
-            title="Lease Renewal Agreement Signed",
-            resource_url=f"/dashboard/landlord/lease-agreements/{lease_agreement.id}",
+        owner_preferences = json.loads(landlord.preferences)
+        lease_agreement_preferences = next(
+            (item for item in owner_preferences if item["name"] == "lease_renewal_agreement_signed"),
+            None,
         )
+        lease_agreement_values = lease_agreement_preferences["values"]
+        for value in lease_agreement_values:
+            if value["name"] == "push" and value["value"] == True:
+                # Create a notification for the landlord that the tenant has signed the lease renewal agreement
+                notification = Notification.objects.create(
+                    user=landlord.user,
+                    message=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
+                    type="lease_renewal_agreement_signed",
+                    title="Lease Renewal Agreement Signed",
+                    resource_url=f"/dashboard/landlord/lease-agreements/{lease_agreement.id}",
+                )
+            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                #CReate an email notification fot the landlord that the tenant has signed the lease renewal agreement
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = landlord.user.email
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="Lease Renewal Agreement Signed",
+                    # HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}. Click <a href='{client_hostname}/dashboard/landlord/lease-agreements/{lease_agreement.id}'>here</a> to view the agreement.",
+                    HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}.",
+                )
 
         # Return a success response
         return Response(

@@ -1,5 +1,6 @@
 import json
 import os
+from postmarker.core import PostmarkClient
 from dotenv import load_dotenv
 from datetime import timedelta, timezone, datetime, date
 from django.utils import timezone as tz
@@ -404,7 +405,7 @@ class RetrieveTenantDashboardData(APIView):
         return current_balance
 
 
-# Create an endpoint that registers a tenant
+# Create an endpoint that registers a tenant (DEPRIECATED)
 class TenantRegistrationView(APIView):
     def post(self, request):
         data = request.data.copy()
@@ -444,15 +445,41 @@ class TenantRegistrationView(APIView):
                 owner=landlord,
             )
 
-            # Create a notification for the landlord that a tenant has been added
-            notification = Notification.objects.create(
-                user=landlord.user,
-                message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
-                type="tenant_registered",
-                title="Tenant Registered",
-                resource_url=f"/dashboard/landlord/tenants/{tenant_user.id}",
+            owner_preferences = json.loads(landlord.preferences)
+            # Retrieve the object in the array who's "name" key value is "tenant_registered"
+            notification_preferences = next(
+                item for item in owner_preferences if item["name"] == "new_tenant_registration_complete"
             )
+            # Retrieve the "values" key value of the object
+            notification_preferences_values = notification_preferences["values"]
+            for value in notification_preferences_values:
+                if value["name"] == "push" and value["value"] == True:
 
+                    # Create a notification for the landlord that a tenant has been added
+                    notification = Notification.objects.create(
+                        user=landlord.user,
+                        message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
+                        type="tenant_registered",
+                        title="Tenant Registered",
+                        resource_url=f"/dashboard/landlord/tenants/{tenant_user.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create an email notification for the landlord that a new tenant has been added
+                    client_hostname = os.getenv("CLIENT_HOSTNAME")
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = landlord.user.email
+                    # Send email to landlord
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="New Tenant Added",
+                        HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/landlord/tenants/{tenant_user.id}'>View Tenant</a>",
+                    )
+                
             # Retrieve unit from the request unit_id parameter
 
             unit.tenant = tenant
@@ -522,14 +549,40 @@ class TenantRegistrationView(APIView):
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id=security_deposit_payment_intent.id,
                 )
-                # Create a notification for the landlord that the security deposit has been paid
-                notification = Notification.objects.create(
-                    user=landlord_user,
-                    message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
-                    type="security_deposit_paid",
-                    title="Security Deposit Paid",
-                    resource_url=f"/dashboard/landlord/transactions/{security_deposit_transaction.id}",
+
+                landlord_preferences = json.loads(landlord.preferences)
+                # Retrieve the object in the array who's "name" key value is "security_deposit_paid"
+                invoice_paid_preferences = next(
+                    item for item in landlord_preferences if item["name"] == "invoic_paid"
                 )
+                # Retrieve the "values" key value of the object
+                invoice_paid_preferences_values = invoice_paid_preferences["values"]
+                for value in invoice_paid_preferences_values:
+                    if value["name"] == "push" and value["value"] == True:
+                        # Create a notification for the landlord that the security deposit has been paid
+                        notification = Notification.objects.create(
+                            user=landlord_user,
+                            message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
+                            type="security_deposit_paid",
+                            title="Security Deposit Paid",
+                            resource_url=f"/dashboard/landlord/transactions/{security_deposit_transaction.id}",
+                        )
+                    elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                        #Create an email notification for the landlord that the security deposit has been paid
+                        client_hostname = os.getenv("CLIENT_HOSTNAME")
+                        postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                        to_email = ""
+                        if os.getenv("ENVIRONMENT") == "development":
+                            to_email = "keyflowsoftware@gmail.com"
+                        else:
+                            to_email = landlord_user.email
+                        # Send email to landlord
+                        postmark.emails.send(
+                            From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                            To=to_email,
+                            Subject="Security Deposit Paid",
+                            HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/landlord/transactions/{security_deposit_transaction.id}'>View Transaction</a>",
+                        )
 
             subscription = None
             if lease_template.grace_period != 0:
@@ -619,6 +672,21 @@ class TenantRegistrationView(APIView):
                     type="first_month_rent_paid",
                     title="First Month's Rent Paid",
                     resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                )
+                #Create an email notification for the landlord that the first month's rent has been paid
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = landlord.email
+                # Send email to landlord
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    Subject="First Month's Rent Paid",
+                    HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/landlord/transactions/{subscription_transaction.id}'>View Transaction</a>",
                 )
             # add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id

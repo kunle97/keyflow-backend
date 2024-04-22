@@ -11,7 +11,7 @@ from sendgrid.helpers.mail import Mail, Email, To, Content
 from sendgrid import SendGridAPIClient
 load_dotenv()
 
-
+#Create a random hash string of a specific length
 def make_id(length):
     result = ""
     characters = string.ascii_letters + string.digits
