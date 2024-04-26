@@ -99,6 +99,9 @@ from keyflow_backend_app.views.transactions import (
 from keyflow_backend_app.views.tenant_invites import (
     TenantInviteViewSet,
 )
+from keyflow_backend_app.views.annoucements import (
+    AnnouncementViewSet
+)
 
 from keyflow_backend_app.views.messages import (
     MessageViewSet,
@@ -185,7 +188,7 @@ router.register(r"messages", MessageViewSet, basename="messages")
 router.register(r"file-uploads", FileUploadViewSet, basename="file-uploads")
 router.register(r"tenant-invites", TenantInviteViewSet, basename="tenant-invites")
 router.register(r"billing-entries", BillingEntryViewSet, basename="billing-entries")
-
+router.register(r"announcements", AnnouncementViewSet, basename="announcements")
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(router.urls)),
