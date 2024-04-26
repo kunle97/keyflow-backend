@@ -10,3 +10,7 @@ class PortfolioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Portfolio
         fields = "__all__"
+        extra_kwargs = {
+            'id': {'read_only': True},  # example: set read_only for fields if needed
+            'other_nullable_field': {'allow_null': True},  # adjust as needed
+        }
