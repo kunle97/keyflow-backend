@@ -26,11 +26,13 @@ from ..models.lease_cancelleation_request import LeaseCancellationRequest
 from ..models.transaction import Transaction
 from ..models.rental_application import RentalApplication
 from ..models.account_activation_token import AccountActivationToken
+from ..models.announcement import Announcement
 from ..serializers.user_serializer import UserSerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
 from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.transaction_serializer import TransactionSerializer
+from ..serializers.annoucement_serializer import AnnouncementSerializer
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -188,6 +190,30 @@ class RetrieveTenantDashboardData(APIView):
             lease_template_data = lease_template_serializer.data
             lease_agreement_data = lease_agreement_serializer.data
 
+            # Retrieve all related announcements for the tenant
+            related_announcements = []
+            # Retrieve owner
+            owner = unit.owner
+            # Retrieve all announcements for the owner whose end date is greater than today's date and the start date is less than today's date
+            announcements = Announcement.objects.filter(
+                owner=owner,
+                start_date__lte=datetime.now(timezone.utc),
+                end_date__gte=datetime.now(timezone.utc),
+            )
+            
+            # Loop through all announcements and check if the tenant's unit, unit's property, or unit's property's portfolio is in the target. (target is a JSON string. format: {"rental_unit": 2}, {"portfolio": 1}, {"rental_property": 1})
+            for announcement in announcements:
+                target = json.loads(announcement.target)
+                if "rental_unit" in target and target["rental_unit"] == unit.id:
+                    related_announcements.append(announcement)
+                elif "rental_property" in target and target["rental_property"] == unit.rental_property.id:
+                    related_announcements.append(announcement)
+                elif "portfolio" in target and target["portfolio"] == unit.rental_property.portfolio.id:
+                    related_announcements.append(announcement)
+            # Serialize the announcements
+            announcement_serializer = AnnouncementSerializer(related_announcements, many=True)
+            related_announcements_data = announcement_serializer.data
+
             return Response(
                 {
                     "unit": unit_data,
@@ -197,6 +223,7 @@ class RetrieveTenantDashboardData(APIView):
                     "late_fees": late_fees,
                     "total_balance": total_balance,
                     "current_balance": current_balance,
+                    "announcements": related_announcements_data,
                     "status": status.HTTP_200_OK,
                 },
                 status=status.HTTP_200_OK,
