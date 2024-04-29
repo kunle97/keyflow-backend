@@ -4,6 +4,40 @@ from keyflow_backend_app.models.account_type import Owner,Tenant
 from keyflow_backend_app.models.rental_property import RentalProperty
 from keyflow_backend_app.models.uploaded_file import UploadedFile
 
+
+default_rental_unit_preferences = """
+[
+    {
+        "type": "unit_preferences",
+        "hidden": false,
+        "label": "Accept Rental Applications",
+        "name": "accept_rental_applications",
+        "inputType": "switch",
+        "value": true,
+        "description": "Indicates if the landlord is accepting rental applications for this unit"
+    },
+    {
+        "type": "unit_preferences",
+        "hidden": false,
+        "label": "Acccept Lease Renewals",
+        "name": "accept_lease_renewals",
+        "inputType": "switch",
+        "value": true,
+        "description": "Indicates if the landlord is accepting lease renewals for this unit"
+    },
+    {
+        "type": "unit_preferences",
+        "hidden": false,
+        "label": "Accept Lease Cancellations",
+        "name": "accept_lease_cancellations",
+        "inputType": "switch",
+        "value": true,
+        "description": "Indicates if the landlord is accepting lease cancellations for this unit"
+    }
+]
+"""
+
+
 class RentalUnit(models.Model):
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None) #Owner of the unit
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
@@ -22,6 +56,7 @@ class RentalUnit(models.Model):
     stripe_price_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     is_occupied = models.BooleanField(default=False)
+    preferences = models.TextField(blank=True, null=True, default=default_rental_unit_preferences) #JSON string of unit preferences
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 

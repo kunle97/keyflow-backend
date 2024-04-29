@@ -143,17 +143,17 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 token=data["activation_token"],
             )
 
-            client_hostname = os.getenv("CLIENT_HOSTNAME")
-            #Send Activation Email
-            postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
-            activation_link = f'{client_hostname}/dashboard/activate-user-account/{account_activation_token.token}'
-            postmark.emails.send(
-                From="info@keyflow.co",
-                To=user.email,
-                # To="info@keyflow.co", #TODO: Change this to user.email when postmark account is approved
-                Subject='Activate your Keyflow account',
-                HtmlBody=f'Hi {user.first_name},<br/><br/>Thank you for registering with KeyFlow. Please click the link below to activate your account.<br/><br/><a href="{activation_link}">Activate Account</a><br/><br/>Regards,<br/>KeyFlow Team',
-            )
+            if os.getenv("ENVIRONMENT") == "production":
+                #Send Activation Email
+                postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+                activation_link = f'{client_hostname}/dashboard/activate-user-account/{account_activation_token.token}'
+                postmark.emails.send(
+                    From="info@keyflow.co",
+                    To=user.email,
+                    # To="info@keyflow.co", #TODO: Change this to user.email when postmark account is approved
+                    Subject='Activate your Keyflow account',
+                    HtmlBody=f'Hi {user.first_name},<br/><br/>Thank you for registering with KeyFlow. Please click the link below to activate your account.<br/><br/><a href="{activation_link}">Activate Account</a><br/><br/>Regards,<br/>KeyFlow Team',
+                )
 
             return Response(
                 {
@@ -980,19 +980,19 @@ class TenantViewSet(viewsets.ModelViewSet):
                         resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
                     )
 
-                    #Create a postmark email notification to the Landlord
-                    postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
-                    to_email = ""
-                    if os.getenv("ENVIRONMENT") == "development":
-                        to_email = "keyflowsoftware@gmail.com"
-                    else:
-                        to_email = owner_user.email
-                    postmark.emails.send(
-                        From=os.getenv('KEYFLOW_SENDER_EMAIL'),
-                        To=owner_user.email,
-                        Subject='Rent Payment',
-                        HtmlBody=f'Hi {owner_user.first_name},<br/><br/>{tenant_user.first_name} {tenant_user.last_name} has paid the first month\'s rent for the amount of ${rent_value} for unit {unit.name} at {unit.rental_property.name}.<br/><br/>Regards,<br/>KeyFlow Team',
-                    )
+                    # #Create a postmark email notification to the Landlord
+                    # postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+                    # to_email = ""
+                    # if os.getenv("ENVIRONMENT") == "development":
+                    #     to_email = "keyflowsoftware@gmail.com"
+                    # else:
+                    #     to_email = owner_user.email
+                    # postmark.emails.send(
+                    #     From=os.getenv('KEYFLOW_SENDER_EMAIL'),
+                    #     To=owner_user.email,
+                    #     Subject='Rent Payment',
+                    #     HtmlBody=f'Hi {owner_user.first_name},<br/><br/>{tenant_user.first_name} {tenant_user.last_name} has paid the first month\'s rent for the amount of ${rent_value} for unit {unit.name} at {unit.rental_property.name}.<br/><br/>Regards,<br/>KeyFlow Team',
+                    # )
 
 
             account_activation_token = AccountActivationToken.objects.create(
@@ -1000,22 +1000,22 @@ class TenantViewSet(viewsets.ModelViewSet):
                 email=tenant_user.email,
                 token=data["activation_token"],
             )
-
-            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-            client_hostname = os.getenv("CLIENT_HOSTNAME")
-            to_email = ""
-            if os.getenv("ENVIRONMENT") == "development":
-                to_email = "keyflowsoftware@gmail.com"
-            else:
-                to_email = tenant_user.email 
-            activation_link = f'{client_hostname}/dashboard/activate-user-account/{account_activation_token.token}'
-            postmark.emails.send(
-                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                To=to_email,
-                # To="info@keyflow.co", #TODO: Change this to user.email when postmark is verified
-                Subject='Activate your Keyflow account',
-                HtmlBody=f'Hi {tenant_user.first_name},<br/><br/>Thank you for registering with KeyFlow. Please click the link below to activate your account.<br/><br/><a href="{activation_link}">Activate Account</a><br/><br/>Regards,<br/>KeyFlow Team',
-            )
+            if os.getenv("ENVIRONMENT") == "production":
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = tenant_user.email 
+                activation_link = f'{client_hostname}/dashboard/activate-user-account/{account_activation_token.token}'
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    # To="info@keyflow.co", #TODO: Change this to user.email when postmark is verified
+                    Subject='Activate your Keyflow account',
+                    HtmlBody=f'Hi {tenant_user.first_name},<br/><br/>Thank you for registering with KeyFlow. Please click the link below to activate your account.<br/><br/><a href="{activation_link}">Activate Account</a><br/><br/>Regards,<br/>KeyFlow Team',
+                )
 
             return Response(
                 {

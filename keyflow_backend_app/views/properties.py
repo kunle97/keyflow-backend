@@ -1,3 +1,6 @@
+import json
+import stat
+from django.http import JsonResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,6 +14,7 @@ from django.core.exceptions import ValidationError
 from io import TextIOWrapper
 from rest_framework.response import Response
 from rest_framework import status
+from keyflow_backend_app.models.portfolio import Portfolio
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_property import  RentalProperty
@@ -137,6 +141,63 @@ class PropertyViewSet(viewsets.ModelViewSet):
         except ValidationError as e:
             return Response({'message': f'Error processing CSV: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
+    #Create a fucntion to update the property preferences. once a preference is updated all of the units matching preferences should be updated. url_path: api/properties/{id}/update-preferences
+    @action(detail=True, methods=['patch'], url_path="update-preferences")
+    def update_preferences(self, request, pk=None):
+        property_instance = self.get_object()
+        data = request.data.copy()
+        property_instance.preferences = data["preferences"]
+        property_instance.save()
+
+        preferences_dict = json.loads(data["preferences"])
+        units = RentalUnit.objects.filter(rental_property=property_instance)
+
+        for unit in units:
+            unit_preferences = json.loads(unit.preferences)
+            for preference in preferences_dict:
+                for unit_preference in unit_preferences:
+                    if preference['name'] == unit_preference['name']:
+                        unit_preference['value'] = preference['value']
+
+            # Save the updated preferences back to the unit
+            unit.preferences = json.dumps(unit_preferences)
+            unit.save()
+
+        return JsonResponse({'message': 'Preferences updated successfully.'}, status=200)
+
+    #Create a function to update the property's portfolio. When the portfolio is updated its url_path: api/properties/{id}/update-portfolio
+    @action(detail=True, methods=['patch'], url_path="update-portfolio")
+    def update_portfolio(self, request, pk=None):
+        property_instance = self.get_object()
+        data = request.data.copy()
+        print(data)
+        portfolio_instance = Portfolio.objects.get(id=data["portfolio"])
+        portfolio_preferences = json.loads(portfolio_instance.preferences)
+
+
+        property_preferences = json.loads(property_instance.preferences)
+        for updated_pref in portfolio_preferences:
+            for pref in property_preferences:
+                if updated_pref["name"] == pref["name"]:
+                    pref["value"] = updated_pref["value"]
+                    break  # Exit the loop once updated
+        property_instance.preferences = json.dumps(property_preferences)
+        property_instance.save()
+
+        # Update unit preferences
+        units = property_instance.rental_units.all()
+        for unit in units:
+            unit_preferences = json.loads(unit.preferences)
+            for updated_pref in portfolio_preferences:
+                for pref in unit_preferences:
+                    if updated_pref["name"] == pref["name"]:
+                        pref["value"] = updated_pref["value"]
+                        break  # Exit the loop once updated
+            unit.preferences = json.dumps(unit_preferences)
+            unit.save()
+
+        return JsonResponse({'message': 'Portfolio updated successfully.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+    
 #Used to retrieve property info unauthenticated
 class RetrievePropertyByIdView(APIView):
     def post(self, request):
