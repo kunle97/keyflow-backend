@@ -166,6 +166,7 @@ default_tenant_preverences_json = """
     }
 ]
 """
+
 class Owner(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, default=None, unique=True, blank=False, null=False)
     stripe_account_id = models.CharField(max_length=100, blank=True, null=True)
