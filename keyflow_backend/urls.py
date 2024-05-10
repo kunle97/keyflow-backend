@@ -93,11 +93,20 @@ from keyflow_backend_app.views.tenants import (
     TenantVerificationView,
     RetrieveTenantDashboardData,
 )
+from keyflow_backend_app.views.staff import (
+    StaffRegistrationVerificationView,
+    StaffInviteVerificationView,
+    RetrieveStaffRentalAssignmentsView,
+    RetrieveStaffPrivilegesView
+)
 from keyflow_backend_app.views.transactions import (
     TransactionViewSet,
 )
 from keyflow_backend_app.views.tenant_invites import (
     TenantInviteViewSet,
+)
+from keyflow_backend_app.views.staff_invites import (
+    StaffInviteViewSet,
 )
 from keyflow_backend_app.views.annoucements import (
     AnnouncementViewSet
@@ -135,6 +144,8 @@ from keyflow_backend_app.views.dev import (
     get_landlord_usernames,
     get_tenant_emails,
     get_tenant_usernames,
+    get_staff_emails,
+    get_staff_usernames,
     generate_properties,
     generate_units,
     generate_tenants,
@@ -187,6 +198,7 @@ router.register(r"notifications", NotificationViewSet, basename="notifications")
 router.register(r"messages", MessageViewSet, basename="messages")
 router.register(r"file-uploads", FileUploadViewSet, basename="file-uploads")
 router.register(r"tenant-invites", TenantInviteViewSet, basename="tenant-invites")
+router.register(r"staff-invites", StaffInviteViewSet, basename="staff-invites")
 router.register(r"billing-entries", BillingEntryViewSet, basename="billing-entries")
 router.register(r"announcements", AnnouncementViewSet, basename="announcements")
 urlpatterns = [
@@ -210,6 +222,13 @@ urlpatterns = [
         TenantVerificationView.as_view(),
         name="tenant_register_verify",
     ),
+    path(
+        "api/auth/invite/staff/register/verify/",
+        StaffInviteVerificationView.as_view(),
+        name="staff_register_verify",
+    ),
+    path("api/retrieve-staff-rental-assignments/", RetrieveStaffRentalAssignmentsView.as_view(), name="retrieve_staff_rental_assignments"),
+    path("api/retrieve-staff-privileges/", RetrieveStaffPrivilegesView.as_view(), name="retrieve_staff_privileges"),
     path(
         "api/auth/tenant/register/retrieve-rental-application/",
         RetrieveRentalApplicationByApprovalHash.as_view(),
@@ -329,6 +348,8 @@ urlpatterns = [
     path("api/landlords-usernames/", get_landlord_usernames, name="landlord_usernames"),
     path("api/tenants-emails/", get_tenant_emails, name="tenant_emails"),
     path("api/tenants-usernames/", get_tenant_usernames, name="tenant_usernames"),
+    path("api/staff-emails/", get_staff_emails, name="staff_emails"),
+    path("api/staff-usernames/", get_staff_usernames, name="staff_usernames"),
     path("api/generate/properties/", generate_properties, name="generate_properties"),
     path("api/generate/units/", generate_units, name="generate_units"),
     path("api/generate/tenants/", generate_tenants, name="generate_tenants"),

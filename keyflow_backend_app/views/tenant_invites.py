@@ -1,12 +1,13 @@
 import os
 import json
+from postmarker.core import PostmarkClient
 from django.shortcuts import redirect
 from dotenv import load_dotenv
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from keyflow_backend_app.helpers import make_id, sendEmailBySendGrid
+from keyflow_backend_app.helpers import make_id
 from keyflow_backend_app.models import tenant_invite
 from keyflow_backend_app.models.rental_unit import RentalUnit
 from keyflow_backend_app.models.tenant_invite import TenantInvite
@@ -62,6 +63,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
         rental_unit = RentalUnit.objects.get(id=data["rental_unit"])
         approval_hash = make_id(64)
         email_content = ""
+        email_subject = ""
         redirect_url = ""
         # Set document_id or signed_lease_document_file
         if rental_unit.signed_lease_document_file:
@@ -82,6 +84,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
                 is_active=True,
                 tenant_invite=tenant_invite,
             )
+            email_subject = "Registration Link for Keyflow Tenant Portal"
             redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/dashboard/tenant/register/{lease_agreement.id}/{rental_unit.id}/{approval_hash}/"
             email_content = f"Hi {serializer.data['first_name']},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to register and manage your lease.<br><br>Thanks,<br>Keyflow Team"
             print(redirect_url)
@@ -97,16 +100,20 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
                 document_id=document_id
             )
             redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}"  # TODO: CHANGE THIS TO THE ACTUAL LINK
+            email_subject = "Sign Your Lease Agreement with Keyflow"
             email_content = f"Hi {serializer.data['first_name']},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to sign your lease.<br><br>Thanks,<br>Keyflow Team"
             print(redirect_url)
-        # Send email to tenant using sendGrid
-        sendEmailBySendGrid(
-            from_email="keyflowsoftware@gmail.com",
-            to_email=serializer.data["email"],
-            subject="You have been invited to join Keyflow",
-            content=email_content,
-            is_html=True,
-        )
+        
+        # Send email to tenant using postmark 
+        if os.getenv("ENVIRONMENT") == "production":
+            #Send Activation Email
+            postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+            postmark.emails.send(
+                From=os.getenv('POSTMARK_SENDER_EMAIL'),
+                To=serializer.data["email"],
+                Subject=email_subject,
+                HtmlBody=email_content,
+            )
         return Response(
             {"data": serializer.data, "redirect_url": redirect_url},
             status=status.HTTP_201_CREATED,
@@ -143,7 +150,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
                 )
 
             return Response(
-                {"message": "Units created successfully."},
+                {"message": "Tenant invites created successfully."},
                 status=status.HTTP_201_CREATED,
             )
 

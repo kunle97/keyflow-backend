@@ -31,7 +31,7 @@ from ..models.message import Message
 from ..models.maintenance_request import MaintenanceRequest
 from ..models.lease_cancelleation_request import LeaseCancellationRequest
 from ..models.lease_renewal_request import LeaseRenewalRequest
-from ..models.account_type import Owner, Tenant
+from ..models.account_type import Owner, Staff, Tenant
 from ..helpers import make_id, strtobool
 from django.views.decorators.csrf import csrf_exempt
 
@@ -110,6 +110,31 @@ def get_tenant_usernames(request):
         tenant_usernames.append(tenant.user.username)
     # Return a response
     return Response(tenant_usernames, status=status.HTTP_200_OK)
+
+# Create a function to retrieve all tenant userss emails
+@api_view(["GET"])
+def get_staff_emails(request):
+    # Retrieve all tenant users
+    staff_members = Staff.objects.all()
+    # Create a list of tenant emails
+    staff_emails = []
+    for staff in staff_members:
+        staff_emails.append(staff.user.email)
+    # Return a response
+    return Response(staff_emails, status=status.HTTP_200_OK)
+
+
+# Create a function to retrieve all tenant userss usernames
+@api_view(["GET"])
+def get_staff_usernames(request):
+    # Retrieve all tenant users
+    staff_members = Staff.objects.all()
+    # Create a list of tenant emails
+    staff_usernames = []
+    for staff in staff_members:
+        staff_usernames.append(staff.user.username)
+    # Return a response
+    return Response(staff_usernames, status=status.HTTP_200_OK)
 
 
 # -------------DEV TOOL FUNCTIONS----------------

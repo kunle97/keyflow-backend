@@ -17,10 +17,12 @@ from django.contrib.auth import get_user_model
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 
-from keyflow_backend_app.serializers.account_type_serializer import OwnerSerializer, TenantSerializer
+from keyflow_backend_app.serializers import staff_serializer
+from keyflow_backend_app.serializers.account_type_serializer import OwnerSerializer, TenantSerializer, StaffSerializer
+from keyflow_backend_app.views import staff
 from ..models.notification import Notification
 from ..models.user import User
-from ..models.account_type import Owner, Tenant
+from ..models.account_type import Owner, Tenant, Staff
 from ..models.rental_property import RentalProperty
 from ..models.rental_unit import RentalUnit
 from ..models.maintenance_request import MaintenanceRequest
@@ -132,12 +134,34 @@ class UserLoginView(APIView):
                     {"message": "Tenant account not found.", "status": status.HTTP_404_NOT_FOUND},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-
-        else:
-            return Response(
-                {"message": "Invalid account type.", "status": status.HTTP_400_BAD_REQUEST},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        #Check if user is a staff
+        elif user.account_type == "staff":
+            try: 
+                staff = Staff.objects.get(user=user)
+                token = self.manage_token(user, expiration_date)
+                user_serializer = UserSerializer(instance=user)
+                staff_serializer = StaffSerializer(instance=staff)
+                return Response(
+                    {
+                        "message": "User logged in successfully.",
+                        "user": user_serializer.data,
+                        "staff": staff_serializer.data,
+                        "token": token.key,
+                        "token_expiration_date": expiration_date,
+                        "statusCode": status.HTTP_200_OK,
+                        "isAuthenticated": True,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except Staff.DoesNotExist:
+                return Response(
+                    {"message": "Staff account not found.", "status": status.HTTP_404_NOT_FOUND},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        return Response(
+            {"message": "Invalid account type.", "status": status.HTTP_400_BAD_REQUEST},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     def manage_token(self, user, expiration_date):
         # Check if the user already has an active token

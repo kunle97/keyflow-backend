@@ -15,7 +15,7 @@ from io import TextIOWrapper
 from rest_framework.response import Response
 from rest_framework import status
 from keyflow_backend_app.models.portfolio import Portfolio
-from keyflow_backend_app.models.account_type import Owner
+from keyflow_backend_app.models.account_type import Owner, Staff
 from ..models.user import User
 from ..models.rental_property import  RentalProperty
 from ..models.rental_unit import  RentalUnit
@@ -27,6 +27,7 @@ from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.exceptions import PermissionDenied
 
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
@@ -47,9 +48,26 @@ class PropertyViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user  # Get the current user
-        owner = Owner.objects.get(user=user)
-        queryset = super().get_queryset().filter(owner=owner)
-        return queryset
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            queryset = super().get_queryset().filter(owner=owner)
+            return queryset
+        elif user.account_type == "staff":
+            staff = Staff.objects.get(user=user)
+            #retrieve staff renatal assignemnts
+            rental_assignments_dict = json.loads(staff.rental_assignments)
+            if rental_assignments_dict["assignment_type"] != "properties":
+                raise PermissionDenied("You do not have access to properties")
+            
+            property_ids = rental_assignments_dict["value"]
+            #check if the staff has access to the property
+            if int(self.kwargs.get('pk')) not in property_ids:
+                raise PermissionDenied("You do not have access to this resource")
+
+            #Retrieve staff's owner and filter properties by owner
+            owner = Owner.objects.get(user=staff.owner.user)
+            queryset = super().get_queryset().filter(owner=owner)
+            return queryset
     
     @action(detail=False, methods=['get'], url_path='filters')
     def retireve_filter_data(self, request):

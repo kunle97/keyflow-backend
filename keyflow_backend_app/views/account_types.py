@@ -20,6 +20,7 @@ from rest_framework import filters
 # Model imports
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
 from keyflow_backend_app.models.notification import Notification
+from keyflow_backend_app.models.staff_invite import StaffInvite
 from keyflow_backend_app.models.user import User
 from keyflow_backend_app.models.account_type import Owner, Staff, Tenant
 from keyflow_backend_app.models.rental_property import RentalProperty
@@ -387,7 +388,89 @@ class OwnerViewSet(viewsets.ModelViewSet):
         owner.preferences = json.dumps(preferences)
         owner.save()
         return Response({"preferences":preferences},status=status.HTTP_200_OK)
+
+    #Create a function that handles the update of a staff member's rental_assignments
+    @action(detail=True, methods=["post"], url_path="update-staff-rental-assignments") #POST: api/owners/{id}/update-staff-rental-assignments
+    def update_staff_rental_assignments(self, request, pk=None):
+        owner = self.get_object()
+        data = request.data.copy()
+        staff_id = data["staff_id"]
+        staff = Staff.objects.get(id=staff_id, owner=owner)\
+        
+        #Check if staff exists
+        if not staff:
+            return Response({"message":"Staff does not exist"},status=status.HTTP_404_NOT_FOUND)
+        
+        
+        # Load JSON from a string using json.loads
+        staff_rental_assignments = json.loads(staff.rental_assignments)
+
+        # Update the dict with the new values
+        staff_rental_assignments["assignment_type"] = data["selectedResourceType"]
+        staff_rental_assignments["value"] = data["selectedResourceIds"]
+
+        # Save the updated rental assignments
+        staff.rental_assignments = json.dumps(staff_rental_assignments)
+        staff.save()
+
+        return Response({"rental_assignments":json.dumps(staff_rental_assignments), "status":status.HTTP_200_OK},status=status.HTTP_200_OK)
     
+    #A function that handles the update of a staff members privileges
+    @action(detail=True, methods=["post"], url_path="update-staff-privileges") #POST: api/owners/{id}/update-staff-privileges
+    def update_staff_privileges(self, request, pk=None):
+        owner = self.get_object()
+        data = request.data.copy()
+        staff_id = data["staff_id"]
+        staff = Staff.objects.get(id=staff_id, owner=owner)
+        
+        #Check if staff exists
+        if not staff:
+            return Response({"message":"Staff does not exist"},status=status.HTTP_404_NOT_FOUND)
+        # Save the updated rental assignments
+        staff.privileges = data["privileges"]
+        staff.save()
+
+        return Response({"privileges":staff.privileges, "status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
+    #Create a function to update the staff member's role
+    @action(detail=True, methods=["post"], url_path="update-staff-role") #POST: api/owners/{id}/update-staff-role
+    def update_staff_role(self, request, pk=None):
+        owner = self.get_object()
+        data = request.data.copy()
+        staff_id = data["staff_id"]
+        staff = Staff.objects.get(id=staff_id, owner=owner)
+        
+        #Check if staff exists
+        if not staff:
+            return Response({"message":"Staff does not exist"},status=status.HTTP_404_NOT_FOUND)
+        # Save the updated rental assignments
+        staff.role = data["role"]
+        staff.save()
+
+        return Response({"role":staff.role, "status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
+    #Create a function to delete a staff member this should remove the Staff object, Staff Invite Object and the User object
+    @action(detail=True, methods=["post"], url_path="delete-staff") #delete: api/owners/{id}/delete-staff
+    def delete_staff(self, request, pk=None):
+        owner = self.get_object()
+        data = request.data.copy()
+        staff_id = data["staff_id"]
+        staff = Staff.objects.get(id=staff_id, owner=owner)
+        #retrieve the user object
+        user = User.objects.get(id=staff.user.id)
+        #retrieve the staff invite object
+        staff_invite = StaffInvite.objects.get(staff=staff)
+
+        #Check if staff exists
+        if not staff:
+            return Response({"message":"Staff does not exist"},status=status.HTTP_404_NOT_FOUND)
+        # Delete the staff object
+        staff_invite.delete()
+        staff.delete()
+        user.delete()
+
+        return Response({"message":"Staff deleted successfully", "status":status.HTTP_204_NO_CONTENT},status=status.HTTP_200_OK)
+
 class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.all()
     authentication_classes = [TokenAuthentication, SessionAuthentication]
@@ -398,12 +481,106 @@ class StaffViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter,
     ]
 
-    # Create a queryset to retrieve all tenants for a specific landlord
+    # Create a queryset to retrieve all staff for a specific landlord
     def get_queryset(self):
         user = self.request.user
         owner = Owner.objects.get(user=user)
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
+
+    @action(detail=False, methods=["post"], url_path="register")
+    def register(self, request):
+        data = request.data.copy()
+
+        data["password"] = make_password(data["password"])
+
+        serializer = UserSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            staff_user = User.objects.get(email=data["email"])
+            owner = Owner.objects.get(id=data["owner_id"])
+            staff_user.account_type = "staff"
+            staff_user.is_active = False
+            staff_user.save()
+
+            if data.get("active_until"):
+                active_until = datetime.strptime(data["active_until"], "%Y-%m-%d")
+            else:
+                active_until = None
+
+            staff = Staff.objects.create(
+                user=staff_user,
+                owner=owner,
+                date_joined=datetime.now(),
+                active_until=active_until,
+            )
+
+            #update the staff invite's  staff field
+            staff_invite = StaffInvite.objects.get(id=data["staff_invite_id"])
+            staff_invite.staff = staff
+            staff_invite.save()
+
+            owner_preferences = json.loads(owner.preferences)
+            new_staff_registration_complete = next(
+                item for item in owner_preferences if item["name"] == "new_staff_registration_complete"
+            )
+            new_staff_registration_complete_values = new_staff_registration_complete["values"]
+            for value in new_staff_registration_complete_values:
+                if value["name"] == "push" and value["value"] == True:
+                    notification = Notification.objects.create(
+                        user=owner.user,
+                        message=f"{staff_user.first_name} {staff_user.last_name} has been added as a staff member on your account",
+                        type="staff_registered",
+                        title="Staff Registered",
+                        resource_url=f"/dashboard/landlord/staff/{staff_user.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create a postmark email notification to the Landlord
+                    postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = owner.user.email
+                    postmark.emails.send(
+                        From=os.getenv('KEYFLOW_SENDER_EMAIL'), 
+                        To=to_email,
+                        Subject='Staff Registration',
+                        HtmlBody=f'Hi {owner.user.first_name},<br/><br/>{staff_user.first_name} {staff_user.last_name} has been added as a staff member on your account.<br/><br/>Regards,<br/>KeyFlow Team',
+                    )
+            
+            account_activation_token = AccountActivationToken.objects.create(
+                user=staff_user,
+                email=staff_user.email,
+                token=data["activation_token"],
+            )
+            if os.getenv("ENVIRONMENT") == "production":
+                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                to_email = ""
+                if os.getenv("ENVIRONMENT") == "development":
+                    to_email = "keyflowsoftware@gmail.com"
+                else:
+                    to_email = staff_user.email 
+                activation_link = f'{client_hostname}/dashboard/activate-user-account/{account_activation_token.token}'
+                postmark.emails.send(
+                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                    To=to_email,
+                    # To="info@keyflow.co", #TODO: Change this to user.email when postmark is verified
+                    Subject='Activate your Keyflow account',
+                    HtmlBody=f'Hi {staff_user.first_name},<br/><br/>Thank you for registering with KeyFlow. Please click the link below to activate your account.<br/><br/><a href="{activation_link}">Activate Account</a><br/><br/>Regards,<br/>KeyFlow Team',
+                )
+
+            return Response(
+                {
+                    "message": "Staff registered successfully.",
+                    "user": serializer.data,
+                    "isAuthenticated": True,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TenantViewSet(viewsets.ModelViewSet):
@@ -1365,7 +1542,6 @@ class TenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="preferences") #GET: api/tenants/{id}/preferences
     def preferences(self, request, pk=None):
         tenant = self.get_object()
-        print(tenant.preferences)
         preferences = json.loads(tenant.preferences)
         return Response({"preferences":preferences},status=status.HTTP_200_OK)
    
