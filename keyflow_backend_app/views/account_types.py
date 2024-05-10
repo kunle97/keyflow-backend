@@ -741,6 +741,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                         "rental_unit_id": unit.id,
                         "lease_agreement_id": lease_agreement.id,
                     },
+                    transfer_data={"destination": unit.owner.stripe_account_id},
                 )
                 # Create stripe price for security deposit
                 price = stripe.Price.create(

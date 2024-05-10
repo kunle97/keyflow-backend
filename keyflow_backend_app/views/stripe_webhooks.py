@@ -167,6 +167,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 "rental_property_id": metadata["rental_property_id"],
                                 "rental_unit_id": metadata["rental_unit_id"],
                             },
+                            transfer_data={"destination": owner.stripe_account_id},
                         )
 
                     invoice_transaction = Transaction.objects.create(
@@ -233,6 +234,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 "rental_property_id": invoice_metadata.get("rental_property_id", None),
                                 "rental_unit_id": invoice_metadata.get("rental_unit_id", None),
                             },
+                            transfer_data={"destination": owner.stripe_account_id},
                         )
                     owner = Owner.objects.get(id=(invoice_metadata.get("owner_id", None)))
                     owner_user = User.objects.get(id=owner.user.id)
