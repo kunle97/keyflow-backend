@@ -166,6 +166,21 @@ class OwnerViewSet(viewsets.ModelViewSet):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    #Create a function to create and return a stripe account link using the endpoint api/owners/{id}/stripe-account-link
+    @action(detail=True, methods=["get"], url_path="stripe-account-link")
+    def account_link(self, request, pk=None):
+        owner = self.get_object()
+        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+        client_hostname = os.getenv("CLIENT_HOSTNAME")
+        refresh_url = f"{client_hostname}/dashboard/landlord/login"
+        return_url = f"{client_hostname}/dashboard/activate-account/"
+        account_link = stripe.Account.create_login_link(
+            id=owner.stripe_account_id,
+        )
+        return Response(
+            {"account_link": account_link.url}, status=status.HTTP_200_OK
+        )
+
     # Create an action method to retrieve all tenants for a given owner. have the url_path be tenants (Replacing the LAndlordTenantList Vieew post method)
     @action(detail=True, url_path="tenants")
     def get_tenants(self, request, pk=None):
@@ -726,6 +741,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                         "rental_unit_id": unit.id,
                         "lease_agreement_id": lease_agreement.id,
                     },
+                    transfer_data={"destination": unit.owner.stripe_account_id},
                 )
                 # Create stripe price for security deposit
                 price = stripe.Price.create(
