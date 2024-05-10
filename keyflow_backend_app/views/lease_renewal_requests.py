@@ -543,6 +543,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                     "rental_property_id": unit.rental_property.id,
                     "rental_unit_id": unit.id,
                 },
+                transfer_data={"destination": unit.owner.stripe_account_id},
             )
             # Create stripe price for security deposit
             price = stripe.Price.create(
