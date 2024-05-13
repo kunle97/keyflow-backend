@@ -397,7 +397,6 @@ class RetrieveTenantDashboardData(APIView):
             None,
         )
         term = term_pref["value"]
-        print(f"ZX Term: {term}")
         frequency_pref = next(
             (item for item in lease_terms if item["name"] == "rent_frequency"),
             None,
