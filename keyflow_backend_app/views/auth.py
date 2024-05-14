@@ -180,7 +180,7 @@ class UserLogoutView(APIView):
 # class UserRegistrationView(APIView):
 
 
-# Create a class that retrieve a price from stripe subscriptions for landlords and returns it in the response
+# Create a class that retrieve a price from stripe subscriptions for owners and returns it in the response
 
 
 class UserViewSet(viewsets.ModelViewSet):

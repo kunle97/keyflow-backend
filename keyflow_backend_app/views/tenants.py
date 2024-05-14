@@ -94,7 +94,7 @@ class OldTenantViewSet(viewsets.ModelViewSet):
         user_id = request.data.get("user_id")  # retrieve user id from the request
         tenant = User.objects.get(id=user_id)  # retrieve the user object
         unit = RentalUnit.objects.get(tenant=tenant)  # retrieve the unit object
-        landlord = unit.owner  # Retrieve landlord object from unit object
+        owner = unit.owner  # Retrieve owner object from unit object
         lease_template = (
             unit.lease_template
         )  # Retrieve lease term object from unit object
@@ -109,7 +109,7 @@ class OldTenantViewSet(viewsets.ModelViewSet):
             customer=tenant.stripe_customer_id,
             payment_method=data["payment_method_id"],
             transfer_data={
-                "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                "destination": owner.stripe_account_id  # The Stripe Connected Account ID
             },
             confirm=True,
         )
@@ -117,23 +117,23 @@ class OldTenantViewSet(viewsets.ModelViewSet):
         # create a transaction object
         transaction = Transaction.objects.create(
             type="rent_payment",
-            description=f"{tenant.first_name} {tenant.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for landlord {landlord.first_name} {landlord.last_name}",
+            description=f"{tenant.first_name} {tenant.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name} for owner {owner.first_name} {owner.last_name}",
             rental_property=unit.rental_property,
             rental_unit=unit,
-            user=landlord.user,
+            user=owner.user,
             tenant=tenant,
             amount=amount,
             payment_method_id=data["payment_method_id"],
             payment_intent_id=payment_intent.id,
         )
 
-        # Create a notification for the landlord that the tenant has paid the rent
+        # Create a notification for the owner that the tenant has paid the rent
         notification = Notification.objects.create(
-            user=landlord.user,
+            user=owner.user,
             message=f"{tenant.first_name} {tenant.last_name} has paid rent for the amount of ${amount} for unit {unit.name} at {unit.rental_property.name}",
             type="rent_paid",
             title="Rent Paid",
-            resource_url=f"/dashboard/landlord/transactions/{transaction.id}",
+            resource_url=f"/dashboard/owner/transactions/{transaction.id}",
         )
 
         # serialize transaction object and return it
@@ -448,8 +448,8 @@ class TenantRegistrationView(APIView):
             unit_id = data["unit_id"]
             unit = RentalUnit.objects.get(id=unit_id)
 
-            # retrieve landlord from the unit
-            landlord = unit.owner
+            # retrieve owner from the unit
+            owner = unit.owner
 
             # set the account type to tenant
             tenant_user.account_type = "tenant"
@@ -458,7 +458,7 @@ class TenantRegistrationView(APIView):
             customer = stripe.Customer.create(
                 email=tenant_user.email,
                 metadata={
-                    "landlord_id": landlord.id,
+                    "owner_id": owner.id,
                 },
             )
 
@@ -468,10 +468,10 @@ class TenantRegistrationView(APIView):
             tenant = Tenant.objects.create(
                 user=tenant_user,
                 stripe_customer_id=customer.id,
-                owner=landlord,
+                owner=owner,
             )
 
-            owner_preferences = json.loads(landlord.preferences)
+            owner_preferences = json.loads(owner.preferences)
             # Retrieve the object in the array who's "name" key value is "tenant_registered"
             notification_preferences = next(
                 item for item in owner_preferences if item["name"] == "new_tenant_registration_complete"
@@ -481,29 +481,29 @@ class TenantRegistrationView(APIView):
             for value in notification_preferences_values:
                 if value["name"] == "push" and value["value"] == True:
 
-                    # Create a notification for the landlord that a tenant has been added
+                    # Create a notification for the owner that a tenant has been added
                     notification = Notification.objects.create(
-                        user=landlord.user,
+                        user=owner.user,
                         message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                         type="tenant_registered",
                         title="Tenant Registered",
-                        resource_url=f"/dashboard/landlord/tenants/{tenant_user.id}",
+                        resource_url=f"/dashboard/owner/tenants/{tenant_user.id}",
                     )
                 elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                    #Create an email notification for the landlord that a new tenant has been added
+                    #Create an email notification for the owner that a new tenant has been added
                     client_hostname = os.getenv("CLIENT_HOSTNAME")
                     postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                     to_email = ""
                     if os.getenv("ENVIRONMENT") == "development":
                         to_email = "keyflowsoftware@gmail.com"
                     else:
-                        to_email = landlord.user.email
-                    # Send email to landlord
+                        to_email = owner.user.email
+                    # Send email to owner
                     postmark.emails.send(
                         From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                         To=to_email,
                         Subject="New Tenant Added",
-                        HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/landlord/tenants/{tenant_user.id}'>View Tenant</a>",
+                        HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/owner/tenants/{tenant_user.id}'>View Tenant</a>",
                     )
                 
             # Retrieve unit from the request unit_id parameter
@@ -535,11 +535,11 @@ class TenantRegistrationView(APIView):
                 customer=customer.id,
             )
 
-            landlord = unit.owner
-            landlord_user = landlord.user
+            owner = unit.owner
+            owner_user = owner.user
             # TODO: implement secutrity deposit flow here. Ensure subsicption is sety to a trial period of 30 days and then charge the security deposit immeediatly
             if lease_template.security_deposit > 0:
-                # Retrieve landlord from the unit
+                # Retrieve owner from the unit
                 security_deposit_payment_intent = stripe.PaymentIntent.create(
                     amount=int(lease_template.security_deposit * 100),
                     currency="usd",
@@ -547,16 +547,16 @@ class TenantRegistrationView(APIView):
                     customer=customer.id,
                     payment_method=data["payment_method_id"],
                     transfer_data={
-                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                     },
                     confirm=True,
                     # Add Metadata to the transaction signifying that it is a security deposit
                     metadata={
                         "type": "revenue",
                         "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                        "user_id": landlord_user.id,
+                        "user_id": owner_user.id,
                         "tenant_id": tenant.id,
-                        "landlord_id": landlord.id,
+                        "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
                         "payment_method_id": data["payment_method_id"],
@@ -569,45 +569,45 @@ class TenantRegistrationView(APIView):
                     description=f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
-                    user=landlord_user,
+                    user=owner_user,
                     tenant=tenant_user,
                     amount=int(lease_template.security_deposit),
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id=security_deposit_payment_intent.id,
                 )
 
-                landlord_preferences = json.loads(landlord.preferences)
+                owner_preferences = json.loads(owner.preferences)
                 # Retrieve the object in the array who's "name" key value is "security_deposit_paid"
                 invoice_paid_preferences = next(
-                    item for item in landlord_preferences if item["name"] == "invoic_paid"
+                    item for item in owner_preferences if item["name"] == "invoic_paid"
                 )
                 # Retrieve the "values" key value of the object
                 invoice_paid_preferences_values = invoice_paid_preferences["values"]
                 for value in invoice_paid_preferences_values:
                     if value["name"] == "push" and value["value"] == True:
-                        # Create a notification for the landlord that the security deposit has been paid
+                        # Create a notification for the owner that the security deposit has been paid
                         notification = Notification.objects.create(
-                            user=landlord_user,
+                            user=owner_user,
                             message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
                             type="security_deposit_paid",
                             title="Security Deposit Paid",
-                            resource_url=f"/dashboard/landlord/transactions/{security_deposit_transaction.id}",
+                            resource_url=f"/dashboard/owner/transactions/{security_deposit_transaction.id}",
                         )
                     elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                        #Create an email notification for the landlord that the security deposit has been paid
+                        #Create an email notification for the owner that the security deposit has been paid
                         client_hostname = os.getenv("CLIENT_HOSTNAME")
                         postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                         to_email = ""
                         if os.getenv("ENVIRONMENT") == "development":
                             to_email = "keyflowsoftware@gmail.com"
                         else:
-                            to_email = landlord_user.email
-                        # Send email to landlord
+                            to_email = owner_user.email
+                        # Send email to owner
                         postmark.emails.send(
                             From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                             To=to_email,
                             Subject="Security Deposit Paid",
-                            HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/landlord/transactions/{security_deposit_transaction.id}'>View Transaction</a>",
+                            HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/owner/transactions/{security_deposit_transaction.id}'>View Transaction</a>",
                         )
 
             subscription = None
@@ -631,7 +631,7 @@ class TenantRegistrationView(APIView):
                     default_payment_method=payment_method_id,
                     trial_end=grace_period_end,
                     transfer_data={
-                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                     },
                     # Cancel the subscription after at the end date specified by lease term
                     cancel_at=int(
@@ -644,7 +644,7 @@ class TenantRegistrationView(APIView):
                         "description": f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                         "user_id": tenant_user.id,
                         "tenant_id": tenant_user.id,
-                        "landlord_id": landlord.id,
+                        "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
                         "payment_method_id": data["payment_method_id"],
@@ -659,7 +659,7 @@ class TenantRegistrationView(APIView):
                         {"price": lease_template.stripe_price_id},
                     ],
                     transfer_data={
-                        "destination": landlord.stripe_account_id  # The Stripe Connected Account ID
+                        "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                     },
                     cancel_at=int(
                         datetime.fromisoformat(
@@ -672,7 +672,7 @@ class TenantRegistrationView(APIView):
                         "description": f"{tenant_user.first_name} {tenant_user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                         "user_id": tenant_user.id,
                         "tenant_id": tenant.id,
-                        "landlord_id": landlord.id,
+                        "owner_id": owner.id,
                         "rental_property_id": unit.rental_property.id,
                         "rental_unit_id": unit.id,
                         "payment_method_id": data["payment_method_id"],
@@ -685,34 +685,34 @@ class TenantRegistrationView(APIView):
                     description=f"{tenant_user.first_name} {tenant_user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                     rental_property=unit.rental_property,
                     rental_unit=unit,
-                    user=landlord,
+                    user=owner,
                     tenant=tenant_user,
                     amount=int(lease_template.rent),
                     payment_method_id=data["payment_method_id"],
                     payment_intent_id="subscription",
                 )
-                # Create a notification for the landlord that the tenant has paid the fisrt month's rent
+                # Create a notification for the owner that the tenant has paid the fisrt month's rent
                 notification = Notification.objects.create(
-                    user=landlord,
+                    user=owner,
                     message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
                     type="first_month_rent_paid",
                     title="First Month's Rent Paid",
-                    resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                    resource_url=f"/dashboard/owner/transactions/{subscription_transaction.id}",
                 )
-                #Create an email notification for the landlord that the first month's rent has been paid
+                #Create an email notification for the owner that the first month's rent has been paid
                 client_hostname = os.getenv("CLIENT_HOSTNAME")
                 postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                 to_email = ""
                 if os.getenv("ENVIRONMENT") == "development":
                     to_email = "keyflowsoftware@gmail.com"
                 else:
-                    to_email = landlord.email
-                # Send email to landlord
+                    to_email = owner.email
+                # Send email to owner
                 postmark.emails.send(
                     From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                     To=to_email,
                     Subject="First Month's Rent Paid",
-                    HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/landlord/transactions/{subscription_transaction.id}'>View Transaction</a>",
+                    HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}. <a href='{client_hostname}/dashboard/owner/transactions/{subscription_transaction.id}'>View Transaction</a>",
                 )
             # add subscription id to the lease agreement
             lease_agreement.stripe_subscription_id = subscription.id

@@ -96,7 +96,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 customer=customer.id,
             )
 
-            # Subscribe landlord to thier selected plan using product id and price id
+            # Subscribe owner to thier selected plan using product id and price id
             product_id = data["product_id"]
             price_id = data["price_id"]
             subscription = stripe.Subscription.create(
@@ -107,7 +107,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 default_payment_method=payment_method_id,
                 metadata={
                     "type": "revenue",
-                    "description": f"{user.first_name} {user.last_name} Landlord Subscrtiption",
+                    "description": f"{user.first_name} {user.last_name} Owner Subscrtiption",
                     "product_id": product_id,
                     "user_id": user.id,
                     "tenant_id": user.id,
@@ -115,7 +115,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 },
             )
             client_hostname = os.getenv("CLIENT_HOSTNAME")
-            refresh_url = f"{client_hostname}/dashboard/landlord/login"
+            refresh_url = f"{client_hostname}/dashboard/owner/login"
             return_url = f"{client_hostname}/dashboard/activate-account/"
             # obtain stripe account link for the user to complete the onboarding process
             account_link = stripe.AccountLink.create(
@@ -172,7 +172,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
         owner = self.get_object()
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
         client_hostname = os.getenv("CLIENT_HOSTNAME")
-        refresh_url = f"{client_hostname}/dashboard/landlord/login"
+        refresh_url = f"{client_hostname}/dashboard/owner/login"
         return_url = f"{client_hostname}/dashboard/activate-account/"
         account_link = stripe.Account.create_login_link(
             id=owner.stripe_account_id,
@@ -192,17 +192,17 @@ class OwnerViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
-    # Replacing the LandlordTenantDetailView post method (TODO: Delelete the LandlordTenantDetailView post method and the landlord.py file when done)
+    # Replacing the OwnerTenantDetailView post method (TODO: Delelete the OwnerTenantDetailView post method and the owner.py file when done)
     @action(detail=True, methods=["get"])
     def get_tenant(self, request, pk=None):
         # Create variable for LANDLORD id
-        landlord_id = request.data.get("landlord_id")
+        owner_id = request.data.get("owner_id")
         tenant_id = request.data.get("tenant_id")
 
-        landlord = Owner.objects.get(id=landlord_id)
+        owner = Owner.objects.get(id=owner_id)
         tenant = Tenant.objects.filter(id=tenant_id).first()
 
-        # Find a lease agreement matching the landlord and tenant
+        # Find a lease agreement matching the owner and tenant
 
         # Retrieve the unit from the tenant
         unit = RentalUnit.objects.get(tenant=tenant)
@@ -225,8 +225,8 @@ class OwnerViewSet(viewsets.ModelViewSet):
 
         lease_agreement = None
         lease_agreement_serializer = None
-        if LeaseAgreement.objects.filter(user=landlord, tenant=tenant).exists():
-            lease_agreement = LeaseAgreement.objects.get(user=landlord, tenant=tenant)
+        if LeaseAgreement.objects.filter(user=owner, tenant=tenant).exists():
+            lease_agreement = LeaseAgreement.objects.get(user=owner, tenant=tenant)
             lease_agreement_serializer = LeaseAgreementSerializer(
                 lease_agreement, many=False
             )
@@ -250,7 +250,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 "maintenance_requests": maintenance_request_serializer.data,
                 "status": status.HTTP_200_OK,
             }
-        if landlord_id == request.user.id:
+        if owner_id == request.user.id:
             return Response(response_data, status=status.HTTP_200_OK)
         return Response(
             {"detail": "You do not have permission to perform this action."},
@@ -259,7 +259,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
 
     # GET: api/users/{id}/properties
 
-    # Create a function to retrieve a landlord user's stripe subscription using the user's stripe customer id
+    # Create a function to retrieve a owner user's stripe subscription using the user's stripe customer id
     @action(detail=True, methods=["get"], url_path="subscriptions")
     def subscriptions(self, request, pk=None):
         owner = self.get_object()
@@ -271,16 +271,16 @@ class OwnerViewSet(viewsets.ModelViewSet):
         customer_id = owner.stripe_customer_id
 
         subscriptions = stripe.Subscription.list(customer=customer_id)
-        landlord_subscription = None
+        owner_subscription = None
 
         for subscription in subscriptions.auto_paging_iter():
             if subscription.status == "active":
-                landlord_subscription = subscription
+                owner_subscription = subscription
                 break
 
-        if landlord_subscription:
+        if owner_subscription:
             return Response(
-                {"subscriptions": landlord_subscription}, status=status.HTTP_200_OK
+                {"subscriptions": owner_subscription}, status=status.HTTP_200_OK
             )
         else:
             return Response(
@@ -413,7 +413,7 @@ class StaffViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter,
     ]
 
-    # Create a queryset to retrieve all tenants for a specific landlord
+    # Create a queryset to retrieve all tenants for a specific owner
     def get_queryset(self):
         user = self.request.user
         owner = Owner.objects.get(user=user)
@@ -434,7 +434,7 @@ class TenantViewSet(viewsets.ModelViewSet):
     search_fields = ["user__first_name", "user__last_name"]
     filterset_fields = ["user__first_name", "user__last_name"]
 
-    # Create a queryset to retrieve all tenants for a specific landlord
+    # Create a queryset to retrieve all tenants for a specific owner
     def get_queryset(self):
         user = self.request.user
 
@@ -634,10 +634,10 @@ class TenantViewSet(viewsets.ModelViewSet):
                         message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                         type="tenant_registered",
                         title="Tenant Registered",
-                        resource_url=f"/dashboard/landlord/tenants/{tenant_user.id}",
+                        resource_url=f"/dashboard/owner/tenants/{tenant_user.id}",
                     )
                 elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                    #Create a postmark email notification to the Landlord
+                    #Create a postmark email notification to the Owner
                     postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
                     to_email = ""
                     if os.getenv("ENVIRONMENT") == "development":
@@ -809,7 +809,7 @@ class TenantViewSet(viewsets.ModelViewSet):
             #     message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the security deposit for the amount of ${security_deposit_value} for unit {unit.name} at {unit.rental_property.name}",
             #     type="security_deposit_paid",
             #     title="Security Deposit Paid",
-            #     resource_url=f"/dashboard/landlord/transactions/{owner_security_deposit_transaction.id}",
+            #     resource_url=f"/dashboard/owner/transactions/{owner_security_deposit_transaction.id}",
             # )
 
             if grace_period_value != 0:
@@ -993,10 +993,10 @@ class TenantViewSet(viewsets.ModelViewSet):
                         message=f"{tenant_user.first_name} {tenant_user.last_name} has paid the first month's rent for the amount of ${rent_value} for unit {unit.name} at {unit.rental_property.name}",
                         type="rent_payment",
                         title="Rent Payment",
-                        resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                        resource_url=f"/dashboard/owner/transactions/{subscription_transaction.id}",
                     )
 
-                    # #Create a postmark email notification to the Landlord
+                    # #Create a postmark email notification to the Owner
                     # postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
                     # to_email = ""
                     # if os.getenv("ENVIRONMENT") == "development":

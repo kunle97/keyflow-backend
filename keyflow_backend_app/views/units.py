@@ -190,7 +190,7 @@ class UnitViewSet(viewsets.ModelViewSet):
         serializer = RentalApplicationSerializer(rental_applications, many=True)
         return Response(serializer.data)
 
-    #manage leases (mainly used by landlords)
+    #manage leases (mainly used by owners)
     @action(detail=True, methods=['post'])
     def assign_lease(self, request, pk=None): 
         unit = self.get_object()

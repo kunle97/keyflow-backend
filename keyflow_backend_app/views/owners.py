@@ -20,19 +20,19 @@ from rest_framework import status
 from rest_framework.response import Response
 
 
-class LandlordTenantDetailView(APIView):
+class OwnerTenantDetailView(APIView):
     # POST: api/users/{id}/tenant
-    # Create a function to retrieve a specific tenant for a specific landlord
+    # Create a function to retrieve a specific tenant for a specific owner
     # @action(detail=True, methods=['post'], url_path='tenant')
     def post(self, request):
         # Create variable for LANDLORD id
-        landlord_id = request.data.get("landlord_id")
+        owner_id = request.data.get("owner_id")
         tenant_id = request.data.get("tenant_id")
 
-        landlord = Owner.objects.get(id=landlord_id)
+        owner = Owner.objects.get(id=owner_id)
         tenant = Tenant.objects.filter(id=tenant_id).first()
 
-        # Find a lease agreement matching the landlord and tenant
+        # Find a lease agreement matching the owner and tenant
 
         # Retrieve the unit from the tenant
         unit = RentalUnit.objects.get(tenant=tenant)
@@ -56,7 +56,7 @@ class LandlordTenantDetailView(APIView):
         lease_agreement = None
         lease_agreement_serializer = None
         if LeaseAgreement.objects.filter(owner=owner, tenant=tenant).exists():
-            lease_agreement = LeaseAgreement.objects.get(user=landlord, tenant=tenant)
+            lease_agreement = LeaseAgreement.objects.get(user=owner, tenant=tenant)
             lease_agreement_serializer = LeaseAgreementSerializer(
                 lease_agreement, many=False
             )
@@ -80,7 +80,7 @@ class LandlordTenantDetailView(APIView):
                 "maintenance_requests": maintenance_request_serializer.data,
                 "status": status.HTTP_200_OK,
             }
-        if landlord_id == request.user.id:
+        if owner_id == request.user.id:
             return Response(response_data, status=status.HTTP_200_OK)
         return Response(
             {"detail": "You do not have permission to perform this action."},
@@ -88,19 +88,19 @@ class LandlordTenantDetailView(APIView):
         )
 
 
-class LandlordTenantListView(APIView):
+class OwnerTenantListView(APIView):
     # POST: api/users/{id}/tenants
     def post(self, request):
-        user = User.objects.get(id=request.data.get("landlord_id"))
+        user = User.objects.get(id=request.data.get("owner_id"))
         owner = Owner.objects.get(user=user)
-        # Verify user is a landlord
-        if user.account_type != "landlord":
+        # Verify user is a owner
+        if user.account_type != "owner":
             return Response(
                 {"detail": "You do not have permission to perform this action."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Retrieve landlord's properties
+        # Retrieve owner's properties
         properties = RentalProperty.objects.filter(owner=owner)
         # retrieve units for each property that are occupied
         units = RentalUnit.objects.filter(

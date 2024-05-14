@@ -113,7 +113,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
             postmark.emails.send(
                 From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                 To=to_email,
-                Subject="Your landlord has invited to join Keyflow",
+                Subject="Your owner has invited to join Keyflow",
                 HtmlBody=email_content
             )
         return Response(
@@ -202,7 +202,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
     #                 postmark.emails.send(
     #                     From=os.getenv("KEYFLOW_SENDER_EMAIL"),
     #                     To=to_email,
-    #                     Subject="Your landlord has invited to join Keyflow",
+    #                     Subject="Your owner has invited to join Keyflow",
     #                     HtmlBody=email_content
     #                 )
 

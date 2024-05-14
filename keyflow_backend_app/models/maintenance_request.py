@@ -18,7 +18,7 @@ class MaintenanceRequest(models.Model):
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
     )
-    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None) #related landlord
+    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None) #related owner
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, related_name='tenant_maintenance_request') #related tenant that created the request
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     priority = models.IntegerField(default=1) #1-5 scale with 5 being the highest priority. COnvertewd to text as 1=low, 2=moderate, 3=high, 4=urgent, 5=emergency

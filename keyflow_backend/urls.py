@@ -24,9 +24,9 @@ from keyflow_backend_app.views.auth import (
     UserActivationView,
 )
 from keyflow_backend_app.views.expiring_tokens import TokenValidationView
-from keyflow_backend_app.views.landlords import (
-    LandlordTenantDetailView,
-    LandlordTenantListView,
+from keyflow_backend_app.views.owners import (
+    OwnerTenantDetailView,
+    OwnerTenantListView,
 )
 from keyflow_backend_app.views.account_types import (
     OwnerViewSet,
@@ -58,7 +58,7 @@ from keyflow_backend_app.views.maintenance_request_events import (
 )
 from keyflow_backend_app.views.manage_subscriptions import (
     ManageTenantSubscriptionView,
-    RetrieveLandlordSubscriptionPriceView,
+    RetrieveOwnerSubscriptionPriceView,
 )
 from keyflow_backend_app.views.notifications import (
     NotificationViewSet,
@@ -131,8 +131,8 @@ from keyflow_backend_app.views.billing_entries import (
 from keyflow_backend_app.views.mailchimp import RequestDemoSubscribeView
 from keyflow_backend_app.views.dev import (
     test_token,
-    get_landlord_emails,
-    get_landlord_usernames,
+    get_owner_emails,
+    get_owner_usernames,
     get_tenant_emails,
     get_tenant_usernames,
     generate_properties,
@@ -259,9 +259,9 @@ urlpatterns = [
         name="retrieve_property_unauthenticated",
     ),
     path(
-        "api/retrieve-landlord-subscription-prices/",
-        RetrieveLandlordSubscriptionPriceView.as_view(),
-        name="retrieve_landlord_subscription_price",
+        "api/retrieve-owner-subscription-prices/",
+        RetrieveOwnerSubscriptionPriceView.as_view(),
+        name="retrieve_owner_subscription_price",
     ),
     path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
     # Stripe Webhooks
@@ -276,14 +276,14 @@ urlpatterns = [
         name="invoice_payment_suceeded",
     ),
     path(
-        "api/landlord-tenant-detail/",
-        LandlordTenantDetailView.as_view(),
-        name="landlord_tenant_detail",
+        "api/owner-tenant-detail/",
+        OwnerTenantDetailView.as_view(),
+        name="owner_tenant_detail",
     ),
     path(
-        "api/landlord-tenant-list/",
-        LandlordTenantListView.as_view(),
-        name="landlord_tenant_list",
+        "api/owner-tenant-list/",
+        OwnerTenantListView.as_view(),
+        name="owner_tenant_list",
     ),
     path("api/s3-file-delete/", S3FileDeleteView.as_view(), name="s3_file_delete"),
     path(
@@ -325,8 +325,8 @@ urlpatterns = [
     ),
     # Dev urls
     path("api/test_token", test_token, name="test_token"),
-    path("api/landlords-emails/", get_landlord_emails, name="landlord_emails"),
-    path("api/landlords-usernames/", get_landlord_usernames, name="landlord_usernames"),
+    path("api/owners-emails/", get_owner_emails, name="owner_emails"),
+    path("api/owners-usernames/", get_owner_usernames, name="owner_usernames"),
     path("api/tenants-emails/", get_tenant_emails, name="tenant_emails"),
     path("api/tenants-usernames/", get_tenant_usernames, name="tenant_usernames"),
     path("api/generate/properties/", generate_properties, name="generate_properties"),

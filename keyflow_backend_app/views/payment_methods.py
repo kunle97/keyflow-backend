@@ -192,7 +192,7 @@ class ManagePaymentMethodsView(viewsets.ModelViewSet):
             return_url = f'{os.getenv("CLIENT_HOSTNAME")}/dashboard/tenant/my-account'
             payment_method_user = Tenant.objects.get(user=user)
         elif user.account_type == "owner":
-            return_url = f'{os.getenv("CLIENT_HOSTNAME")}/dashboard/landlord/my-account'
+            return_url = f'{os.getenv("CLIENT_HOSTNAME")}/dashboard/owner/my-account'
             payment_method_user = Owner.objects.get(user=user)
         # Retrieve the stripe account id from the user object
         stripe_customer_id = payment_method_user.stripe_customer_id

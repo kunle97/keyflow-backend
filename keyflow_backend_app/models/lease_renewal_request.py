@@ -10,7 +10,7 @@ class LeaseRenewalRequest(models.Model):
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None, related_name='renewal_requests_as_user')
     rental_unit = models.ForeignKey(RentalUnit, on_delete=models.CASCADE)
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE, default=None)
-    renewal_date = models.DateTimeField(default=None, null=True) #Date of renewal approval by landlord
+    renewal_date = models.DateTimeField(default=None, null=True) #Date of renewal approval by owner
     move_in_date = models.DateTimeField(default=None, null=True) #Date of move in for new lease
     request_date = models.DateTimeField() #Date of request created by tenant
     request_term = models.IntegerField(default=None, null=True) #Integer for duration of lease in the same frequency as the rental unit
