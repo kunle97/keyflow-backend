@@ -81,7 +81,7 @@ class StripeSubscriptionPaymentSucceededEventView(View):
                     message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${rental_unit.lease_template.rent} for unit {rental_unit.name} at {rental_property.name}",
                     type="rent_payment",
                     title="Rent Payment",
-                    resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                    resource_url=f"/dashboard/owner/transactions/{subscription_transaction.id}",
                 )
 
             return JsonResponse({"status": "ok"})
@@ -195,10 +195,10 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
                                 type="rent_payment",
                                 title="Rent Payment",
-                                resource_url=f"/dashboard/landlord/transactions/{invoice_transaction.id}",
+                                resource_url=f"/dashboard/owner/transactions/{invoice_transaction.id}",
                             )
                         elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                            #Create an email notification for the landlord about the the tenant's rent payment
+                            #Create an email notification for the owner about the the tenant's rent payment
                             client_hostname = os.getenv("CLIENT_HOSTNAME")
                             postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                             to_email = ""
@@ -210,7 +210,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                                 To=to_email,
                                 Subject="Rent Payment Notification",
-                                HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/landlord/transactions/{invoice_transaction.id}'>View Transaction</a>",
+                                HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/owner/transactions/{invoice_transaction.id}'>View Transaction</a>",
                             )
                 if invoice_metadata.get("type", None) == "security_deposit":
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
@@ -272,10 +272,10 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 message=f"{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
                                 type="security_deposit",
                                 title="Security Deposit Payment",
-                                resource_url=f"/dashboard/landlord/transactions/{invoice_transaction.id}",
+                                resource_url=f"/dashboard/owner/transactions/{invoice_transaction.id}",
                             )
                         elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                            #Create an email notification for the landlord about the the tenant's security deposit payment
+                            #Create an email notification for the owner about the the tenant's security deposit payment
                             client_hostname = os.getenv("CLIENT_HOSTNAME")
                             postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                             to_email = ""
@@ -287,7 +287,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                                 To=to_email,
                                 Subject="Security Deposit Payment Notification",
-                                HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/landlord/transactions/{invoice_transaction.id}'>View Transaction</a>",
+                                HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/owner/transactions/{invoice_transaction.id}'>View Transaction</a>",
                             )
                 else:
                     return JsonResponse({"status": "ok"})

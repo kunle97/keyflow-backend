@@ -69,7 +69,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             return []
         return [IsAuthenticated()]
 
-    # OVerride the defualt create method to create a rental application and send a notification to the landlord
+    # OVerride the defualt create method to create a rental application and send a notification to the owner
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         unit = RentalUnit.objects.get(id=data["unit_id"])
@@ -125,16 +125,16 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         rental_application_created_values = rental_application_created["values"]
         for value in rental_application_created_values:
             if value["name"] == "push" and value["value"] == True:
-                # Create a notification for the landlord that a new rental application has been submitted
+                # Create a notification for the owner that a new rental application has been submitted
                 notification = Notification.objects.create(
                     user=user,
                     message=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}",
                     type="rental_application_submitted",
                     title="Rental Application Submitted",
-                    resource_url=f"/dashboard/landlord/rental-applications/{rental_application.id}",
+                    resource_url=f"/dashboard/owner/rental-applications/{rental_application.id}",
                 )
             elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #Create an email notification using postmark for the landlord that a new rental application has been submitted
+                #Create an email notification using postmark for the owner that a new rental application has been submitted
                 client_hostname = os.getenv("CLIENT_HOSTNAME")
                 postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                 to_email = ""
@@ -146,7 +146,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                     From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                     To=to_email,
                     Subject="New Rental Application Submitted",
-                    HtmlBody=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}. <a href='{client_hostname}/dashboard/landlord/rental-applications/{rental_application.id}'>View Application</a>",
+                    HtmlBody=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}. <a href='{client_hostname}/dashboard/owner/rental-applications/{rental_application.id}'>View Application</a>",
                 )   
         
         return Response({"message": "Rental application created successfully."})
@@ -245,7 +245,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         rental_application = self.get_object()
         user = request.user
         owner = Owner.objects.get(user=user)
-        if request.user.is_authenticated and rental_application.landlord == owner:
+        if request.user.is_authenticated and rental_application.owner == owner:
             rental_application.is_approved = False
             rental_application.save()
             rental_application.delete()
