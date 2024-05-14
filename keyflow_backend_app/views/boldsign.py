@@ -25,11 +25,11 @@ class CreateEmbeddedTemplateCreateLinkView(APIView):
         self, request, *args, **kwargs
     ):  # This will be called when a user  confirms the uploaded file int the lease term flow
         url = "https://api.boldsign.com/v1/template/createEmbeddedTemplateUrl"
-        landlord_signer_email = ""
+        owner_signer_email = ""
         if os.getenv("ENVIRONMENT") == "development":
-            landlord_signer_email = "landlord@boldsign.dev"
+            owner_signer_email = "owner@boldsign.dev"
         else:
-            landlord_signer_email = request.data.get("landlord_email")
+            owner_signer_email = request.data.get("owner_email")
         payload = {
             "Title": request.data.get("template_title"),
             "Description": request.data.get("template_description"),
@@ -38,10 +38,10 @@ class CreateEmbeddedTemplateCreateLinkView(APIView):
             "AllowMessageEditing": "true",
             "Roles[0][name]": "Tenant",
             "Roles[0][index]": "1",
-            "Roles[1][name]": "Landlord",
+            "Roles[1][name]": "Owner",
             "Roles[1][index]": "2",
-            "Roles[1][defaultSignerName]": request.data.get("landlord_name"),
-            "Roles[1][defaultSignerEmail]": landlord_signer_email,
+            "Roles[1][defaultSignerName]": request.data.get("owner_name"),
+            "Roles[1][defaultSignerEmail]": owner_signer_email,
             "ShowToolbar": "true",
             "ShowSaveButton": "true",
             "ShowSendButton": "false",
@@ -134,7 +134,7 @@ class CreateDocumentFromTemplateView(APIView):
         tenant_name = tenant_first_name + " " + tenant_last_name
         owner = Owner.objects.get(id=request.data.get("owner_id"))
         owner_user = owner.user
-        landlord_name = owner_user.first_name + " " + owner_user.last_name
+        owner_name = owner_user.first_name + " " + owner_user.last_name
 
         tenant_email = ""
         if os.getenv("ENVIRONMENT") == "development":
@@ -142,11 +142,11 @@ class CreateDocumentFromTemplateView(APIView):
         else:
             tenant_email = request.data.get("tenant_email")
 
-        landlord_email = ""
+        owner_email = ""
         if os.getenv("ENVIRONMENT") == "development":
-            landlord_email = "landlord@boldsign.dev"
+            owner_email = "owner@boldsign.dev"
         else:
-            landlord_email = owner_user.email
+            owner_email = owner_user.email
 
         payload = {
             "title": request.data.get("document_title"),
@@ -159,8 +159,8 @@ class CreateDocumentFromTemplateView(APIView):
                 },
                 {
                     "roleIndex": 2,
-                    "signerName": landlord_name,
-                    "signerEmail": landlord_email,
+                    "signerName": owner_name,
+                    "signerEmail": owner_email,
                     "formFields": [
                         {
                             "fieldType": "Signature",

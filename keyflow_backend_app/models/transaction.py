@@ -23,7 +23,7 @@ class Transaction(models.Model):
         ('revenue', 'Revenue'),#Revenue 
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #landlord related to the transaction
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #owner related to the transaction
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='transactions') #tenant related to the transaction
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=TRANSACTION_TYPE_CHOICES)

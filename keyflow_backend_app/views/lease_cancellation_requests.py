@@ -130,16 +130,16 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         #loop through the values array and check if the value is "email" or "push"
         for value in lease_cancellation_request_created_values:
             if value["name"] == "push" and value["value"] == True:
-                # Create a  notification for the landlord that the tenant has requested to cancel the lease agreement
+                # Create a  notification for the owner that the tenant has requested to cancel the lease agreement
                 notification = Notification.objects.create(
                     user=owner.user,
                     message=f"{tenant.user.first_name} {tenant.user.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}",
                     type="lease_cancellation_request",
                     title="Lease Cancellation Request",
-                    resource_url=f"/dashboard/landlord/lease-cancellation-requests/{lease_cancellation_request.id}",
+                    resource_url=f"/dashboard/owner/lease-cancellation-requests/{lease_cancellation_request.id}",
                 )
             elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #Create an email notification for the landlord that the tenant has requested to cancel the lease agreement using postmark
+                #Create an email notification for the owner that the tenant has requested to cancel the lease agreement using postmark
                 postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                 to_email = ""
                 if os.getenv("ENVIRONMENT") == "development":
@@ -150,7 +150,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                     From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                     To=to_email,
                     Subject="Lease Cancellation Request",
-                    HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}. <a href='{client_hostname}/dashboard/landlord/lease-cancellation-requests/{lease_cancellation_request.id}'>Click here to view the request.</a>",
+                    HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has requested to cancel the lease agreement for unit {unit.name} at {rental_property.name}. <a href='{client_hostname}/dashboard/owner/lease-cancellation-requests/{lease_cancellation_request.id}'>Click here to view the request.</a>",
                 )
 
         # Return a success response containing the lease cancellation request object as well as a message and a 201 stuats code
@@ -169,8 +169,8 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         data = request.data.copy()
 
-        landlord = request.user
-        owner = Owner.objects.get(user=landlord)
+        owner = request.user
+        owner = Owner.objects.get(user=owner)
         lease_cancellation_request = LeaseCancellationRequest.objects.get(
             id=data["lease_cancellation_request_id"]
         )
@@ -220,7 +220,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                 "description": f"{tenant_user.first_name} {tenant_user.last_name} Lease Cancellation Fee Payment for unit {unit.name} at {unit.rental_property.name}",
                 "user_id": owner.id,
                 "tenant_id": tenant.id,
-                "landlord_id": owner.id,
+                "owner_id": owner.id,
                 "rental_property_id": unit.rental_property.id,
                 "rental_unit_id": unit.id,
                 "payment_method_id": tenant_payment_methods.data[0].id,#TODO: Should be tenants default payment method not just first  one in list

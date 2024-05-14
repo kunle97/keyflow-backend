@@ -5,7 +5,7 @@ from .models.rental_unit import RentalUnit
 from .models.message import Message
 from rest_framework.response import Response
 from rest_framework import status
-class IsLandlordOrReadOnly(permissions.BasePermission):
+class IsOwnerOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
@@ -182,10 +182,10 @@ class RentalApplicationCreatePermission(BasePermission):
         # unit_user_id = unit_object.rental_property.user.id #id of the user who owns the property
         
         # #Create variable for RentalApplication
-        # landlord_id = request.data.get('landlord_id')
+        # owner_id = request.data.get('owner_id')
 
         # #confirm the id and unit's user id match
-        # if request.method  == 'POST' and (unit_user_id != landlord_id):
+        # if request.method  == 'POST' and (unit_user_id != owner_id):
         #     return False # not grant access
 
         #retrieve unit object from  request_body_unit variable
@@ -288,7 +288,7 @@ class MessageDeletePermission(permissions.BasePermission):
                 return True # grant access otherwise
             return True # grant access otherwise
 
-#Create permission that only allows landlords to send messages to thier tenants and tenants to only send messages to their landlords
+#Create permission that only allows owners to send messages to thier tenants and tenants to only send messages to their owners
 class MessageCreatePermission(permissions.BasePermission):
         def has_permission(self, request, view):
             if request.method  == 'POST':

@@ -20,7 +20,7 @@ import stripe
 load_dotenv()
 
 
-class RetrieveLandlordSubscriptionPriceView(APIView):
+class RetrieveOwnerSubscriptionPriceView(APIView):
     def post(self, request):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
         standard_plan_product = stripe.Product.retrieve(

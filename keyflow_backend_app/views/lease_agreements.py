@@ -27,7 +27,7 @@ from ..models.lease_template import LeaseTemplate
 from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
 from ..permissions import (
-    IsLandlordOrReadOnly,
+    IsOwnerOrReadOnly,
     IsResourceOwner,
 )
 from rest_framework import status
@@ -43,7 +43,7 @@ load_dotenv()
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
     serializer_class = LeaseAgreementSerializer
-    permission_classes = [IsAuthenticated, IsLandlordOrReadOnly, IsResourceOwner]
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly, IsResourceOwner]
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
@@ -255,13 +255,13 @@ class SignLeaseAgreementView(APIView):
         #loop through the values array and check if the value is "email" or "push"
         for value in tenant_signed_lease_agreement_values:
             if value["name"] == "push" and value["value"] == True:
-                # Create a notification for the landlord that the tenant has signed the lease agreement
+                # Create a notification for the owner that the tenant has signed the lease agreement
                 notification = Notification.objects.create(
                     user=lease_agreement.owner.user,
                     message=f"{tenant_first_name} {tenant_last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
                     type="lease_agreement_signed",
                     title="Lease Agreement Signed",
-                    resource_url=f"/dashboard/landlord/lease-agreements/{lease_agreement.id}",
+                    resource_url=f"/dashboard/owner/lease-agreements/{lease_agreement.id}",
                 )
             elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
                 #Create an email notification for the tenant that the lease agreement has been signed
