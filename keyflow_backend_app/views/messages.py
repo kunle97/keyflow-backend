@@ -26,6 +26,8 @@ from django.db.models import Q
 from datetime import datetime
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.decorators import action
+
 class UserThreadsListView(APIView):
     filter_backends = [
         DjangoFilterBackend,
@@ -84,6 +86,7 @@ class UserThreadsListView(APIView):
                     "text": message.body,
                     "timestamp": message_timestamp,
                     "isSender": message.sender == logged_in_user,
+                    "isRead": message.is_read,
                     "file": file_info,
                 }
             )
@@ -185,4 +188,29 @@ class MessageViewSet(viewsets.ModelViewSet):
         return Response(
             {"message": "Message sent successfully", "status": status.HTTP_201_CREATED},
             status=status.HTTP_201_CREATED,
+        )
+
+    #Create a function that returns the users number of unread messages. call the function name retrieve_unread_messages_count and url_path retrieve-unread-messages-count
+    @action(detail=False, methods=["get"], url_path="retrieve-unread-messages-count")
+    def retrieve_unread_messages_count(self, request):
+        user = request.user
+        unread_messages_count = Message.objects.filter(
+            recipient=user, is_read=False
+        ).count()
+        return Response({"unread_messages_count": unread_messages_count})
+     
+     #Create a function that sets messages to read. call the function name set_messages_as_read and url_path set-messages-as-read
+    @action(detail=False, methods=["patch"], url_path="set-messages-thread-as-read")
+    def set_messages_thread_as_read(self, request):
+        user = request.user
+        other_user = User.objects.get(id=request.data.get("other_user_id"))
+        #GEt unread messages from when the user is the recipient and the sender is the recipient_user and when the user is the sender and the recipient is the recipient_user
+        unread_messages = Message.objects.filter(
+            recipient=user, sender=other_user, is_read=False
+        ) 
+
+        unread_messages.update(is_read=True)
+        return Response(
+            {"message": "Messages set as read successfully"},
+            status=status.HTTP_200_OK,
         )
