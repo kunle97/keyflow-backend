@@ -26,14 +26,14 @@ class Migration(migrations.Migration):
                 'db_table': 'owners',
             },
         ),
-        migrations.RemoveField(
-            model_name='maintenancerequest',
-            name='landlord',
-        ),
-        migrations.RemoveField(
-            model_name='rentalapplication',
-            name='landlord',
-        ),
+        # migrations.RemoveField(
+        #     model_name='maintenancerequest',
+        #     name='landlord',
+        # ),
+        # migrations.RemoveField(
+        #     model_name='rentalapplication',
+        #     name='landlord',
+        # ),
         migrations.RemoveField(
             model_name='transaction',
             name='tenant',
