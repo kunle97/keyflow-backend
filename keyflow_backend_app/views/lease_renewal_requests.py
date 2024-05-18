@@ -1,7 +1,6 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime,time
 import json
 import os
-import resource
 from postmarker.core import PostmarkClient
 from tracemalloc import start
 import stripe
@@ -27,6 +26,7 @@ from ..models.notification import Notification
 from ..serializers.lease_renewal_request_serializer import (
     LeaseRenewalRequestSerializer,
 )
+from keyflow_backend_app.helpers import calculate_final_price_in_cents
 from ..models.lease_template import LeaseTemplate
 from rest_framework import status
 from rest_framework.response import Response
@@ -303,8 +303,9 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         additional_charges_dict,
         lease_agreement
     ):
+
         # Set time part of due_date to end of the day
-        due_date_end_of_day = datetime.combine(due_date, datetime.max.time())
+        due_date_end_of_day = datetime.combine(due_date, time.max)
 
         # Create Stripe Invoice for the specified rent payment period
         invoice = stripe.Invoice.create(
@@ -319,12 +320,12 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                 "owner_id": unit.owner.id,
                 "rental_property_id": unit.rental_property.id,
                 "rental_unit_id": unit.id,
-                "lease_agreement_id": lease_agreement.id,
+                "lease_agreement_id": lease_agreement.id, #TODO: Add lease agreement to metadata
             },
             transfer_data={"destination": unit.owner.stripe_account_id},
-            application_fee_amount=int(rent_amount * 0.01 * 100),
         )
 
+        # Create a Stripe price for the rent amount
         price = stripe.Price.create(
             unit_amount=int(rent_amount * 100),
             currency="usd",
@@ -333,7 +334,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             },
         )
 
-        # Create a Stripe invoice item for the specified rent payment period
+        # Create a Stripe invoice item for the rent amount
         invoice_item = stripe.InvoiceItem.create(
             customer=customer_id,
             price=price.id,
@@ -341,24 +342,44 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             description="Rent payment",
             invoice=invoice.id,
         )
-        print(f"ZX invoice: {additional_charges_dict}")
-        if len(additional_charges_dict) > 0:
-            # Create an invoice item for each additional charge
+
+        # Calculate the Stripe fee based on the rent amount
+        stripe_fee_in_cents = calculate_final_price_in_cents(rent_amount)["stripe_fee_in_cents"]
+        
+        # Create a Stripe product and price for the Stripe fee
+        stripe_fee_product = stripe.Product.create(
+            name=f"Stripe fee for rent payment of {unit.name} at {unit.rental_property.name}",
+            type="service",
+        )
+        stripe_fee_price = stripe.Price.create(
+            unit_amount=int(stripe_fee_in_cents),
+            currency="usd",
+            product=stripe_fee_product.id,
+        )
+
+        # Create a Stripe invoice item for the Stripe fee
+        invoice_item = stripe.InvoiceItem.create(
+            customer=customer_id,
+            price=stripe_fee_price.id,
+            currency="usd",
+            description=f"Stripe fee for rent payment of {unit.name} at {unit.rental_property.name}",
+            invoice=invoice.id,
+        )
+        
+
+        # Add additional charges to the invoice if there are any
+        if additional_charges_dict:
             for charge in additional_charges_dict:
-                charge_amount = charge["amount"]
+                charge_amount = int(charge["amount"])
                 charge_name = charge["name"]
-                charge_product_name = str(
-                    f"{charge_name} for unit {unit.name} at {unit.rental_property.name}"
-                )
-                print(charge_product_name)
-                print(f"ZX charge_amount: {charge_amount}")
-                print(f"ZX charge_name: {charge_name}")
+                charge_product_name = f"{charge_name} for unit {unit.name} at {unit.rental_property.name}"
+                
                 charge_product = stripe.Product.create(
                     name=charge_product_name,
                     type="service",
                 )
                 charge_price = stripe.Price.create(
-                    unit_amount=int(charge_amount) * 100,
+                    unit_amount=int(charge_amount * 100),
                     currency="usd",
                     product=charge_product.id,
                 )
@@ -366,9 +387,11 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                     customer=customer_id,
                     price=charge_price.id,
                     currency="usd",
-                    description=f"{charge['name']} for unit {unit.name} at {unit.rental_property.name}",
+                    description=charge_product_name,
                     invoice=invoice.id,
                 )
+
+        # Finalize the invoice
         stripe.Invoice.finalize_invoice(invoice.id)
         return invoice
 
@@ -562,6 +585,26 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                 description=f"{tenant.user.first_name} {tenant.user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                 invoice=security_deposit_invoice.id,
             )    
+            #Add Invoice item for stripe fee
+            stripe_fee_in_cents = calculate_final_price_in_cents(security_deposit_value)["stripe_fee_in_cents"]
+            stripe_fee_product = stripe.Product.create(
+                name=f"Payment processing fee",
+                type="service",
+            )
+            stripe_fee_price = stripe.Price.create(
+                unit_amount=int(stripe_fee_in_cents),
+                currency="usd",
+                product=stripe_fee_product.id,
+            )
+            stripe.InvoiceItem.create(
+                customer=customer.id,
+                price=stripe_fee_price.id,
+                currency="usd",
+                description=f"Payment processing fee",
+                invoice=security_deposit_invoice.id,
+            )
+            # Finalize the invoice
+            stripe.Invoice.finalize_invoice(security_deposit_invoice.id)
         additional_charges_dict = json.loads(unit.additional_charges)
         
         #Create rent invoices usiing the create_rent_invoices method
