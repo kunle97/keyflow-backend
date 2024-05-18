@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views import View
 from datetime import datetime
 
+from keyflow_backend_app.helpers import calculate_final_price_in_cents
 from keyflow_backend_app.models.notification import Notification
 from ..models.transaction import Transaction
 from ..models.rental_property import RentalProperty
@@ -169,6 +170,41 @@ class StripeInvoicePaymentSucceededEventView(View):
                             },
                             transfer_data={"destination": owner.stripe_account_id},
                         )
+                        #Create Stripe product for the late fee
+                        late_fee_product = stripe.Product.create(
+                            name=f"Late Fee",
+                            type="service",
+                        )
+                        #Crate a stripe price for the late fee
+                        late_fee_price = stripe.Price.create(
+                            unit_amount=int(late_fee_value*100),
+                            currency="usd",
+                            product=late_fee_product.id,
+                        )
+                        #Create a stripe invoice item for the late fee
+                        late_fee_invoice_item = stripe.InvoiceItem.create(
+                            customer=invoice.customer,
+                            price=late_fee_price.id,
+                            quantity=1,
+                            description="Late Fee Payment",
+                            invoice=late_fee_invoice.id
+                        )
+                        # Calculate the Stripe fee based on the rent amount
+                        stripe_fee_in_cents = calculate_final_price_in_cents(late_fee_value)["stripe_fee_in_cents"]
+
+                        # Create a Stripe product and price for the Stripe fee
+                        stripe_fee_product = stripe.Product.create(
+                            name=f"Payment processing fee",
+                            type="service",
+                        )
+                        stripe_fee_price = stripe.Price.create(
+                            unit_amount=int(stripe_fee_in_cents),
+                            currency="usd",
+                            product=stripe_fee_product.id,
+                        )
+
+                        #finalize invoice
+                        late_fee_invoice.finalize_invoice()
 
                     invoice_transaction = Transaction.objects.create(
                         amount=float(invoice.amount_paid/100),  # Convert to currency units
