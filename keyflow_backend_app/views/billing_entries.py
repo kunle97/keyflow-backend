@@ -5,6 +5,7 @@ from postmarker.core import PostmarkClient
 from dotenv import load_dotenv
 from rest_framework import viewsets
 
+from keyflow_backend_app.helpers import calculate_final_price_in_cents
 from keyflow_backend_app.models.notification import Notification
 from keyflow_backend_app.models.rental_unit import RentalUnit
 from ..models.account_type import Owner, Tenant
@@ -70,7 +71,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             "expense",
             "vendor_payment",
         ]
-        amount = data["amount"]
+        amount = float(data["amount"])
         description = data["description"]
         tenant = None
         rental_unit = None
@@ -86,6 +87,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             tenant = Tenant.objects.get(id=request.data.get("tenant"))
             rental_unit = RentalUnit.objects.get(tenant=tenant)
             rental_property = rental_unit.rental_property
+        rental_unit_lease_terms = json.loads(rental_unit.lease_terms)   
         billing_entry_status = data["status"]
         collection_method = request.data.get("collection_method", None)
         stripe_invoice = None
@@ -109,6 +111,20 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             #Retrieve the "values" key value of the object
             invoice_recieved_values = invoice_recieved["values"]
 
+            # Calculate the Stripe fee based on the rent amount
+            stripe_fee_in_cents = calculate_final_price_in_cents(amount)["stripe_fee_in_cents"]
+
+            # Create a Stripe product and price for the Stripe fee
+            stripe_fee_product = stripe.Product.create(
+                name=f"Payment processing fee",
+                type="service",
+            )
+            stripe_fee_price = stripe.Price.create(
+                unit_amount=int(stripe_fee_in_cents),
+                currency="usd",
+                product=stripe_fee_product.id,
+            )
+
             if collection_method == "send_invoice":
                 tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
                 # Create a stripe invoice object if type is not in the expense_types list
@@ -128,7 +144,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
 
                     # Create a stripe price object
                     price = stripe.Price.create(
-                        unit_amount=int(float(amount) * 100),
+                        unit_amount=int(amount * 100),
                         currency="usd",
                         product_data={
                             "name": description,
@@ -142,6 +158,14 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                         quantity=1,
                         invoice=stripe_invoice.id,
                         description=description,
+                    )
+                    # Create a Stripe invoice item for the Stripe fee
+                    invoice_item = stripe.InvoiceItem.create(
+                        customer=tenant_stripe_customer,
+                        price=stripe_fee_price.id,
+                        currency="usd",
+                        description=f"Stripe fee for rent payment of {rental_unit.name} at {rental_unit.rental_property.name}",
+                        invoice=stripe_invoice.id,
                     )
                     stripe.Invoice.finalize_invoice(stripe_invoice.id)
                     stripe.Invoice.send_invoice(stripe_invoice.id)
@@ -228,9 +252,9 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
 
                     # Create a stripe price object
                     price = stripe.Price.create(
-                        unit_amount=int(float(amount) * 100),
+                        unit_amount=int(amount * 100),
                         currency="usd",
-                        product_data={
+                        product_data={ 
                             "name": description,
                         },
                     )
@@ -242,6 +266,14 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                         quantity=1,
                         invoice=stripe_invoice.id,
                         description=description,
+                    )
+                    # Create a Stripe invoice item for the Stripe fee
+                    invoice_item = stripe.InvoiceItem.create(
+                        customer=tenant_stripe_customer,
+                        price=stripe_fee_price.id,
+                        currency="usd",
+                        description=f"Stripe fee for rent payment of {rental_unit.name} at {rental_unit.rental_property.name}",
+                        invoice=stripe_invoice.id,
                     )
                     stripe.Invoice.finalize_invoice(stripe_invoice.id)
                     for value in invoice_recieved_values:

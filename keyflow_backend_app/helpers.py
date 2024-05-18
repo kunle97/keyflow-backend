@@ -4,7 +4,6 @@ import random
 import string
 from dotenv import load_dotenv
 import boto3
-from django.core.files.storage import default_storage
 import sendgrid
 import os
 from sendgrid.helpers.mail import Mail, Email, To, Content
@@ -106,3 +105,25 @@ def sendGridTestIntegreation():
         print(response.headers)
     except Exception as e:
         print(e)
+
+def calculate_final_price_in_cents(invoice_amount):
+    invoice_amount_in_cents = int(invoice_amount * 100)
+    # Ensure invoice_amount_in_cents is an int
+    if not isinstance(invoice_amount_in_cents, int):
+        print(invoice_amount_in_cents)
+        raise ValueError("invoice_amount_in_cents must be an integer representing cents")
+
+    stripe_fee_percentage = 0.03 # 3% fee
+    stripe_fee_fixed = 30  # Fixed fee in cents
+
+    # Calculate fee in cents
+    stripe_fee = (invoice_amount_in_cents * stripe_fee_percentage)+ stripe_fee_fixed
+    final_price = invoice_amount_in_cents + stripe_fee
+
+   #return the stripe fee and the final price in a dictionary
+    return {
+        "stripe_fee_in_cents": int(stripe_fee),
+        "final_price_in_cents": int(final_price),
+        "stripe_fee": stripe_fee/100,
+        "final_price": final_price/100
+    }
