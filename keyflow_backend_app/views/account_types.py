@@ -4,6 +4,7 @@ import os
 from datetime import timedelta, datetime, time
 from dotenv import load_dotenv
 # Third-party library imports
+from pkg_resources import require
 import stripe
 from postmarker.core import PostmarkClient
 from dateutil.relativedelta import relativedelta
@@ -178,10 +179,40 @@ class OwnerViewSet(viewsets.ModelViewSet):
         account_link = stripe.Account.create_login_link(
             id=owner.stripe_account_id,
         )
+
         return Response(
             {"account_link": account_link.url}, status=status.HTTP_200_OK
         )
 
+    #Create a function to create and return a stripe account link using the endpoint api/owners/{id}/stripe-account-link
+    @action(detail=True, methods=["get"], url_path="stripe-onboarding-account-link")
+    def onboarding_account_link(self, request, pk=None):
+        owner = self.get_object()
+        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+        client_hostname = os.getenv("CLIENT_HOSTNAME")
+        refresh_url = f"{client_hostname}/dashboard/owner/login"
+        return_url = f"{client_hostname}/dashboard/owner/"
+        # obtain stripe account link for the user to complete the onboarding process
+        account_link = stripe.AccountLink.create(
+            account=owner.stripe_account_id,
+            refresh_url=refresh_url,
+            return_url=return_url,
+            type="account_onboarding",
+        )
+
+        return Response(
+            {"account_link": account_link.url}, status=status.HTTP_200_OK
+        )
+
+    #Create a function to retrieve the owners stripe account requirements using the endpoint api/owners/{id}/stripe-account-requirements
+    @action(detail=True, methods=["get"], url_path="stripe-account-requirements")
+    def stripe_account_requirements (self, request, pk=None):
+        owner = self.get_object()
+        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+        account = stripe.Account.retrieve(owner.stripe_account_id)
+        requirements = account.requirements
+        return Response({"requirements": requirements}, status=status.HTTP_200_OK)
+    
     # Create an action method to retrieve all tenants for a given owner. have the url_path be tenants (Replacing the LAndlordTenantList Vieew post method)
     @action(detail=True, url_path="tenants")
     def get_tenants(self, request, pk=None):

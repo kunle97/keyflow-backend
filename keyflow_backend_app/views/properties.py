@@ -1,5 +1,7 @@
 import json
-import stat
+import stripe
+import os
+from dotenv import load_dotenv
 from django.http import JsonResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -27,7 +29,7 @@ from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+load_dotenv()
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = RentalPropertySerializer
@@ -50,7 +52,18 @@ class PropertyViewSet(viewsets.ModelViewSet):
         owner = Owner.objects.get(user=user)
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
-    
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        owner = Owner.objects.get(user=user)
+         #Retrieve the users stripe account
+        stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
+        stripe_account = stripe.Account.retrieve(owner.stripe_account_id)
+        stripe_account_requirements = stripe_account.requirements.currently_due
+        if len(stripe_account_requirements) > 0:
+            return Response({'message': 'Please complete your stripe account onboarding before creating units.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return super().create(request, *args, **kwargs)
     @action(detail=False, methods=['get'], url_path='filters')
     def retireve_filter_data(self, request):
         user = self.request.user
@@ -75,8 +88,6 @@ class PropertyViewSet(viewsets.ModelViewSet):
         tenants = User.objects.filter(unit__property=property, account_type='tenant')
         serializer = UserSerializer(tenants, many=True)
         return Response(serializer.data)
-    
-    
 
     @action(detail=False, methods=['post'], url_path="upload-csv-properties") #POST: api/properties/upload-csv-properties
     def upload_csv_propertiess(self, request, pk=None):
