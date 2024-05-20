@@ -198,6 +198,54 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
         return JsonResponse({'message': 'Portfolio updated successfully.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
     
+    #Create a function that expects to receive an array and updates portfolio for multiple properties. url_path: api/properties/update-portfolios
+
+    @action(detail=False, methods=['patch'], url_path="update-portfolios")
+    def update_portfolios(self, request):
+        data = request.data.copy()
+        print(data["properties"])
+        properties = json.loads(data["properties"])
+        portfolio_id = data["portfolio"]
+        selected_properties = RentalProperty.objects.filter(id__in=properties)
+        owner = Owner.objects.get(user=request.user)
+        portfolio_instance = Portfolio.objects.get(id=portfolio_id)
+        portfolio_preferences = json.loads(portfolio_instance.preferences)
+        portfolio_properties = RentalProperty.objects.filter(portfolio=portfolio_instance)
+        #Set all the properties in portolio_propterites to None for the portfolio field
+        for property in portfolio_properties:
+            property.portfolio = None
+            property.save()
+
+        #Check if selected properties is not empty
+        if len(selected_properties) > 0:
+            for property in selected_properties:
+                property.portfolio = portfolio_instance
+                property.save()
+
+        # Update preferences
+        for property in selected_properties:
+            property_preferences = json.loads(property.preferences)
+            for updated_pref in portfolio_preferences:
+                for pref in property_preferences:
+                    if updated_pref["name"] == pref["name"]:
+                        pref["value"] = updated_pref["value"]
+                        break
+            property.preferences = json.dumps(property_preferences)
+            property.save()
+
+            # Update unit preferences
+            for unit in property.rental_units.all():
+                unit_preferences = json.loads(unit.preferences)
+                for updated_pref in portfolio_preferences:
+                    for pref in unit_preferences:
+                        if updated_pref["name"] == pref["name"]:
+                            pref["value"] = updated_pref["value"]
+                            break
+                unit.preferences = json.dumps(unit_preferences)
+                unit.save()
+
+        return Response({'message': 'Property portfolios updated successfully.', "status":200}, status=status.HTTP_200_OK)
+    
 #Used to retrieve property info unauthenticated
 class RetrievePropertyByIdView(APIView):
     def post(self, request):
