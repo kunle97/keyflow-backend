@@ -1,5 +1,4 @@
 import os
-from tempfile import template
 from dotenv import load_dotenv
 import json
 import stripe
@@ -105,6 +104,12 @@ class UnitViewSet(viewsets.ModelViewSet):
         subscription = stripe.Subscription.retrieve( 
             subscription_id, #Retrieve the subscription from stripe
         )
+
+        #Retrieve the users stripe account
+        stripe_account = stripe.Account.retrieve(owner.stripe_account_id)
+        stripe_account_requirements = stripe_account.requirements.currently_due
+        if len(stripe_account_requirements) > 0:
+            return Response({'message': 'Please complete your stripe account onboarding before creating units.'}, status=status.HTTP_400_BAD_REQUEST)
 
         #If user has the premium plan, check to see if they have 10 or less units
         if product_id == os.getenv('STRIPE_STANDARD_PLAN_PRODUCT_ID'):
