@@ -122,6 +122,7 @@ class UserLoginView(APIView):
                         "token": token.key,
                         "token_expiration_date": expiration_date,
                         "statusCode": status.HTTP_200_OK,
+                        "owner_id":tenant.owner.pk,
                         "tenant_id": tenant.pk,
                         "isAuthenticated": True,
                     },

@@ -122,9 +122,21 @@ class MessageViewSet(viewsets.ModelViewSet):
     # override post method uising create method to create a message
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
-        recipient = User.objects.get(id=data["recipient"])
+        recipient = None
         sender = User.objects.get(id=data["sender"])
         body = data["body"]
+        preferences = {}
+
+        if request.user.account_type == "owner":#If owner is sending a message
+            tenant_user = User.objects.get(id=data["recipient"])
+            tenant = Tenant.objects.get(user=tenant_user)
+            preferences = json.loads(tenant.preferences)
+            recipient = tenant_user
+        elif request.user.account_type == "tenant":#If tenant is sending a message
+            owner = Owner.objects.get(id=data["recipient"])
+            preferences = json.loads(owner.preferences)
+            recipient = owner.user
+
         # CHeck if payload has a file attached and upload it then add the file to a variable
         if request.FILES:
             uploaded_file = request.FILES["file"]
@@ -146,14 +158,7 @@ class MessageViewSet(viewsets.ModelViewSet):
                 f"New Message from {sender.first_name} {sender.last_name}"
             )
         
-        preferences = {}
 
-        if recipient.account_type == "tenant":
-            tenant = Tenant.objects.get(user=recipient)
-            preferences = json.loads(tenant.preferences)
-        elif recipient.account_type == "owner":
-            owner = Owner.objects.get(user=recipient)
-            preferences = json.loads(owner.preferences)
 
         message_recieved_preferences = next(
             (item for item in preferences if item["name"] == "message_received"), None
