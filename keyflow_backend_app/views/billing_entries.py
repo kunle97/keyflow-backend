@@ -76,7 +76,16 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
         tenant = None
         rental_unit = None
         rental_property = None
-
+        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+        account = stripe.Account.retrieve(owner.stripe_account_id)
+        requirements = account.requirements
+        if len(requirements.currently_due) > 0:
+            return Response(
+                {
+                    "message": "Please complete your account verification before creating a billing entry.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         # Check if tennt exists
         tenant_id = request.data.get("tenant", None)
         if type in expense_types and tenant_id is None:
@@ -226,110 +235,6 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                         rental_unit=rental_unit,
                         rental_property=rental_property,
                     )
-                serializer = BillingEntrySerializer(billing_entry)
-                return Response(
-                    {
-                        "message": "Billing entry created successfully.",
-                        "data": serializer.data,
-                    },
-                    status=status.HTTP_201_CREATED,
-                )
-            elif collection_method == "charge_automatically":
-                tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
-                if type not in expense_types:
-                    # Create a stripe invoice object
-                    stripe_invoice = stripe.Invoice.create(
-                        customer=tenant_stripe_customer,
-                        auto_advance=True,
-                        collection_method=collection_method,
-                        metadata={
-                            "description": description,
-                            "tenant_id": tenant.pk,
-                            "owner_id": owner.pk,
-                            "type": type,
-                        },
-                    )
-
-                    # Create a stripe price object
-                    price = stripe.Price.create(
-                        unit_amount=int(amount * 100),
-                        currency="usd",
-                        product_data={ 
-                            "name": description,
-                        },
-                    )
-
-                    # Create an invoice item for the stripe invoice
-                    invoice_item = stripe.InvoiceItem.create(
-                        customer=tenant_stripe_customer,
-                        price=price.id,
-                        quantity=1,
-                        invoice=stripe_invoice.id,
-                        description=description,
-                    )
-                    # Create a Stripe invoice item for the Stripe fee
-                    invoice_item = stripe.InvoiceItem.create(
-                        customer=tenant_stripe_customer,
-                        price=stripe_fee_price.id,
-                        currency="usd",
-                        description=f"Stripe fee for rent payment of {rental_unit.name} at {rental_unit.rental_property.name}",
-                        invoice=stripe_invoice.id,
-                    )
-                    stripe.Invoice.finalize_invoice(stripe_invoice.id)
-                    for value in invoice_recieved_values:
-                        if value["name"] == "push" and value["value"] == True:
-                            #Create a notification for the tenant that thier account has been charged for the invoice
-                            notification = Notification.objects.create(
-                                user=tenant.user,
-                                message=f"Your account has been charged for {description}",
-                                type="account_charged",
-                                title="Account Charged",
-                                resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}",
-                            )
-                        elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                            #Create a corresponding email notification
-                            client_hostname = os.getenv("CLIENT_HOSTNAME")
-                            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                            to_email = tenant.user.email
-                            if os.getenv("ENVIRONMENT") == "development":
-                                to_email = "keyflowsoftware@gmail.com"
-                            else:
-                                to_email = tenant.user.email
-                            postmark.emails.send(
-                                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                                To=to_email,
-                                Subject="Account Charged",
-                                HtmlBody=f"""
-                                Your account has been charged for {description}.
-                                <a href='{client_hostname}/dashboard/tenant/bills/{stripe_invoice.id}'>View Invoice</a>
-                                """,
-                            )
-
-                # Create Billing Entry for the owner
-                billing_entry = BillingEntry.objects.create(
-                    type=type,
-                    amount=amount,
-                    due_date=due_date_time_field,
-                    description=description,
-                    tenant=tenant,
-                    owner=owner,
-                    rental_unit=rental_unit,
-                    status=billing_entry_status,
-                    stripe_invoice_id=stripe_invoice.id,
-                )
-                rental_unit = RentalUnit.objects.get(tenant=tenant)
-                rental_property = rental_unit.rental_property
-                if billing_entry_status == "paid":
-                    # Create Transaction for the billing entry
-                    transaction = Transaction.objects.create(
-                        amount=amount,
-                        billing_entry=billing_entry,
-                        description=description,
-                        type="revenue",
-                        tenant=tenant,
-                        user=owner.user,
-                    )
-
                 serializer = BillingEntrySerializer(billing_entry)
                 return Response(
                     {
