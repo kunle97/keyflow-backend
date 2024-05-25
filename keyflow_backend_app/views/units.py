@@ -12,7 +12,9 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated 
 
 from keyflow_backend_app.models.account_type import Owner
-from ..models.rental_unit import RentalUnit 
+from keyflow_backend_app.models.lease_template import LeaseTemplate
+from keyflow_backend_app.models.rental_property import RentalProperty
+from ..models.rental_unit import RentalUnit, default_rental_unit_lease_terms
 from ..models.lease_agreement import LeaseAgreement
 from ..models.maintenance_request import MaintenanceRequest
 from ..models.rental_application import RentalApplication
@@ -94,8 +96,12 @@ class UnitViewSet(viewsets.ModelViewSet):
         user = request.user 
         owner = Owner.objects.get(user=user)
         rental_property = data['rental_property']
+        rental_property_instance = RentalProperty.objects.get(id=rental_property)
         subscription_id = data['subscription_id']
         default_lease_terms = data['lease_terms']  
+        lease_template = None
+        if rental_property_instance.lease_template:
+            lease_template = rental_property_instance.lease_template
         #Convert defauult lease_terms to dictionary 
         lease_terms_dict = json.loads(default_lease_terms)
         product_id = data['product_id']
@@ -104,7 +110,7 @@ class UnitViewSet(viewsets.ModelViewSet):
         subscription = stripe.Subscription.retrieve( 
             subscription_id, #Retrieve the subscription from stripe
         )
-
+        
         #Retrieve the users stripe account
         stripe_account = stripe.Account.retrieve(owner.stripe_account_id)
         stripe_account_requirements = stripe_account.requirements.currently_due
@@ -126,6 +132,7 @@ class UnitViewSet(viewsets.ModelViewSet):
                     size=unit['size'],
                     lease_terms=default_lease_terms
                 )
+                rental_unit.apply_lease_template(lease_template)
             return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
         
         #If user has the pro plan, increase the metered usage for the user based on the new number of units
@@ -141,6 +148,7 @@ class UnitViewSet(viewsets.ModelViewSet):
                     size=unit['size'],
                     lease_terms=data['lease_terms']  
                 )
+                rental_unit.apply_lease_template(lease_template)
             #Update the subscriptions quantity to the new number of units
             subscription_item=stripe.SubscriptionItem.modify(
                 subscription['items']['data'][0].id,
@@ -227,4 +235,19 @@ class UnitViewSet(viewsets.ModelViewSet):
         lease_template = unit.lease_template
         serializer = LeaseTemplateSerializer(lease_template)
         return Response(serializer.data)
+    
+    #Create a function to assign a lease template to a unit using the unit's assign_lease_template function
+    @action(detail=True, methods=['post'], url_path='assign-lease-template')
+    def assign_lease_template(self, request, pk=None):
+        unit = self.get_object()
+        lease_template_id = request.data.get('lease_template_id')
+        lease_template = LeaseTemplate.objects.get(id=lease_template_id)
+        unit.apply_lease_template(lease_template)
+        return Response({'message': 'Lease template assigned successfully.',"status":status.HTTP_200_OK}, status=status.HTTP_200_OK) 
 
+    #Create a function to remove a lease template from a unit
+    @action(detail=True, methods=['patch'], url_path='remove-lease-template') #POST: /api/units/{id}/remove-lease-template
+    def remove_lease_template(self, request, pk=None):
+        unit = self.get_object()
+        unit.remove_lease_template()
+        return Response({'message': 'Lease template removed successfully.',"status":status.HTTP_200_OK}, status=status.HTTP_200_OK)

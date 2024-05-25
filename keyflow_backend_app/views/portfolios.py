@@ -9,7 +9,7 @@ from ..serializers.portfolio_serializer import PortfolioSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.decorators import action
-
+from rest_framework import status
 
 class PortfolioViewSet(viewsets.ModelViewSet):
     queryset = Portfolio.objects.all()
@@ -71,4 +71,19 @@ class PortfolioViewSet(viewsets.ModelViewSet):
                 unit.preferences = json.dumps(unit_preferences)
                 unit.save()
 
-        return JsonResponse({'message': 'Preferences updated successfully.'}, status=200)
+        return JsonResponse({'message': 'Preferences updated successfully.', "status":status.HTTP_200_OK}, status=200)
+
+        #Create a function to remove the lease template from the portfolio and set all lease term for the units  values to the default values
+    @action(detail=True, methods=["patch"], url_path="remove-lease-template")
+    def remove_lease_template(self, request, pk=None):
+        portfolio_instance = self.get_object()
+        portfolio_instance.lease_template = None
+        portfolio_instance.save()
+        properties = portfolio_instance.rental_properties.all()
+        for property in properties:
+            property.lease_template = None
+            property.save()
+            units = property.rental_units.all()
+            for unit in units:
+                unit.remove_lease_template()
+        return JsonResponse({'message': 'Lease template removed successfully.', "status":status.HTTP_200_OK}, status=200)

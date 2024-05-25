@@ -1,10 +1,11 @@
 from email.policy import default
+import json
+from decimal import Decimal
 from django.db import models
 from datetime import datetime
 from keyflow_backend_app.models.account_type import Owner,Tenant
 from keyflow_backend_app.models.rental_property import RentalProperty
 from keyflow_backend_app.models.uploaded_file import UploadedFile
-
 
 default_rental_unit_preferences = """
 [
@@ -37,7 +38,7 @@ default_rental_unit_preferences = """
     }
 ]
 """
-default_rental_unit_additional_charges = """
+default_rental_unit_lease_terms = """
 [
     {
         "name": "rent",
@@ -184,7 +185,7 @@ class RentalUnit(models.Model):
     template_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     signed_lease_document_file = models.ForeignKey(UploadedFile, on_delete=models.SET_NULL, blank=True, null=True, default=None, related_name='rental_units')
     signed_lease_document_metadata = models.TextField(blank=True, null=True, default="[]") #JSON string of signed lease metadata
-    lease_terms = models.TextField(blank=True, null=True, default=default_rental_unit_preferences) #JSON string of unit preferences
+    lease_terms = models.TextField(blank=True, null=True, default=default_rental_unit_lease_terms) #JSON string of unit preferences
     additional_charges = models.TextField(blank=True, null=True, default="[]") #JSON string of additional charges
     stripe_product_id = models.CharField(max_length=100, blank=True, null=True, default=None)
     stripe_price_id = models.CharField(max_length=100, blank=True, null=True, default=None)
@@ -194,9 +195,46 @@ class RentalUnit(models.Model):
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
 
+    #Create function that takes a lease template and a unit and sets the lease templates values to the unit's corresponding lease_term values
+    def apply_lease_template(self, lease_template):
+        if lease_template == None:
+            self.lease_template = None
+            self.save()
+            return
+        
+        self.template_id = lease_template.template_id
+
+        # Convert additional charges to JSON-friendly format
+        additional_charges = json.loads(lease_template.additional_charges)
+        for charge in additional_charges:
+            if isinstance(charge['amount'], Decimal):
+                charge['amount'] = str(charge['amount'])
+
+        self.additional_charges = json.dumps(additional_charges)
+        self.lease_template = lease_template
+        
+        unit_lease_terms = json.loads(self.lease_terms)
+        for term in unit_lease_terms:
+            term_name = term.get('name')
+            if hasattr(lease_template, term_name):
+                term_value = getattr(lease_template, term_name)
+                if isinstance(term_value, Decimal):
+                    term_value = str(term_value)
+                term['value'] = term_value
+        
+        self.lease_terms = json.dumps(unit_lease_terms)
+        self.save()
+
+    #Create a function to  remove the lease template from the unit and set all lease term values to the default values
+    def remove_lease_template(self):
+        self.template_id = None
+        self.lease_template = None
+        self.lease_terms = default_rental_unit_lease_terms
+        self.additional_charges = "[]"
+        self.save()
     class Meta:
         db_table = 'rental_units'
 
     def __str__(self):
-        return f"Unit {self.name} at {self.rental_property.street}"
+        return f"Unit {self.name} "
     
