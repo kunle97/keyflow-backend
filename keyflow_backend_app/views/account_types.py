@@ -676,36 +676,43 @@ class TenantViewSet(viewsets.ModelViewSet):
                 stripe_customer_id=customer.id,
                 owner=owner,
             )
-
-            owner_preferences = json.loads(owner.preferences)
-            new_tenant_registration_complete = next(
-                item for item in owner_preferences if item["name"] == "new_tenant_registration_complete"
-            )
-            new_tenant_registration_complete_values = new_tenant_registration_complete["values"]
-            for value in new_tenant_registration_complete_values:
-                if value["name"] == "push" and value["value"] == True:
-                    notification = Notification.objects.create(
-                        user=owner.user,
-                        message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
-                        type="tenant_registered",
-                        title="Tenant Registered",
-                        resource_url=f"/dashboard/owner/tenants/{tenant_user.id}",
-                    )
-                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                    #Create a postmark email notification to the Owner
-                    postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
-                    to_email = ""
-                    if os.getenv("ENVIRONMENT") == "development":
-                        to_email = "keyflowsoftware@gmail.com"
-                    else:
-                        to_email = owner.user.email
-                    postmark.emails.send(
-                        From=os.getenv('KEYFLOW_SENDER_EMAIL'), 
-                        To=to_email,
-                        Subject='Tenant Registration',
-                        HtmlBody=f'Hi {owner.user.first_name},<br/><br/>{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}.<br/><br/>Regards,<br/>KeyFlow Team',
-                    )
-            
+            try: 
+                owner_preferences = json.loads(owner.preferences)
+                new_tenant_registration_complete = next(
+                    item for item in owner_preferences if item["name"] == "new_tenant_registration_complete"
+                )
+                new_tenant_registration_complete_values = new_tenant_registration_complete["values"]
+                for value in new_tenant_registration_complete_values:
+                    if value["name"] == "push" and value["value"] == True:
+                        notification = Notification.objects.create(
+                            user=owner.user,
+                            message=f"{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
+                            type="tenant_registered",
+                            title="Tenant Registered",
+                            resource_url=f"/dashboard/owner/tenants/{tenant_user.id}",
+                        )
+                    elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                        #Create a postmark email notification to the Owner
+                        postmark = PostmarkClient(server_token=os.getenv('POSTMARK_SERVER_TOKEN'))
+                        to_email = ""
+                        if os.getenv("ENVIRONMENT") == "development":
+                            to_email = "keyflowsoftware@gmail.com"
+                        else:
+                            to_email = owner.user.email
+                        postmark.emails.send(
+                            From=os.getenv('KEYFLOW_SENDER_EMAIL'), 
+                            To=to_email,
+                            Subject='Tenant Registration',
+                            HtmlBody=f'Hi {owner.user.first_name},<br/><br/>{tenant_user.first_name} {tenant_user.last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}.<br/><br/>Regards,<br/>KeyFlow Team',
+                        )
+            except StopIteration:
+                # Handle case where "new_tenant_registration_complete" is not found
+                print("new_tenant_registration_complete not found. Notification not sent")
+                pass
+            except KeyError:
+                # Handle case where "values" key is missing in "new_tenant_registration_complete"
+                print("values key not found in new_tenant_registration_complete. Notification not sent")
+                pass
             unit.tenant = tenant
             unit.is_occupied = True
             unit.save()
