@@ -9,8 +9,8 @@ from .account_type_serializer import OwnerSerializer
 class LeaseTemplateSerializer(serializers.ModelSerializer):
     owner = OwnerSerializer(many=False, read_only=True)
     units = RentalUnitSerializer(many=True, read_only=True, source='rental_units')
-    rental_properties = RentalPropertySerializer(many=True, read_only=True, )
-    portfolios = PortfolioSerializer(many=True, read_only=True, source='portfolio')
+    rental_properties = RentalPropertySerializer(many=True, read_only=True)
+    portfolios = PortfolioSerializer(many=True, read_only=True)
     class Meta:
         model = LeaseTemplate
         fields = '__all__'
