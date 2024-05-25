@@ -219,35 +219,44 @@ class StripeInvoicePaymentSucceededEventView(View):
                         # ),  # or payment_intent.payment_method.id
                         payment_intent_id=invoice.payment_intent,
                     )
-                    owner_preferences = json.loads(owner.preferences)
-                    invoice_paid = next(
-                        item for item in owner_preferences if item["name"] == "invoice_paid"
-                    )
-                    invoice_paid_values = invoice_paid["values"]
-                    for value in invoice_paid_values:
-                        if value["name"] == "push" and value["value"] == True:
-                            notification = Notification.objects.create(
-                                user=owner_user,
-                                message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
-                                type="rent_payment",
-                                title="Rent Payment",
-                                resource_url=f"/dashboard/owner/transactions/{invoice_transaction.id}",
-                            )
-                        elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                            #Create an email notification for the owner about the the tenant's rent payment
-                            client_hostname = os.getenv("CLIENT_HOSTNAME")
-                            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                            to_email = ""
-                            if os.getenv("ENVIRONMENT") == "development":
-                                to_email = "keyflowsoftware@gmail.com"
-                            else:
-                                to_email = owner_user.email
-                            postmark.emails.send(
-                                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                                To=to_email,
-                                Subject="Rent Payment Notification",
-                                HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/owner/transactions/{invoice_transaction.id}'>View Transaction</a>",
-                            )
+                    try: 
+                        owner_preferences = json.loads(owner.preferences)
+                        invoice_paid = next(
+                            item for item in owner_preferences if item["name"] == "invoice_paid"
+                        )
+                        invoice_paid_values = invoice_paid["values"]
+                        for value in invoice_paid_values:
+                            if value["name"] == "push" and value["value"] == True:
+                                notification = Notification.objects.create(
+                                    user=owner_user,
+                                    message=f"{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
+                                    type="rent_payment",
+                                    title="Rent Payment",
+                                    resource_url=f"/dashboard/owner/transactions/{invoice_transaction.id}",
+                                )
+                            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                                #Create an email notification for the owner about the the tenant's rent payment
+                                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                                to_email = ""
+                                if os.getenv("ENVIRONMENT") == "development":
+                                    to_email = "keyflowsoftware@gmail.com"
+                                else:
+                                    to_email = owner_user.email
+                                postmark.emails.send(
+                                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                                    To=to_email,
+                                    Subject="Rent Payment Notification",
+                                    HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a rent payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/owner/transactions/{invoice_transaction.id}'>View Transaction</a>",
+                                )
+                    except StopIteration:
+                        # Handle case where "invoice_paid" is not found
+                        print("invoice_paid not found. Notification not sent.")
+                        pass
+                    except KeyError:
+                        # Handle case where "values" key is missing in "invoice_paid"
+                        print("values key not found in invoice_paid. Notification not sent.")
+                        pass                        
                 if invoice_metadata.get("type", None) == "security_deposit":
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
                         #retrieve the late fee from the unit's lease terms
@@ -296,35 +305,44 @@ class StripeInvoicePaymentSucceededEventView(View):
                         # ),  # or payment_intent.payment_method.id
                         payment_intent_id=invoice.payment_intent,
                     )
-                    owner_preferences = json.loads(owner.preferences)
-                    invoice_paid = next(
-                        item for item in owner_preferences if item["name"] == "invoice_paid"
-                    )
-                    invoice_paid_values = invoice_paid["values"]
-                    for value in invoice_paid_values:
-                        if value["name"] == "push" and value["value"] == True:
-                            notification = Notification.objects.create(
-                                user=owner_user,
-                                message=f"{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
-                                type="security_deposit",
-                                title="Security Deposit Payment",
-                                resource_url=f"/dashboard/owner/transactions/{invoice_transaction.id}",
-                            )
-                        elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                            #Create an email notification for the owner about the the tenant's security deposit payment
-                            client_hostname = os.getenv("CLIENT_HOSTNAME")
-                            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                            to_email = ""
-                            if os.getenv("ENVIRONMENT") == "development":
-                                to_email = "keyflowsoftware@gmail.com"
-                            else:
-                                to_email = owner_user.email
-                            postmark.emails.send(
-                                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                                To=to_email,
-                                Subject="Security Deposit Payment Notification",
-                                HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/owner/transactions/{invoice_transaction.id}'>View Transaction</a>",
-                            )
+                    try:
+                        owner_preferences = json.loads(owner.preferences)
+                        invoice_paid = next(
+                            item for item in owner_preferences if item["name"] == "invoice_paid"
+                        )
+                        invoice_paid_values = invoice_paid["values"]
+                        for value in invoice_paid_values:
+                            if value["name"] == "push" and value["value"] == True:
+                                notification = Notification.objects.create(
+                                    user=owner_user,
+                                    message=f"{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}",
+                                    type="security_deposit",
+                                    title="Security Deposit Payment",
+                                    resource_url=f"/dashboard/owner/transactions/{invoice_transaction.id}",
+                                )
+                            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                                #Create an email notification for the owner about the the tenant's security deposit payment
+                                client_hostname = os.getenv("CLIENT_HOSTNAME")
+                                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                                to_email = ""
+                                if os.getenv("ENVIRONMENT") == "development":
+                                    to_email = "keyflowsoftware@gmail.com"
+                                else:
+                                    to_email = owner_user.email
+                                postmark.emails.send(
+                                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                                    To=to_email,
+                                    Subject="Security Deposit Payment Notification",
+                                    HtmlBody=f"<p>{tenant_user.first_name} {tenant_user.last_name} has made a security deposit payment for the amount of ${float(invoice.amount_paid/100)} for unit {rental_unit.name} at {rental_property.name}</p> <a href='{client_hostname}/dashboard/owner/transactions/{invoice_transaction.id}'>View Transaction</a>",
+                                )
+                    except StopIteration:
+                        # Handle case where "invoice_paid" is not found
+                        print("invoice_paid not found. Notification not sent.")
+                        pass
+                    except KeyError:
+                        # Handle case where "values" key is missing in "invoice_paid"
+                        print("values key not found in invoice_paid. Notification not sent.")
+                        pass
                 else:
                     return JsonResponse({"status": "ok"})
             return JsonResponse({"status": "ok"})

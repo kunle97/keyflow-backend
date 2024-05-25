@@ -95,39 +95,46 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             request_term=request.data.get("lease_term"),
             rent_frequency=request.data.get("rent_frequency"),
         )
-
-        owner_preferences = json.loads(owner.preferences)
-        lease_renewal_request_created_preferences = next(
-            (item for item in owner_preferences if item["name"] == "lease_renewal_request_created"),
-            None,
-        )
-        lease_renewal_request_created_values = lease_renewal_request_created_preferences["values"]
-        for value in lease_renewal_request_created_values:
-            if value["name"] == "push" and value["value"] == True:
-                # Create a  notification for the owner that the tenant has requested to renew the lease agreement
-                notification = Notification.objects.create(
-                    user=user,
-                    message=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
-                    type="lease_renewal_request",
-                    title="Lease Renewal Request",
-                    resource_url=f"/dashboard/owner/lease-renewal-requests/{lease_renewal_request.id}",
-                )
-            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #Create an email notification for the owner that the tenant has requested to renew the lease agreement
-                client_hostname = os.getenv("CLIENT_HOSTNAME")
-                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                to_email = ""
-                if os.getenv("ENVIRONMENT") == "development":
-                    to_email = "keyflowsoftware@gmail.com"
-                else:
-                    to_email = user.email
-                postmark.emails.send(
-                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                    To=to_email,
-                    Subject="New Lease Renewal Request",
-                    HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}. Click <a href='{client_hostname}/dashboard/owner/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
-                )
-
+        try:
+            owner_preferences = json.loads(owner.preferences)
+            lease_renewal_request_created_preferences = next(
+                (item for item in owner_preferences if item["name"] == "lease_renewal_request_created"),
+                None,
+            )
+            lease_renewal_request_created_values = lease_renewal_request_created_preferences["values"]
+            for value in lease_renewal_request_created_values:
+                if value["name"] == "push" and value["value"] == True:
+                    # Create a  notification for the owner that the tenant has requested to renew the lease agreement
+                    notification = Notification.objects.create(
+                        user=user,
+                        message=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
+                        type="lease_renewal_request",
+                        title="Lease Renewal Request",
+                        resource_url=f"/dashboard/owner/lease-renewal-requests/{lease_renewal_request.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create an email notification for the owner that the tenant has requested to renew the lease agreement
+                    client_hostname = os.getenv("CLIENT_HOSTNAME")
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = user.email
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="New Lease Renewal Request",
+                        HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}. Click <a href='{client_hostname}/dashboard/owner/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
+                    )
+        except StopIteration:
+            # Handle case where "lease_cancellation_request_created" is not found
+            print("lease_cancellation_request_created not found. Notification not sent.")
+            pass
+        except KeyError:
+            # Handle case where "values" key is missing in "lease_cancellation_request_created"
+            print("values key not found in lease_cancellation_request_created. Notification not sent.")
+            pass
         # Return a success response containing the lease renewal request object as well as a message and a 201 stuats code
         serializer = LeaseRenewalRequestSerializer(lease_renewal_request)
         return Response(
@@ -166,39 +173,46 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         # Update Lease Renewal Request
         lease_renewal_request.status = "approved"
         lease_renewal_request.save()
-        
-        tenant_preferences = json.loads(tenant.preferences)
-        lease_renewal_request_approved = next(
-            (item for item in tenant_preferences if item["name"] == "lease_renewal_request_approved"),
-            None,
-        )
-        lease_renewal_request_approved_values = lease_renewal_request_approved["values"]
-        for value in lease_renewal_request_approved_values:
-            if value["name"] == "push" and value["value"] == True:
-                # Create notification for tenant that lease renewal request has been approved
-                notification = Notification.objects.create(
-                    user=tenant.user,
-                    message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved.",
-                    type="lease_renewal_request_approved",
-                    title="Lease Renewal Request Approved",
-                    resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
-                )
-            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #Create an email notification for the tenant that the lease renewal request has been approved
-                client_hostname = os.getenv("CLIENT_HOSTNAME")
-                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                to_email = ""
-                if os.getenv("ENVIRONMENT") == "development":
-                    to_email = "keyflowsoftware@gmail.com"
-                else:
-                    to_email = tenant.user.email
-                postmark.emails.send(
-                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                    To=to_email,
-                    Subject="Lease Renewal Request Approved",
-                    HtmlBody=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved. Click <a href='{client_hostname}/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
-                )
-      
+        try:
+            tenant_preferences = json.loads(tenant.preferences)
+            lease_renewal_request_approved = next(
+                (item for item in tenant_preferences if item["name"] == "lease_renewal_request_approved"),
+                None,
+            )
+            lease_renewal_request_approved_values = lease_renewal_request_approved["values"]
+            for value in lease_renewal_request_approved_values:
+                if value["name"] == "push" and value["value"] == True:
+                    # Create notification for tenant that lease renewal request has been approved
+                    notification = Notification.objects.create(
+                        user=tenant.user,
+                        message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved.",
+                        type="lease_renewal_request_approved",
+                        title="Lease Renewal Request Approved",
+                        resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create an email notification for the tenant that the lease renewal request has been approved
+                    client_hostname = os.getenv("CLIENT_HOSTNAME")
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = tenant.user.email
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="Lease Renewal Request Approved",
+                        HtmlBody=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been approved. Click <a href='{client_hostname}/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
+                    )
+        except StopIteration:
+            # Handle case where "lease_renewal_request_approved" is not found
+            print("lease_renewal_request_approved not found. Notification not sent.")
+            pass
+        except KeyError:
+            # Handle case where "values" key is missing in "lease_renewal_request_approved"
+            print("values key not found in lease_renewal_request_approved. Notification not sent.")
+            pass
 
         return Response(
             {
@@ -219,38 +233,47 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
 
         # Delete Lease Renewal Request
         lease_renewal_request.delete()
-    
-        tenant_preferences = json.loads(lease_renewal_request.tenant.preferences)
-        lease_renewal_request_denied = next(
-            (item for item in tenant_preferences if item["name"] == "lease_renewal_request_rejected"),
-            None,
-        )
-        lease_renewal_request_denied_values = lease_renewal_request_denied["values"]
-        for value in lease_renewal_request_denied_values:
-            if value["name"] == "push" and value["value"] == True:
-                # Create a notification for the tenant that the lease renewal request has been rejected
-                notification = Notification.objects.create(
-                    user=lease_renewal_request.tenant.user,
-                    message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
-                    type="lease_renewal_request_rejected",
-                    title="Lease Renewal Request Rejected",
-                    resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
-                )
-            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #Create an email notification for the tenant that the lease renewal request has been rejected
-                client_hostname = os.getenv("CLIENT_HOSTNAME")
-                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                to_email = ""
-                if os.getenv("ENVIRONMENT") == "development":
-                    to_email = "keyflowsoftware@gmail.com"
-                else:
-                    to_email = lease_renewal_request.tenant.user.email
-                postmark.emails.send(
-                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                    To=to_email,
-                    Subject="Lease Renewal Request Rejected",
-                    HtmlBody=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
-                )
+
+        try:
+            tenant_preferences = json.loads(lease_renewal_request.tenant.preferences)
+            lease_renewal_request_denied = next(
+                (item for item in tenant_preferences if item["name"] == "lease_renewal_request_rejected"),
+                None,
+            )
+            lease_renewal_request_denied_values = lease_renewal_request_denied["values"]
+            for value in lease_renewal_request_denied_values:
+                if value["name"] == "push" and value["value"] == True:
+                    # Create a notification for the tenant that the lease renewal request has been rejected
+                    notification = Notification.objects.create(
+                        user=lease_renewal_request.tenant.user,
+                        message=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
+                        type="lease_renewal_request_rejected",
+                        title="Lease Renewal Request Rejected",
+                        resource_url=f"/dashboard/tenant/lease-renewal-requests/{lease_renewal_request.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create an email notification for the tenant that the lease renewal request has been rejected
+                    client_hostname = os.getenv("CLIENT_HOSTNAME")
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = lease_renewal_request.tenant.user.email
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="Lease Renewal Request Rejected",
+                        HtmlBody=f"Your lease renewal request for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name} has been rejected.",
+                    )
+        except StopIteration:
+            # Handle case where "lease_renewal_request_rejected" is not found
+            print("lease_renewal_request_rejected not found. Notification not sent.")
+            pass
+        except KeyError:
+            # Handle case where "values" key is missing in "lease_renewal_request_rejected"
+            print("values key not found in lease_renewal_request_rejected. Notification not sent.")
+            pass
 
         return Response(
             {
@@ -626,38 +649,47 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         lease_agreement.is_active = False  # TODO: Need to set a CronJob to set this to true on the start_date in Prod
         lease_agreement.save()
 
-        owner_preferences = json.loads(owner.preferences)
-        lease_agreement_preferences = next(
-            (item for item in owner_preferences if item["name"] == "lease_renewal_agreement_signed"),
-            None,
-        )
-        lease_agreement_values = lease_agreement_preferences["values"]
-        for value in lease_agreement_values:
-            if value["name"] == "push" and value["value"] == True:
-                # Create a notification for the owner that the tenant has signed the lease renewal agreement
-                notification = Notification.objects.create(
-                    user=owner.user,
-                    message=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
-                    type="lease_renewal_agreement_signed",
-                    title="Lease Renewal Agreement Signed",
-                    resource_url=f"/dashboard/owner/lease-agreements/{lease_agreement.id}",
-                )
-            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #CReate an email notification fot the owner that the tenant has signed the lease renewal agreement
-                client_hostname = os.getenv("CLIENT_HOSTNAME")
-                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                to_email = ""
-                if os.getenv("ENVIRONMENT") == "development":
-                    to_email = "keyflowsoftware@gmail.com"
-                else:
-                    to_email = owner.user.email
-                postmark.emails.send(
-                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                    To=to_email,
-                    Subject="Lease Renewal Agreement Signed",
-                    # HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}. Click <a href='{client_hostname}/dashboard/owner/lease-agreements/{lease_agreement.id}'>here</a> to view the agreement.",
-                    HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}.",
-                )
+        try:
+            owner_preferences = json.loads(owner.preferences)
+            lease_agreement_preferences = next(
+                (item for item in owner_preferences if item["name"] == "lease_renewal_agreement_signed"),
+                None,
+            )
+            lease_agreement_values = lease_agreement_preferences["values"]
+            for value in lease_agreement_values:
+                if value["name"] == "push" and value["value"] == True:
+                    # Create a notification for the owner that the tenant has signed the lease renewal agreement
+                    notification = Notification.objects.create(
+                        user=owner.user,
+                        message=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
+                        type="lease_renewal_agreement_signed",
+                        title="Lease Renewal Agreement Signed",
+                        resource_url=f"/dashboard/owner/lease-agreements/{lease_agreement.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #CReate an email notification fot the owner that the tenant has signed the lease renewal agreement
+                    client_hostname = os.getenv("CLIENT_HOSTNAME")
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = owner.user.email
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="Lease Renewal Agreement Signed",
+                        # HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}. Click <a href='{client_hostname}/dashboard/owner/lease-agreements/{lease_agreement.id}'>here</a> to view the agreement.",
+                        HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has signed the lease renewal agreement for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}.",
+                    )
+        except StopIteration:
+            # Handle case where "lease_renewal_agreement_signed" is not found
+            print("lease_renewal_agreement_signed not found. Notification not sent.")
+            pass
+        except KeyError:
+            # Handle case where "values" key is missing in "lease_renewal_agreement_signed"
+            print("values key not found in lease_renewal_agreement_signed. Notification not sent.")
+            pass
 
         # Return a success response
         return Response(
