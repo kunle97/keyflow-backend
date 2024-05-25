@@ -1,6 +1,7 @@
 from django.db import models
 from datetime import datetime
 from keyflow_backend_app.models.account_type import Owner
+from keyflow_backend_app.models.lease_template import LeaseTemplate
 
 class Portfolio(models.Model):
     default_portfolio_preferences = """
@@ -39,6 +40,7 @@ class Portfolio(models.Model):
     name = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
     preferences = models.TextField(blank=True, null=True, default=default_portfolio_preferences) #JSON string of property preferences
+    lease_template = models.ForeignKey(LeaseTemplate, on_delete=models.SET_NULL, related_name='portfolios', default=None, blank=True, null=True)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     class Meta:

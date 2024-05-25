@@ -15,7 +15,6 @@ from rest_framework.parsers import MultiPartParser
 from django.core.exceptions import ValidationError
 from io import TextIOWrapper
 from rest_framework.response import Response
-from rest_framework import status
 from keyflow_backend_app.models.portfolio import Portfolio
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
@@ -26,7 +25,6 @@ from ..serializers.rental_property_serializer import RentalPropertySerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 load_dotenv()
@@ -257,6 +255,17 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Property portfolios updated successfully.', "status":200}, status=status.HTTP_200_OK)
     
+    #Create a  function thatremoves the lease template from the property and sets all lease term values for each of its units to the default values. url_path: api/properties/{id}/remove-lease-template
+    @action(detail=True, methods=['patch'], url_path="remove-lease-template")
+    def remove_lease_template(self, request, pk=None):
+        property_instance = self.get_object()
+        property_instance.lease_template = None
+        property_instance.save()
+        units = property_instance.rental_units.all()
+        for unit in units:
+            unit.remove_lease_template()
+        return JsonResponse({'message': 'Lease template removed successfully.', "status":status.HTTP_200_OK}, status=200)
+
 #Used to retrieve property info unauthenticated
 class RetrievePropertyByIdView(APIView):
     def post(self, request):
