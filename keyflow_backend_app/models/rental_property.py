@@ -3,6 +3,7 @@ from django.db import models
 from datetime import datetime
 from keyflow_backend_app.models.account_type import Owner
 from keyflow_backend_app.models.portfolio import Portfolio
+from keyflow_backend_app.models.lease_template import LeaseTemplate
 
 default_rental_property_preferences = """
 [
@@ -45,6 +46,7 @@ class RentalProperty(models.Model):
     state = models.CharField(max_length=100, blank=True)
     zip_code = models.CharField(blank=True, null=True)
     country = models.CharField(max_length=100, default='United States', blank=True, null=True)
+    lease_template = models.ForeignKey(LeaseTemplate, on_delete=models.SET_NULL, related_name='rental_properties', default=None, blank=True, null=True)
     portfolio = models.ForeignKey(Portfolio, on_delete=models.SET_NULL, related_name='rental_properties', default=None, blank=True, null=True)
     preferences = models.TextField(blank=True, null=True, default=default_rental_property_preferences) #JSON string of property preferences
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
