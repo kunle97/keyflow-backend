@@ -242,42 +242,49 @@ class SignLeaseAgreementView(APIView):
             tenant_first_name = lease_agreement.rental_application.first_name
             tenant_last_name = lease_agreement.rental_application.last_name
 
-        
-        #Retrieve the owner's preferences
-        owner_preferences = json.loads(lease_agreement.owner.preferences)
-        #Retrieve the object in the array who's "name" key value is "tenant_signed_lease_agreement"
-        tenant_signed_lease_agreement = next(
-            item for item in owner_preferences if item["name"] == "tenant_lease_agreement_signed"
-        )
-        #Retrieve the "values" key value of the object
-        tenant_signed_lease_agreement_values = tenant_signed_lease_agreement["values"]
+        try:
+            #Retrieve the owner's preferences
+            owner_preferences = json.loads(lease_agreement.owner.preferences)
+            #Retrieve the object in the array who's "name" key value is "tenant_signed_lease_agreement"
+            tenant_signed_lease_agreement = next(
+                item for item in owner_preferences if item["name"] == "tenant_lease_agreement_signed"
+            )
+            #Retrieve the "values" key value of the object
+            tenant_signed_lease_agreement_values = tenant_signed_lease_agreement["values"]
 
-        #loop through the values array and check if the value is "email" or "push"
-        for value in tenant_signed_lease_agreement_values:
-            if value["name"] == "push" and value["value"] == True:
-                # Create a notification for the owner that the tenant has signed the lease agreement
-                notification = Notification.objects.create(
-                    user=lease_agreement.owner.user,
-                    message=f"{tenant_first_name} {tenant_last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
-                    type="lease_agreement_signed",
-                    title="Lease Agreement Signed",
-                    resource_url=f"/dashboard/owner/lease-agreements/{lease_agreement.id}",
-                )
-            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #Create an email notification for the tenant that the lease agreement has been signed
-                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                to_email = ""
-                if os.getenv("ENVIRONMENT") == "development":
-                    to_email = "keyflowsoftware@gmail.com"
-                else:
-                    to_email = lease_agreement.owner.user.email
-                postmark.emails.send(
-                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                    To=to_email,
-                    Subject="Lease Agreement Signed",
-                    HtmlBody=f"{tenant_first_name} {tenant_last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
-                )
-            
+            #loop through the values array and check if the value is "email" or "push"
+            for value in tenant_signed_lease_agreement_values:
+                if value["name"] == "push" and value["value"] == True:
+                    # Create a notification for the owner that the tenant has signed the lease agreement
+                    notification = Notification.objects.create(
+                        user=lease_agreement.owner.user,
+                        message=f"{tenant_first_name} {tenant_last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
+                        type="lease_agreement_signed",
+                        title="Lease Agreement Signed",
+                        resource_url=f"/dashboard/owner/lease-agreements/{lease_agreement.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create an email notification for the tenant that the lease agreement has been signed
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = lease_agreement.owner.user.email
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="Lease Agreement Signed",
+                        HtmlBody=f"{tenant_first_name} {tenant_last_name} has signed the lease agreement for unit {unit.name} at {unit.rental_property.name}",
+                    )
+        except StopIteration:
+            # Handle case where "tenant_lease_agreement_signed" is not found
+            print("tenant_lease_agreement_signed not found. Notification not sent.")
+            pass
+        except KeyError:
+            # Handle case where "values" key is missing in "tenant_lease_agreement_signed"
+            print("values key not found in tenant_lease_agreement_signed. Notification not sent.")
+            pass
 
         # return a response for the lease being signed successfully
         return Response(

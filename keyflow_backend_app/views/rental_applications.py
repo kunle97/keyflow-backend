@@ -114,41 +114,49 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             owner=owner,
             comments=data["comments"],
         )
+        try:
+            #Retrieve the owner's preferences
+            owner_preferences = json.loads(owner.preferences)
+            #Retrieve the object in the array who's "name" key value is "rental_application_created"
+            rental_application_created = next(
+                item for item in owner_preferences if item["name"] == "rental_application_created"
+            )
+            #Retrieve the "values" key value of the object
+            rental_application_created_values = rental_application_created["values"]
+            for value in rental_application_created_values:
+                if value["name"] == "push" and value["value"] == True:
+                    # Create a notification for the owner that a new rental application has been submitted
+                    notification = Notification.objects.create(
+                        user=user,
+                        message=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}",
+                        type="rental_application_submitted",
+                        title="Rental Application Submitted",
+                        resource_url=f"/dashboard/owner/rental-applications/{rental_application.id}",
+                    )
+                elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                    #Create an email notification using postmark for the owner that a new rental application has been submitted
+                    client_hostname = os.getenv("CLIENT_HOSTNAME")
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"
+                    else:
+                        to_email = user.email
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="New Rental Application Submitted",
+                        HtmlBody=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}. <a href='{client_hostname}/dashboard/owner/rental-applications/{rental_application.id}'>View Application</a>",
+                    )   
+        except StopIteration:
+            # Handle case where "rental_application_created" is not found
+            print("rental_application_created not found. Notification not sent.")
+            pass
+        except KeyError:
+            # Handle case where "values" key is missing in "rental_application_created"
+            print("values key not found in rental_application_created. Notification not sent.")
+            pass
 
-        #Retrieve the owner's preferences
-        owner_preferences = json.loads(owner.preferences)
-        #Retrieve the object in the array who's "name" key value is "rental_application_created"
-        rental_application_created = next(
-            item for item in owner_preferences if item["name"] == "rental_application_created"
-        )
-        #Retrieve the "values" key value of the object
-        rental_application_created_values = rental_application_created["values"]
-        for value in rental_application_created_values:
-            if value["name"] == "push" and value["value"] == True:
-                # Create a notification for the owner that a new rental application has been submitted
-                notification = Notification.objects.create(
-                    user=user,
-                    message=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}",
-                    type="rental_application_submitted",
-                    title="Rental Application Submitted",
-                    resource_url=f"/dashboard/owner/rental-applications/{rental_application.id}",
-                )
-            elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                #Create an email notification using postmark for the owner that a new rental application has been submitted
-                client_hostname = os.getenv("CLIENT_HOSTNAME")
-                postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                to_email = ""
-                if os.getenv("ENVIRONMENT") == "development":
-                    to_email = "keyflowsoftware@gmail.com"
-                else:
-                    to_email = user.email
-                postmark.emails.send(
-                    From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                    To=to_email,
-                    Subject="New Rental Application Submitted",
-                    HtmlBody=f"{data['first_name']} {data['last_name']} has submitted a rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name}. <a href='{client_hostname}/dashboard/owner/rental-applications/{rental_application.id}'>View Application</a>",
-                )   
-        
         return Response({"message": "Rental application created successfully."})
 
     # Create method to delete all rental applications for a specific unit
@@ -192,8 +200,6 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                 f"{os.getenv('SERVER_API_HOSTNAME')}/boldsign/create-document-from-template/",
                 data=payload_data,
             )
-            print("Respon53",response)
-            print("Respon53 json",response.json())
             boldsign_document_id = response.json()["documentId"]
             #Create a lease agreement
             lease_agreement = LeaseAgreement.objects.create(
