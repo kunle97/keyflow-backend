@@ -513,23 +513,14 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             # Create Transaction for Lease Renewal Fee
             transaction = Transaction.objects.create(
                 user=owner.user,
+                owner=owner,
+                tenant=tenant,
                 rental_property=lease_renewal_request.rental_unit.rental_property,
                 rental_unit=lease_renewal_request.rental_unit,
                 payment_method_id=tenant_payment_methods.data[0].id,
                 payment_intent_id=lease_renewal_fee_payment_intent.id,
                 amount=lease_renewal_fee_value,
                 description=f"{tenant.user.first_name} {tenant.user.last_name} Lease Renewal Fee Payment for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
-                type="lease_renewal_fee",
-            )
-            # Create Transaction for Lease Renewal Fee
-            transaction = Transaction.objects.create(
-                user=tenant.user,
-                rental_property=lease_renewal_request.rental_unit.rental_property,
-                rental_unit=lease_renewal_request.rental_unit,
-                payment_method_id=tenant_payment_methods.data[0].id,
-                payment_intent_id=lease_renewal_fee_payment_intent.id,
-                amount=lease_renewal_fee_value,
-                description=f"Lease Renewal Fee Payment for unit {lease_renewal_request.rental_unit.name} at {lease_renewal_request.rental_unit.rental_property.name}",
                 type="lease_renewal_fee",
             )
 

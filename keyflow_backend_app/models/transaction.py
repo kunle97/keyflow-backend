@@ -1,7 +1,7 @@
 from django.db import models
 from datetime import datetime
 from keyflow_backend_app.models import billing_entry
-from keyflow_backend_app.models.account_type import Tenant
+from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
 from keyflow_backend_app.models.rental_unit import RentalUnit 
 from keyflow_backend_app.models.rental_property import RentalProperty
@@ -22,8 +22,8 @@ class Transaction(models.Model):
         ('expense', 'Expense'),#Expense
         ('revenue', 'Revenue'),#Revenue 
     )
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None) #owner related to the transaction
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=None,blank=True, null=True) #user related to the transaction
+    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None, blank=True, null=True) #owner related to the transaction
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='transactions') #tenant related to the transaction
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=TRANSACTION_TYPE_CHOICES)
