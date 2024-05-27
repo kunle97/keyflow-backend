@@ -1044,6 +1044,7 @@ class TenantViewSet(viewsets.ModelViewSet):
                         rental_property=unit.rental_property,
                         rental_unit=unit,
                         tenant=tenant,
+                        owner=owner,
                         user=owner_user,
                         amount=int(rent_value),
                         payment_method_id=data["payment_method_id"],

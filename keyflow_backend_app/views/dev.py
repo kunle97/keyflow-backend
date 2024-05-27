@@ -546,6 +546,7 @@ def generate_tenants(request):
                 rental_property=unit.rental_property,
                 rental_unit=unit,
                 user=owner.user,
+                owner=owner,
                 tenant=tenant,
                 amount=int(lease_template.security_deposit),
                 payment_method_id=payment_method.id,

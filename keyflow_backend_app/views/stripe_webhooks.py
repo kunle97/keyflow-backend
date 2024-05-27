@@ -18,6 +18,8 @@ from ..models.user import User
 from ..models.account_type import Owner
 from keyflow_backend_app.models import rental_property
 
+from keyflow_backend_app.models import user
+
 load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
 
@@ -67,11 +69,12 @@ class StripeSubscriptionPaymentSucceededEventView(View):
                 subscription_transaction = Transaction.objects.create(
                     amount=rental_unit.lease_template.rent,  # Convert to currency units
                     user=owner_user,
+                    owner=owner,
+                    tenant=tenant,  # related tenant
                     type=metadata.get("type", None),
                     description=metadata.get("description", None),
                     rental_property=rental_property,
                     rental_unit=rental_unit,
-                    tenant=tenant,  # related tenant
                     payment_method_id=metadata.get(
                         "payment_method_id", None
                     ),  # or payment_intent.payment_method.id
@@ -208,6 +211,7 @@ class StripeInvoicePaymentSucceededEventView(View):
 
                     invoice_transaction = Transaction.objects.create(
                         amount=float(invoice.amount_paid/100),  # Convert to currency units
+                        owner=owner,
                         user=owner_user,
                         type=invoice_metadata["type"],
                         description=f"Rent Payment for {rental_unit.name} at {rental_property.name} by {tenant_user.first_name} {tenant_user.last_name}",
@@ -294,6 +298,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                     
                     invoice_transaction = Transaction.objects.create(
                         amount=float(invoice.amount_paid/100),  # Convert to currency units
+                        owner=owner,
                         user=owner_user,
                         type=invoice_metadata.get("type", None),
                         description=f"Security Deposit Payment for {rental_unit.name} at {rental_property.name} by {tenant_user.first_name} {tenant_user.last_name}",
