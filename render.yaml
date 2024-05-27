@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: keyflow-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn keyflow_backend.wsgi
+
+  - type: worker
+    name: keyflow-backend-celery-worker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A keyflow_backend worker -l info
+
+  - type: worker
+    name: keyflow-backend-celery-beat
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A keyflow_backend beat -l info
