@@ -197,6 +197,35 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    #Create a function that checks to see if a lease agreement has reached its end date and if so, set is_active to false and reset the rental unit to is_occupied = False and remove the tenant from the unit
+    # @action(detail=False, methods=["get"], url_path="check-lease-agreement-end-date")
+    # def check_lease_agreement_end_date(self, request):
+    #     current_date = timezone.now().date()
+    #     lease_agreement_id = request.query_params.get("lease_agreement_id")
+
+    #     try:
+    #         lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+    #     except LeaseAgreement.DoesNotExist:
+    #         return Response({"error": "Lease agreement not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    #     if current_date > lease_agreement.end_date:
+    #         lease_agreement.is_active = False
+    #         lease_agreement.tenant = None
+    #         lease_agreement.save()
+
+    #         rental_unit = lease_agreement.rental_unit
+    #         rental_unit.is_occupied = False
+    #         rental_unit.save()
+
+    #         return Response({
+    #             "message": "Lease agreement has ended and updates have been applied.",
+    #             "status": status.HTTP_200_OK,
+    #         }, status=status.HTTP_200_OK)
+    #     else:
+    #         return Response({
+    #             "message": "Lease agreement has not ended.",
+    #             "status": status.HTTP_200_OK,
+    #         }, status=status.HTTP_200_OK)
 
 # Create an endpoint that will handle when a person signs a lease agreement
 class SignLeaseAgreementView(APIView):
