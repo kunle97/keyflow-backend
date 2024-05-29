@@ -155,68 +155,37 @@ class RetrieveTenantDashboardData(APIView):
     def post(self, request):
         # Retrieve user id from request body
         user_id = request.data.get("user_id")
-        # Retrieve the user object from the database by id
-        user = User.objects.get(id=user_id)
-        tenant = Tenant.objects.get(user=user)
-
-        if LeaseAgreement.objects.filter(tenant=tenant, is_active=True).exists():
-            lease_agreement = LeaseAgreement.objects.get(tenant=tenant, is_active=True)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            tenant = Tenant.objects.get(user=user)
+            lease_agreement = LeaseAgreement.objects.get(tenant=tenant)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Tenant.DoesNotExist:
+            return Response({"error": "Tenant not found"}, status=status.HTTP_404_NOT_FOUND)
+        except LeaseAgreement.DoesNotExist:
+            return Response({"next_payment_date": None, "payment_dates": [], "status": status.HTTP_200_OK}, status=status.HTTP_200_OK)
+        
+        current_date = tz.now().date()
+        
+        if lease_agreement:
             unit = lease_agreement.rental_unit
-            lease_terms = json.loads(str(unit.lease_terms))
+            lease_terms = json.loads(unit.lease_terms)
 
-            # Calculate payment dates for the lease
-            payment_dates = self.calculate_payment_dates(
-                lease_agreement, unit, lease_terms
-            )
-
-            # Calculate late fees for overdue payments
-            late_fees = self.calculate_late_fees(
-                lease_agreement, payment_dates, lease_terms
-            )
-
-            # total remaining amount due for the lease
+            payment_dates = self.calculate_payment_dates(lease_agreement, unit, lease_terms)
+            late_fees = self.calculate_late_fees(lease_agreement, payment_dates, lease_terms)
             total_balance = self.calculate_total_balance(lease_agreement, unit, lease_terms)
-
-            # The total amount due in the current rent pay period
             current_balance = self.calculate_current_balance(lease_agreement, unit, lease_terms)
 
-            # Serialize data
-            unit_serializer = RentalUnitSerializer(unit)
-            lease_template_serializer = LeaseTemplateSerializer(
-                lease_agreement.lease_template
-            )
-            lease_agreement_serializer = LeaseAgreementSerializer(lease_agreement)
+            unit_data = RentalUnitSerializer(unit).data
+            lease_template_data = LeaseTemplateSerializer(lease_agreement.lease_template).data
+            lease_agreement_data = LeaseAgreementSerializer(lease_agreement).data
 
-            unit_data = unit_serializer.data
-            lease_template_data = lease_template_serializer.data
-            lease_agreement_data = lease_agreement_serializer.data
+            related_announcements = self.get_related_announcements(unit)
 
-            # Retrieve all related announcements for the tenant
-            related_announcements = []
-            # Retrieve owner
-            owner = unit.owner
-            # Retrieve all announcements for the owner whose end date is greater than today's date and the start date is less than today's date
-            announcements = Announcement.objects.filter(
-                owner=owner,
-                start_date__lte=datetime.now(timezone.utc),
-                end_date__gte=datetime.now(timezone.utc),
-            )
-            
-            # Loop through all announcements and check if the tenant's unit, unit's property, or unit's property's portfolio is in the target. (target is a JSON string. format: {"rental_unit": 2}, {"portfolio": 1}, {"rental_property": 1})
-            for announcement in announcements:
-                target = json.loads(announcement.target)
-                if "rental_unit" in target and target["rental_unit"] == unit.id:
-                    related_announcements.append(announcement)
-                elif "rental_property" in target and target["rental_property"] == unit.rental_property.id:
-                    related_announcements.append(announcement)
-                elif "portfolio" in target and target["portfolio"] == unit.rental_property.portfolio.id:
-                    related_announcements.append(announcement)
-            # Serialize the announcements
-            announcement_serializer = AnnouncementSerializer(related_announcements, many=True)
-            related_announcements_data = announcement_serializer.data
-
-            return Response(
-                {
+            if current_date < lease_agreement.end_date:
+                return Response({
                     "unit": unit_data,
                     "lease_template": lease_template_data,
                     "lease_agreement": lease_agreement_data,
@@ -224,21 +193,58 @@ class RetrieveTenantDashboardData(APIView):
                     "late_fees": late_fees,
                     "total_balance": total_balance,
                     "current_balance": current_balance,
-                    "announcements": related_announcements_data,
+                    "announcements": related_announcements,
                     "status": status.HTTP_200_OK,
-                },
-                status=status.HTTP_200_OK,
-            )
+                }, status=status.HTTP_200_OK)
+            else:
+                self.reset_lease_and_unit(lease_agreement)
+                return Response({
+                    "message": "Lease agreement has ended and updates have been applied.",
+                    "unit": unit_data,
+                    "lease_template": lease_template_data,
+                    "lease_agreement": None,
+                    "payment_dates": payment_dates,
+                    "late_fees": late_fees,
+                    "total_balance": total_balance,
+                    "current_balance": current_balance,
+                    "announcements": related_announcements,
+                    "status": status.HTTP_200_OK,
+                    "is_active_response": False
+                }, status=status.HTTP_200_OK)
         else:
-            return Response(
-                {
-                    "next_payment_date": None,
-                    "payment_dates": [],
-                    "status": status.HTTP_200_OK,
-                },
-                status=status.HTTP_200_OK,
-            )
+            return Response({
+                "next_payment_date": None,
+                "payment_dates": [],
+                "status": status.HTTP_200_OK,
+            }, status=status.HTTP_200_OK)
 
+    def get_related_announcements(self, unit):
+        related_announcements = []
+        owner = unit.owner
+        announcements = Announcement.objects.filter(
+            owner=owner,
+            start_date__lte=datetime.now(timezone.utc),
+            end_date__gte=datetime.now(timezone.utc),
+        )
+        
+        for announcement in announcements:
+            target = json.loads(announcement.target)
+            if ("rental_unit" in target and target["rental_unit"] == unit.id) or \
+               ("rental_property" in target and target["rental_property"] == unit.rental_property.id) or \
+               ("portfolio" in target and target["portfolio"] == unit.rental_property.portfolio.id):
+                related_announcements.append(announcement)
+
+        return AnnouncementSerializer(related_announcements, many=True).data
+
+    def reset_lease_and_unit(self, lease_agreement):
+        lease_agreement.is_active = False
+        lease_agreement.tenant = None
+        lease_agreement.save()
+
+        rental_unit = lease_agreement.rental_unit
+        rental_unit.is_occupied = False
+        rental_unit.save()
+        
     def calculate_late_fees(self, lease_agreement, payment_dates, lease_terms):
         transactions = Transaction.objects.filter(
             tenant=lease_agreement.tenant, type="rent_payment"
