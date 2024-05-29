@@ -56,9 +56,6 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         payment_link = None
         billing_entry = self.get_object()
-        # Retrieve the user timezone (user_timezone) from the query params
-        user_timezone = request.query_params.get("user_timezone", None)
-        print("User Timezone: ",user_timezone)
         # Retrieve the stripe invoice for the billing entry
         if billing_entry.stripe_invoice_id:
             stripe_invoice = stripe.Invoice.retrieve(billing_entry.stripe_invoice_id)
