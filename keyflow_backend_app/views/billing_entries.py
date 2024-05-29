@@ -4,7 +4,8 @@ import os
 from postmarker.core import PostmarkClient
 from dotenv import load_dotenv
 from rest_framework import viewsets
-
+import pytz
+from django.utils import timezone
 from keyflow_backend_app.helpers import calculate_final_price_in_cents
 from keyflow_backend_app.models.notification import Notification
 from keyflow_backend_app.models.rental_unit import RentalUnit
@@ -17,7 +18,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from datetime import datetime
+from datetime import datetime, timedelta
 from rest_framework import status
 
 load_dotenv()
@@ -55,12 +56,13 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         payment_link = None
         billing_entry = self.get_object()
-        #Retrieve the stripe invoice for the billing entry
+        # Retrieve the stripe invoice for the billing entry
         if billing_entry.stripe_invoice_id:
             stripe_invoice = stripe.Invoice.retrieve(billing_entry.stripe_invoice_id)
             payment_link = stripe_invoice.hosted_invoice_url
         serializer = BillingEntrySerializer(billing_entry)
-        return Response({"data": serializer.data, "payment_link":payment_link}, status=status.HTTP_200_OK)
+        
+        return Response({"data": serializer.data, "payment_link": payment_link}, status=status.HTTP_200_OK)
 
     def create(self, request):
         user = self.request.user
@@ -82,7 +84,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
         if len(requirements.currently_due) > 0:
             return Response(
                 {
-                    "message": "Please complete your account verification before creating a billing entry.",
+                    "message": "Please complete your stripe account requirements before creating a billing entry.",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -98,16 +100,18 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             rental_property = rental_unit.rental_property
         rental_unit_lease_terms = json.loads(rental_unit.lease_terms)   
         billing_entry_status = data["status"]
-        collection_method = request.data.get("collection_method", None)
+        # collection_method = request.data.get("collection_method", None)
+        collection_method = "send_invoice"
         stripe_invoice = None
         due_date = None
         if request.data.get("due_date", None) is not None:
             due_date_str = request.data.get("due_date", None)
             # Convert due_date (Should look like: "2024-03-07") to timestamp (Like this: 1680644467)
             due_date_timestamp = int(datetime.fromisoformat(due_date_str).timestamp())
-            # Create variable date_time to convert duedate_str to store  in a DateTimeField
+            # Create variable date_time to convert due_date_str to store in a DateTimeField
             due_date_time_field = datetime.fromisoformat(due_date_str)
-
+            # Add one day to the due_date_time_field to adjust for the database 
+            due_date_time_field += timedelta(days=1)
             # Create a stripe invoice for the billing entry
             stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
             # retrieve thestripe cusotmer object
