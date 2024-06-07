@@ -14,6 +14,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
+from keyflow_backend_app.models import account_type
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
@@ -52,15 +53,21 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        owner = Owner.objects.get(user=user)
-        queryset = super().get_queryset().filter(owner=owner)
-        return queryset
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            queryset = super().get_queryset().filter(owner=owner)
+            return queryset
+        elif user.account_type == "tenant":
+            tenant = Tenant.objects.get(user=user)
+            queryset = super().get_queryset().filter(tenant=tenant)
+            return queryset
+        else:
+            return LeaseRenewalRequest.objects.none()
 
     # Create a function to override the post method to create a lease renewal request
     def create(self, request, *args, **kwargs):
         # Retrieve the unit id from the request
-        tenant_user = User.objects.get(id=request.data.get("tenant"))
-        tenant = Tenant.objects.get(user=tenant_user)
+        tenant = Tenant.objects.get(id=request.data.get("tenant"))
         # Check if the tenant has an active lease agreement renewal request
         lease_renewal_request = LeaseRenewalRequest.objects.filter(
             tenant=tenant, status="pending"
@@ -107,7 +114,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                     # Create a  notification for the owner that the tenant has requested to renew the lease agreement
                     notification = Notification.objects.create(
                         user=user,
-                        message=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
+                        message=f"{tenant.user.first_name} {tenant.user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}",
                         type="lease_renewal_request",
                         title="Lease Renewal Request",
                         resource_url=f"/dashboard/owner/lease-renewal-requests/{lease_renewal_request.id}",
@@ -125,7 +132,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                         From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                         To=to_email,
                         Subject="New Lease Renewal Request",
-                        HtmlBody=f"{tenant_user.first_name} {tenant_user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}. Click <a href='{client_hostname}/dashboard/owner/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
+                        HtmlBody=f"{tenant.user.first_name} {tenant.user.last_name} has requested to renew their lease agreement at unit {unit.name} at {rental_property.name}. Click <a href='{client_hostname}/dashboard/owner/lease-renewal-requests/{lease_renewal_request.id}'>here</a> to view the request.",
                     )
         except StopIteration:
             # Handle case where "lease_cancellation_request_created" is not found
@@ -138,13 +145,9 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         # Return a success response containing the lease renewal request object as well as a message and a 201 stuats code
         serializer = LeaseRenewalRequestSerializer(lease_renewal_request)
         return Response(
-            {
-                "message": "Lease renewal request created successfully.",
-                "data": serializer.data,
-                "status": 201,
-            },
+            serializer.data,
             status=status.HTTP_201_CREATED,
-        )
+        ) 
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -158,9 +161,6 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
         lease_renewal_request = LeaseRenewalRequest.objects.get(
             id=data["lease_renewal_request_id"]
-        )
-        lease_agreement = LeaseAgreement.objects.get(
-            id=data["current_lease_agreement_id"]
         )
 
         tenant = lease_renewal_request.tenant

@@ -25,7 +25,7 @@ class LeaseAgreement(models.Model):
     tenant_invite   = models.ForeignKey(TenantInvite, on_delete=models.CASCADE, default=None, blank=True, null=True)
     approval_hash = models.CharField(max_length=100, blank=True, null=True,unique=True)
     stripe_subscription_id = models.CharField(max_length=100, blank=True, null=True, default=None)
-    auto_pay_is_enabled = models.BooleanField(default=True)
+    auto_pay_is_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     
