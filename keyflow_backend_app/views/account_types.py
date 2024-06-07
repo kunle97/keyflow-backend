@@ -611,7 +611,6 @@ class TenantViewSet(viewsets.ModelViewSet):
         # Finalize the invoice
         stripe.Invoice.finalize_invoice(invoice.id)
         return invoice
-
     def create_rent_invoices(
         self,
         lease_start_date,
@@ -1111,9 +1110,10 @@ class TenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="unit")  # GET: api/tenants/{id}/unit
     def get_unit(self, request, pk=None):
         tenant = self.get_object()
-        unit = RentalUnit.objects.get(tenant=tenant)
-        if unit is None:
-            return Response(status=404)
+        try:
+            unit = RentalUnit.objects.get(tenant=tenant)
+        except RentalUnit.DoesNotExist:
+            return Response({"data":None},status=status.HTTP_404_NOT_FOUND)
         serializer = RentalUnitSerializer(unit, many=False)
         return Response(serializer.data)
 
@@ -1457,3 +1457,11 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant.save()
         return Response({"preferences":preferences},status=status.HTTP_200_OK)
     
+    #Crreate a function that allows an owner to update a tenant's auto renew status using the endpoint /tenants/{tenant_id}/update-auto-renew-status/
+    @action(detail=True, methods=["post"], url_path="update-auto-renew-status") #POST: api/tenants/{id}/update-auto-renew-status
+    def update_auto_renew_status(self, request, pk=None):
+        tenant = self.get_object()
+        auto_renew_lease_is_enabled = request.data.get("auto_renew_lease_is_enabled")
+        tenant.auto_renew_lease_is_enabled = auto_renew_lease_is_enabled
+        tenant.save()
+        return Response({"auto_renew_lease_is_enabled":auto_renew_lease_is_enabled},status=status.HTTP_200_OK)

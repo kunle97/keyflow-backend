@@ -88,6 +88,7 @@ from keyflow_backend_app.views.units import (
     RetrieveUnitByIdView,
 )
 from keyflow_backend_app.views.tenants import (
+    CreateRentInvoicesForTenantRenewal,
     OldTenantViewSet,
     TenantRegistrationView,
     TenantVerificationView,
@@ -252,6 +253,11 @@ urlpatterns = [
         "api/retrieve-tenant-dashboard-data/",
         RetrieveTenantDashboardData.as_view(),
         name="retrieve_tenant_dashboard_data",
+    ),
+    path(
+        "api/create-rent-invoices-for-tenant-renewal/",
+        CreateRentInvoicesForTenantRenewal.as_view(),
+        name="create_rent_invoices_for_tenant_renewal",
     ),
     path(
         "api/retrieve-property/",
