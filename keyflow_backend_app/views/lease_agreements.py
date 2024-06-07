@@ -1,5 +1,7 @@
 import os
 import json
+from requests import delete
+import stripe
 from postmarker.core import PostmarkClient
 from django.http import JsonResponse
 from dotenv import load_dotenv
@@ -69,9 +71,15 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        owner = Owner.objects.get(user=user)
-        queryset = super().get_queryset().filter(owner=owner)
-        return queryset
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            queryset = super().get_queryset().filter(owner=owner)
+            return queryset
+        if user.account_type == "tenant":
+            tenant = Tenant.objects.get(user=user)
+            queryset = super().get_queryset().filter(tenant=tenant)
+            return queryset
+
 
     # Create a function to override the create method to create a lease agreement
     def create(self, request, *args, **kwargs):
@@ -197,6 +205,44 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
     
+    #Create a function that cancells a lease and resets the unit to unoccupied and the tenant to null. It sould also void all invoices
+    @action(detail=False, methods=["post"], url_path="cancel-lease-agreement")
+    def cancel_lease(self, request):
+        #Check if request user owns the lease agreement
+        owner = Owner.objects.get(user=request.user)
+        lease_agreement_id = request.data.get("lease_agreement_id")
+        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+        if lease_agreement.owner != owner:
+            return Response(
+                {"message": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        tenant = Tenant.objects.get(id=lease_agreement.tenant.id)
+        customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
+
+        #Retrieve all customers invoices
+        invoices = stripe.Invoice.list(customer=customer.id, limit=100)["data"]
+        #fetch invoice with the metadata's lease_agreement_id property equal to the lease_agreement_id and void each invoice
+        for invoice in invoices:
+            if invoice.metadata["type"] == "rent_payment" and int(invoice.metadata["lease_agreement_id"]) == lease_agreement.id and invoice.status == "open":
+                #Retrieve the invoice using the invoice's id attribute and void it
+                stripe.Invoice.void_invoice(invoice.id)
+
+        lease_agreement.is_active = False
+        lease_agreement.save()
+        unit = RentalUnit.objects.get(id=lease_agreement.rental_unit.id)
+        unit.is_occupied = False
+        unit.tenant = None
+        unit.save()
+        lease_agreement.delete()
+        return Response(
+            {
+                "message": "Lease cancelled successfully.",
+                "status": status.HTTP_200_OK,
+            },
+            status=status.HTTP_200_OK,
+        )
+
 # Create an endpoint that will handle when a person signs a lease agreement
 class SignLeaseAgreementView(APIView):
     def post(self, request):
@@ -205,7 +251,6 @@ class SignLeaseAgreementView(APIView):
         unit_id = request.data.get("unit_id")
         start_date = request.data.get("start_date")
         end_date = request.data.get("end_date")
-        signed_date = request.data.get("signed_date")
 
         lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
         # check if the approval hash is valid with the lease agreement
@@ -217,8 +262,9 @@ class SignLeaseAgreementView(APIView):
         # retrieve the lease agreement object and update the start_date and end_date and set is_active to true
         lease_agreement.start_date = start_date
         lease_agreement.end_date = end_date
-        lease_agreement.is_active = True
-        lease_agreement.signed_date = signed_date
+        # lease_agreement.is_active = True
+        #Set the signed date to the current date
+        lease_agreement.signed_date = timezone.now().date()
         # document_id = request.data.get('document_id') TODO
         lease_agreement.save()
 
@@ -226,11 +272,6 @@ class SignLeaseAgreementView(APIView):
         unit = RentalUnit.objects.get(id=unit_id)
         unit.is_occupied = True
         unit.save()
-
-        # Retrieve tenantfirst and last name from the rental application using  the approval hash
-        rental_application = RentalApplication.objects.filter(
-            approval_hash=approval_hash
-        ).first()
 
         tenant_first_name = ""
         tenant_last_name = ""

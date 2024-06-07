@@ -1,5 +1,7 @@
 from rest_framework import permissions
 from rest_framework.permissions import  BasePermission
+
+from keyflow_backend_app.models.account_type import Owner
 from .models.rental_property import RentalProperty
 from .models.rental_unit import RentalUnit
 from .models.message import Message
@@ -9,7 +11,8 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
-        return obj.user == request.user and request.user.account_type == 'owner'
+        request_owner = Owner.objects.get(user=request.user)
+        return obj.owner == request_owner and request.user.account_type == 'owner'
 
 class IsTenantOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -160,8 +163,16 @@ class IsResourceOwner(permissions.BasePermission):
     """
     
     def has_object_permission(self, request, view, obj):
-        # Check if the user is the owner of the resource (e.g., property, unit, lease agreement)
-        return obj.owner.user == request.user
+        try:
+            # Check request user account type
+            if request.user.account_type == 'owner':
+                return obj.owner.user == request.user
+            elif request.user.account_type == 'tenant':
+                return obj.tenant.user == request.user
+        #Create exception for when obj does not have a tenant attribute
+        except AttributeError:
+            return obj.owner.user == request.user
+        return False
     
     def has_permission(self, request, view):
         # Allow resource creation (POST) only if the user is the owner
