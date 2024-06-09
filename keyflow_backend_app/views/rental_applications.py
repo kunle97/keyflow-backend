@@ -54,8 +54,8 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     ]
 
     search_fields = ["first_name", "last_name", "email"]
-    filterset_fields = ["first_name", "last_name", "email", "phone_number"]
-    ordering_fields =  [ "first_name","last_name", "email","phone_number","created_at","is_approved"]
+    filterset_fields = ["first_name", "last_name", "email", "phone_number","is_approved","is_archived"]
+    ordering_fields =  [ "first_name","last_name", "email","phone_number","created_at","is_approved","is_archived"]
 
     def get_queryset(self):
         user = self.request.user  # Get the current user
@@ -246,7 +246,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         )
 
     # Create a method to reject and delete a rental application
-    @action(detail=True, methods=["post"], url_path="reject-rental-application")
+    @action(detail=True, methods=["post"], url_path="reject-rental-application") #POST /api/rental-applications/{id}/reject-rental-application/
     def reject_rental_application(self, request, pk=None):
         rental_application = self.get_object()
         user = request.user
@@ -256,6 +256,33 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
             rental_application.save()
             rental_application.delete()
             return Response({"message": "Rental application rejected successfully."})
+        return Response(
+            {"message": "You do not have the permissions to access this resource"}
+        )
+
+    #Create a method to archive a rental application
+    @action(detail=True, methods=["post"], url_path="archive-rental-application")#POST /api/rental-applications/{id}/archive-rental-application/
+    def archive_rental_application(self, request, pk=None):
+        rental_application = self.get_object()
+        user = request.user
+        owner = Owner.objects.get(user=user)
+        if request.user.is_authenticated and rental_application.owner == owner:
+            rental_application.is_archived = True
+            rental_application.save()
+            return Response({"message": "Rental application archived successfully."})
+        return Response(
+            {"message": "You do not have the permissions to access this resource"}
+        )
+    #Create a method to unarchive a rental application
+    @action(detail=True, methods=["post"], url_path="unarchive-rental-application")#POST /api/rental-applications/{id}/unarchive-rental-application/
+    def unarchive_rental_application(self, request, pk=None):
+        rental_application = self.get_object()
+        user = request.user
+        owner = Owner.objects.get(user=user)
+        if request.user.is_authenticated and rental_application.owner == owner:
+            rental_application.is_archived = False
+            rental_application.save()
+            return Response({"message": "Rental application unarchived successfully."})
         return Response(
             {"message": "You do not have the permissions to access this resource"}
         )
