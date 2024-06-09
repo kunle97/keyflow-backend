@@ -13,10 +13,10 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate, login
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-
+from django.db import transaction
 from keyflow_backend_app.serializers.account_type_serializer import OwnerSerializer, TenantSerializer
 from ..models.notification import Notification
 from ..models.user import User
@@ -72,6 +72,9 @@ class UserLoginView(APIView):
                 {"message": "User account is not active. Please check your email for an activation link.", "status": status.HTTP_400_BAD_REQUEST},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        login(request, user)
+
         if remember_me:
             expiration_time_in_days = 30    
         else:
@@ -152,9 +155,7 @@ class UserLoginView(APIView):
             else:
                 token = existing_token
         else:
-            token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date)
-            token.key = Token.generate_key()
-            token.save()
+            token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date, key=Token.generate_key())
 
         return token
     
