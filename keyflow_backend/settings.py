@@ -31,8 +31,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "2=ygj!*kw8p+g*-kpm_b@r91io6uswae2*8f1j(o5jr4a*&ja_"
 
+DEBUG = False
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+if os.getenv("ENVIRONMENT") == "production":
+    DEBUG = False
+else:
+    DEBUG = True
 
 ALLOWED_HOSTS = [
     ".vercel.app",
@@ -175,7 +179,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "https://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://127.0.0.1:3000",
+
     "https://merchant-ui-api.stripe.com",
     "https://js.stripe.com",
     "https://api.boldsign.com",
@@ -201,6 +205,9 @@ REST_FRAMEWORK = {
         "keyflow_backend_app.authentication.ExpiringTokenAuthentication",
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
 }
 
 # settings.py

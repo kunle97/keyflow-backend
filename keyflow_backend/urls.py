@@ -15,6 +15,7 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.conf.urls import handler404
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from keyflow_backend_app.views.auth import (
@@ -370,3 +371,4 @@ urlpatterns = [
         name="generate_transactions",
     ),
 ]
+handler404 =  "keyflow_backend_app.views.404.custom_404_view"
