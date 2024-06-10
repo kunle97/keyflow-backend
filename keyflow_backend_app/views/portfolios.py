@@ -10,6 +10,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.decorators import action
 from rest_framework import status
+from keyflow_backend_app.helpers import portfolioNameIsValid
 
 class PortfolioViewSet(viewsets.ModelViewSet):
     queryset = Portfolio.objects.all()
@@ -28,6 +29,26 @@ class PortfolioViewSet(viewsets.ModelViewSet):
         user = self.request.user
         owner = Owner.objects.get(user=user)
         return Portfolio.objects.filter(owner=owner)
+
+    #Override the create method to validate the name of the portfolio using the helper function portfolioNameIsValid
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        name = data.get("name")
+        owner = Owner.objects.get(user=request.user)
+        if not portfolioNameIsValid(name, owner):
+            return JsonResponse({'message': 'A portfolio with this name already exists.', "status":status.HTTP_400_BAD_REQUEST}, status=400)
+        return super().create(request, *args, **kwargs)
+
+    #Create an endpont that validates the portfolio name using the helper function portfolioNameIsValid
+    @action(detail=False, methods=["post"], url_path="validate-name")
+    def validate_name(self, request):
+        data = request.data.copy()
+        name = data.get("name")
+        owner = Owner.objects.get(user=request.user)
+        if not portfolioNameIsValid(name, owner):
+            return JsonResponse({'message': 'Invalid portfolio name.', "status":status.HTTP_400_BAD_REQUEST}, status=400)
+        return JsonResponse({'message': 'Valid portfolio name.', "status":status.HTTP_200_OK}, status=200)
+
 
     #Create a fucntion to update the portfolio preferences. once a preference is updated all of the properties and units preferences should be updated as well
     @action(detail=True, methods=["patch"], url_path="update-preferences")# PATCH /api/portfolios/{pk}/update-preferences/

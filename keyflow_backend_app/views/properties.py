@@ -23,6 +23,7 @@ from ..models.rental_unit import  RentalUnit
 from ..serializers.user_serializer import UserSerializer
 from ..serializers.rental_property_serializer import RentalPropertySerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
+from keyflow_backend_app.helpers import propertyNameIsValid, unitNameIsValid
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.response import Response
@@ -60,8 +61,25 @@ class PropertyViewSet(viewsets.ModelViewSet):
         stripe_account_requirements = stripe_account.requirements.currently_due
         if len(stripe_account_requirements) > 0:
             return Response({'message': 'Please complete your stripe account onboarding before creating units.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        #Validate the property name using the helper function propertyNameIsValid
+        name = request.data.get('name')
+        if not propertyNameIsValid(name, owner):
+            return Response({'message': 'Property with this name already exists.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+
         return super().create(request, *args, **kwargs)
+
+        
+    #Create an endpont that validates the property name using the helper function propertyNameIsValid
+    @action(detail=False, methods=['post'], url_path='validate-name')
+    def validate_property_name_endpoint(self, request):
+        user = self.request.user
+        owner = Owner.objects.get(user=user)
+        name = request.data.get('name')
+        if not propertyNameIsValid(name, owner):
+            return Response({'message': 'Property with this name already exists.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': 'Property name is valid.',"status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+    
     @action(detail=False, methods=['get'], url_path='filters')
     def retireve_filter_data(self, request):
         user = self.request.user
@@ -101,18 +119,23 @@ class PropertyViewSet(viewsets.ModelViewSet):
             owner = Owner.objects.get(user=user)
             
             keys_to_handle = ['street', 'city', 'state', 'zip_code', 'country']
-
+            
             for row in csv_reader:
-                # Use a dictionary comprehension to handle keys and strip values
-                property_data = {key: row.get(key, '').strip() if row.get(key) else None for key in keys_to_handle}
+                #Validate the property names from the csv file
+                if propertyNameIsValid(row['name'], owner):
+                    # Use a dictionary comprehension to handle keys and strip values
+                    property_data = {key: row.get(key, '').strip() if row.get(key) else None for key in keys_to_handle}
 
-                # Create RentalProperty object
-                RentalProperty.objects.create(
-                    owner=owner,
-                    name=row['name'].strip(),  # Optionally, you can strip whitespace from values
-                    **property_data  # Unpack the dictionary into keyword arguments
-    )
-
+                    # Create RentalProperty object
+                    RentalProperty.objects.create(
+                        owner=owner,
+                        name=row['name'].strip(),  # Optionally, you can strip whitespace from values
+                        **property_data  # Unpack the dictionary into keyword arguments
+                    )
+                else:
+                    print(f'Property name already exists {row["name"]}')
+                    return Response({'error_type':'duplicate_name_error','message': 'One more more of the properties you are trying to import have a name that conflicts with a property name that already exists.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+                
             return Response({'message': 'Units created successfully.'}, status=status.HTTP_201_CREATED)
 
         except ValidationError as e:
@@ -136,14 +159,18 @@ class PropertyViewSet(viewsets.ModelViewSet):
             owner = Owner.objects.get(user=user)
 
             for row in csv_reader:
-                RentalUnit.objects.create(
-                    owner=owner,
-                    name=row['name'].strip(),  # Optionally, you can strip whitespace from values
-                    beds=row['beds'].strip(),
-                    baths=row['baths'].strip(),
-                    rental_property=rental_property,
-                    size=row['size'].strip(),
-                )
+                #Validate the unit names from the csv file and ensure that they are unique from the units in the same rental property
+                if unitNameIsValid(rental_property.pk,row['name'], owner):
+                    RentalUnit.objects.create(
+                        owner=owner,
+                        rental_property=rental_property,
+                        name=row['name'].strip(),  # Optionally, you can strip whitespace from values
+                        beds=row['beds'].strip(),
+                        baths=row['baths'].strip(),
+                        size=row['size'].strip(),
+                    )
+                else:
+                    return Response({'error_type':'duplicate_name_error','message': 'One or more of the units you are trying to import have a name that conflicts with a unit name that already exists in this property.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({'message': 'Units created successfully.',}, status=status.HTTP_201_CREATED)
 
