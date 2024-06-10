@@ -5,6 +5,9 @@ import random
 import string
 from dotenv import load_dotenv
 import boto3
+from keyflow_backend_app.models.portfolio import Portfolio
+from keyflow_backend_app.models.rental_property import RentalProperty
+from keyflow_backend_app.models.rental_unit import RentalUnit
 import sendgrid
 import os
 from sendgrid.helpers.mail import Mail, Email, To, Content
@@ -306,3 +309,33 @@ def create_rent_invoices(
             additional_charges_dict,
             lease_agreement
         )
+
+    
+#Create a function that checks to see if a name for a unit with the same property already exists
+def unitNameIsValid(rental_property, name, owner):
+    try:
+        #Remove white spaces from the name
+        name = name.strip()
+        rental_property_instance = RentalProperty.objects.get(id=rental_property)
+        if RentalUnit.objects.filter(owner=owner, rental_property=rental_property_instance, name=name).exists():
+            return False
+        return True
+    except RentalProperty.DoesNotExist:
+        return True
+
+    
+#Create a helper function validate_property_name that checks if the property name already exists with this owner
+def propertyNameIsValid(name, owner):
+    #Remove white spaces from the name
+    name = name.strip()
+    if RentalProperty.objects.filter(name=name, owner=owner).exists():
+        return False
+    return True
+
+#Create a helper function isPortfolioNameValid that checks if the portfolio name already exists with this owner
+def portfolioNameIsValid(name, owner):
+    #Remove white spaces from the name
+    name = name.strip()
+    if Portfolio.objects.filter(name=name, owner=owner).exists():
+        return False
+    return True

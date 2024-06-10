@@ -5,13 +5,12 @@ import stripe
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
 from rest_framework.permissions import IsAuthenticated 
-
 from keyflow_backend_app.models.account_type import Owner
+from keyflow_backend_app.helpers import unitNameIsValid
 from keyflow_backend_app.models.lease_template import LeaseTemplate
 from keyflow_backend_app.models.rental_property import RentalProperty
 from ..models.rental_unit import RentalUnit, default_rental_unit_lease_terms
@@ -30,6 +29,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import filters
+
 load_dotenv()
 
 #Create a class to retrieve a unit by its id using the class name RetrieveUnitByIdView
@@ -111,6 +111,11 @@ class UnitViewSet(viewsets.ModelViewSet):
             subscription_id, #Retrieve the subscription from stripe
         )
         
+        #Validate the unit name using the validate_name function
+        for unit in units:
+            if not unitNameIsValid(rental_property, unit['name'], owner):
+                return Response({'message': 'A unit with the name ' + unit['name'] + ' already exists for this property.'}, status=status.HTTP_400_BAD_REQUEST)
+
         #Retrieve the users stripe account
         stripe_account = stripe.Account.retrieve(owner.stripe_account_id)
         stripe_account_requirements = stripe_account.requirements.currently_due
@@ -156,7 +161,7 @@ class UnitViewSet(viewsets.ModelViewSet):
             )
             return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
         return Response({"message","error Creating unit"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
     #Create a function that override the dlete function to delete the unit and decrease the metered usage for the user
     def destroy(self, request, pk=None):
         unit = self.get_object()
@@ -251,3 +256,15 @@ class UnitViewSet(viewsets.ModelViewSet):
         unit = self.get_object()
         unit.remove_lease_template()
         return Response({'message': 'Lease template removed successfully.',"status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+    
+    #Create an endpoint that uses the validate_name function to check if a unit name is valid
+    @action(detail=False, methods=['post'], url_path='validate-name')
+    def validate_name(self, request):
+        data = request.data.copy()
+        rental_property = data['rental_property']
+        name = data['name']
+        user = request.user
+        owner = Owner.objects.get(user=user)
+        if not unitNameIsValid(rental_property, name, owner):
+            return Response({'message': 'A unit with the name ' + name + ' already exists for this property.', "status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': 'Unit name is valid.', "status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
