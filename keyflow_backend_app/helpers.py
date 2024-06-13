@@ -1,4 +1,5 @@
 from math import e
+import json
 import stripe
 import os
 import random
@@ -138,11 +139,11 @@ def calculate_final_price_in_cents(invoice_amount):
     }
 
 
+
 def calculate_rent_periods(lease_start_date, rent_frequency, term):
     rent_periods = []
     current_date = lease_start_date
-
-    # Determine the overall end date of the lease
+    end_date = None
     if rent_frequency == "month":
         end_date = lease_start_date + relativedelta(months=term)
     elif rent_frequency == "week":
@@ -152,11 +153,9 @@ def calculate_rent_periods(lease_start_date, rent_frequency, term):
     elif rent_frequency == "year":
         end_date = lease_start_date + relativedelta(years=term)
 
-    # Calculate each rent period
     while current_date < end_date:
         period_start = current_date
-
-        # Determine the next period end based on rent frequency
+        period_end = None
         if rent_frequency == "month":
             next_period_end = current_date + relativedelta(months=1)
         elif rent_frequency == "week":
@@ -165,24 +164,16 @@ def calculate_rent_periods(lease_start_date, rent_frequency, term):
             next_period_end = current_date + relativedelta(days=1)
         elif rent_frequency == "year":
             next_period_end = current_date + relativedelta(years=1)
-
+        
         # Ensure the period end does not exceed the lease end date
         period_end = min(next_period_end, end_date)
-        
-        # Append the period to the list of rent periods
+
         rent_periods.append((period_start, period_end))
-        
-        # Move to the next period
         current_date = period_end
 
-        # Handle the case where current_date equals end_date
-        if current_date == end_date:
-            break
-
     return rent_periods
-
-
 def create_invoice_for_period(
+    period_start,
     rent_amount,
     customer_id,
     due_date,
@@ -280,7 +271,6 @@ def create_invoice_for_period(
     # Finalize the invoice
     stripe.Invoice.finalize_invoice(invoice.id)
     return invoice
-
 def create_rent_invoices(
     lease_start_date,
     rent_amount,
@@ -294,21 +284,99 @@ def create_rent_invoices(
     rent_periods = calculate_rent_periods(
         lease_start_date, rent_frequency, lease_term
     )
+    lease_terms = json.loads(unit.lease_terms)
+    combined_payments = next(
+        (item for item in lease_terms if item["name"] == "combine_payments"),
+        None,
+    )
     grace_period_days = 0  # Assuming a 5-day grace period; adjust as needed
+    if combined_payments["value"] == "combined":
+        due_date = lease_start_date + relativedelta(days=+grace_period_days)
+        #Create an invoice for the entire period
+        # Set time part of due_date to end of the day
+        due_date_end_of_day = datetime.combine(due_date, time.max)
 
-    for period_start, period_end in rent_periods:
-        # Assuming the due date is at the start of the period plus a grace period
-        due_date = period_start + relativedelta(days=+grace_period_days)
-
-        # Create Stripe invoice for each rent payment period
-        create_invoice_for_period(
-            rent_amount,
-            customer_id,
-            due_date,
-            unit,
-            additional_charges_dict,
-            lease_agreement
+        # Create Stripe Invoice for the specified rent payment period
+        invoice = stripe.Invoice.create(
+            customer=customer_id,
+            auto_advance=True,
+            collection_method="send_invoice",
+            due_date=int(due_date_end_of_day.timestamp()),
+            metadata={
+                "type": "rent_payment",
+                "description": "Rent payment",
+                "tenant_id": unit.tenant.id,
+                "owner_id": unit.owner.id,
+                "rental_property_id": unit.rental_property.id,
+                "rental_unit_id": unit.id,
+                "lease_agreement_id": lease_agreement.id, #TODO: Add lease agreement to metadata
+            },
+            transfer_data={"destination": unit.owner.stripe_account_id},
         )
+
+        # Create a Stripe price for the rent amount
+        price = stripe.Price.create(
+            unit_amount=int(rent_amount * 100),
+            currency="usd",
+            product_data={
+                "name": f"Rent for unit {unit.name} at {unit.rental_property.name}"
+            },
+        )
+
+        for period_start, period_end in rent_periods:
+            #format the period start and end dates to a more human readable format
+            formatted_period_start = period_start.strftime("%m/%d/%Y")
+            invoice_item = stripe.InvoiceItem.create(
+                customer=customer_id,
+                price=price.id,
+                currency="usd",
+                description=f"Rent payment for {formatted_period_start}",
+                invoice=invoice.id,
+            )
+            print("Additional charges dict for combined paymentzzz: ", additional_charges_dict)
+
+            # Add additional charges to the invoice if there are any
+            if additional_charges_dict:
+                for charge in additional_charges_dict:
+                    charge_amount = int(charge["amount"])
+                    charge_name = charge["name"]
+                    charge_product_name = f"{charge_name} for unit {unit.name} at {unit.rental_property.name}"
+                    
+                    charge_product = stripe.Product.create(
+                        name=charge_product_name,
+                        type="service",
+                    )
+                    charge_price = stripe.Price.create(
+                        unit_amount=int(charge_amount * 100),
+                        currency="usd",
+                        product=charge_product.id,
+                    )
+                    invoice_item = stripe.InvoiceItem.create(
+                        customer=customer_id,
+                        price=charge_price.id,
+                        currency="usd",
+                        description=charge_product_name,
+                        invoice=invoice.id,
+                    )
+
+        # Finalize the invoice
+        stripe.Invoice.finalize_invoice(invoice.id)
+            
+    else:
+        for period_start, period_end in rent_periods:
+            # Assuming the due date is at the start of the period plus a grace period
+            due_date = period_start + relativedelta(days=+grace_period_days)
+
+            # Create Stripe invoice for each rent payment period
+            create_invoice_for_period(
+                period_start,
+                rent_amount,
+                customer_id,
+                due_date,
+                unit,
+                additional_charges_dict,
+                lease_agreement
+            )
 
     
 #Create a function that checks to see if a name for a unit with the same property already exists
