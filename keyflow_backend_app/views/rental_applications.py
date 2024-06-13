@@ -208,25 +208,29 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                 rental_unit=unit,
                 owner=owner,
                 approval_hash=approval_hash,
-            )
+            )   
+            try:
+                if os.getenv("ENVIRONMENT") == "production":
+                    #Send an email to the person who submitted the rental application that their application has been approved. rental_application.email in the to field
+                    client_hostname = os.getenv("CLIENT_HOSTNAME")
+                    postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    to_email = ""
 
-            #Send an email to the person who submitted the rental application that their application has been approved. rental_application.email in the to field
-            client_hostname = os.getenv("CLIENT_HOSTNAME")
-            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-            to_email = ""
-
-            if os.getenv("ENVIRONMENT") == "development":
-                to_email = "keyflowsoftware@gmail.com"  
-            else:
-                to_email = rental_application.email
-            sign_link = f"{client_hostname}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}/"
-            postmark.emails.send(
-                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                To=to_email,
-                Subject="Rental Application Approved",
-                HtmlBody=f"Your rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name} has been approved. <a href='{sign_link}'>Sign Lease Agreement</a>",
-            )
-                
+                    if os.getenv("ENVIRONMENT") == "development":
+                        to_email = "keyflowsoftware@gmail.com"  
+                    else:
+                        to_email = rental_application.email
+                    sign_link = f"{client_hostname}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}/"
+                    postmark.emails.send(
+                        From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                        To=to_email,
+                        Subject="Rental Application Approved",
+                        HtmlBody=f"Your rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name} has been approved. <a href='{sign_link}'>Sign Lease Agreement</a>",
+                    )
+            except Exception as e:
+                print(e)
+                pass
+        
             #Delete remaining rental applications for the unit
             rental_applications = RentalApplication.objects.filter(
                 unit=unit, is_archived=False, is_approved=False, 

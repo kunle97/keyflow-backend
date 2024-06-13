@@ -62,6 +62,26 @@ class UnitViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         unit = self.get_object()
         serializer = self.get_serializer(unit)
+        if 'lease_terms' in request.data:
+            lease_terms = request.data.get('lease_terms')
+            unit.lease_terms = lease_terms
+            #updated the additional charges so that thier frequencies match the lease terms rent_frequency
+            lease_terms_dict = json.loads(lease_terms)
+            additional_charges_dict = json.loads(unit.additional_charges)
+
+            rent_frequency = next(
+                (item for item in lease_terms_dict if item["name"] == "rent_frequency"),
+                None,
+            )
+            #check that the additional charges is not an empty list
+            if  len(additional_charges_dict) > 0:
+                for charge in additional_charges_dict:
+                    charge['frequency'] = rent_frequency['value']
+
+                unit.additional_charges = json.dumps(additional_charges_dict)
+                
+            unit.save()
+            return super().partial_update(request, *args, **kwargs)
         if 'signed_lease_document_file' in request.data:
             file_id = request.data.get('signed_lease_document_file')
             if file_id is not None:

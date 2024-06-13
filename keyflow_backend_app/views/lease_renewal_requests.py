@@ -27,7 +27,7 @@ from ..models.notification import Notification
 from ..serializers.lease_renewal_request_serializer import (
     LeaseRenewalRequestSerializer,
 )
-from keyflow_backend_app.helpers import calculate_final_price_in_cents
+from keyflow_backend_app.helpers import calculate_final_price_in_cents, create_rent_invoices
 from ..models.lease_template import LeaseTemplate
 from rest_framework import status
 from rest_framework.response import Response
@@ -284,178 +284,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         )
 
     
-    def calculate_rent_periods(self, lease_start_date, rent_frequency, term):
-        rent_periods = []
-        current_date = lease_start_date
-        end_date = None
-        print(f"ZX reent_frequency: {rent_frequency}")
-        if rent_frequency == "month":
-            end_date = lease_start_date + relativedelta(months=term)
-        elif rent_frequency == "week":
-            end_date = lease_start_date + relativedelta(weeks=term)
-        elif rent_frequency == "day":
-            end_date = lease_start_date + relativedelta(days=term)
-        elif rent_frequency == "year":
-            end_date = lease_start_date + relativedelta(years=term)
-        print(f"ZX current_date: {current_date}")
-        print(f"ZX end_date: {end_date}")
-        while current_date < end_date:
-            period_start = current_date
-            period_end = None
-            if rent_frequency == "month":
-                period_end = current_date + relativedelta(months=1)
-            elif rent_frequency == "week":
-                period_end = current_date + relativedelta(weeks=1)
-            elif rent_frequency == "day":
-                period_end = current_date + relativedelta(days=1)
-            elif rent_frequency == "year":
-                period_end = current_date + relativedelta(years=1)
-
-            rent_periods.append((period_start, period_end))
-            current_date = period_end
-
-        return rent_periods
-
-    def create_invoice_for_period(
-        self,
-        period_start,
-        rent_amount,
-        customer_id,
-        due_date,
-        unit,
-        additional_charges_dict,
-        lease_agreement
-    ):
-
-        # Set time part of due_date to end of the day
-        due_date_end_of_day = datetime.combine(due_date, time.max)
-
-        # Create Stripe Invoice for the specified rent payment period
-        invoice = stripe.Invoice.create(
-            customer=customer_id,
-            auto_advance=True,
-            collection_method="send_invoice",
-            due_date=int(due_date_end_of_day.timestamp()),
-            metadata={
-                "type": "rent_payment",
-                "description": "Rent payment",
-                "tenant_id": unit.tenant.id,
-                "owner_id": unit.owner.id,
-                "rental_property_id": unit.rental_property.id,
-                "rental_unit_id": unit.id,
-                "lease_agreement_id": lease_agreement.id, #TODO: Add lease agreement to metadata
-            },
-            transfer_data={"destination": unit.owner.stripe_account_id},
-        )
-
-        # Create a Stripe price for the rent amount
-        price = stripe.Price.create(
-            unit_amount=int(rent_amount * 100),
-            currency="usd",
-            product_data={
-                "name": f"Rent for unit {unit.name} at {unit.rental_property.name}"
-            },
-        )
-
-        # Create a Stripe invoice item for the rent amount
-        invoice_item = stripe.InvoiceItem.create(
-            customer=customer_id,
-            price=price.id,
-            currency="usd",
-            description="Rent payment",
-            invoice=invoice.id,
-        )
-
-        # Calculate the Stripe fee based on the rent amount
-        stripe_fee_in_cents = calculate_final_price_in_cents(rent_amount)["stripe_fee_in_cents"]
-        
-        # Create a Stripe product and price for the Stripe fee
-        stripe_fee_product = stripe.Product.create(
-            name=f"Stripe fee for rent payment of {unit.name} at {unit.rental_property.name}",
-            type="service",
-        )
-        stripe_fee_price = stripe.Price.create(
-            unit_amount=int(stripe_fee_in_cents),
-            currency="usd",
-            product=stripe_fee_product.id,
-        )
-
-        # Create a Stripe invoice item for the Stripe fee
-        invoice_item = stripe.InvoiceItem.create(
-            customer=customer_id,
-            price=stripe_fee_price.id,
-            currency="usd",
-            description=f"Stripe fee for rent payment of {unit.name} at {unit.rental_property.name}",
-            invoice=invoice.id,
-        )
-        
-
-        # Add additional charges to the invoice if there are any
-        if additional_charges_dict:
-            for charge in additional_charges_dict:
-                charge_amount = int(charge["amount"])
-                charge_name = charge["name"]
-                charge_product_name = f"{charge_name} for unit {unit.name} at {unit.rental_property.name}"
-                
-                charge_product = stripe.Product.create(
-                    name=charge_product_name,
-                    type="service",
-                )
-                charge_price = stripe.Price.create(
-                    unit_amount=int(charge_amount * 100),
-                    currency="usd",
-                    product=charge_product.id,
-                )
-                invoice_item = stripe.InvoiceItem.create(
-                    customer=customer_id,
-                    price=charge_price.id,
-                    currency="usd",
-                    description=charge_product_name,
-                    invoice=invoice.id,
-                )
-
-        # Finalize the invoice
-        stripe.Invoice.finalize_invoice(invoice.id)
-        return invoice
-
-    def create_rent_invoices(
-        self,
-        lease_start_date,
-        rent_amount,
-        rent_frequency,
-        lease_term,
-        customer_id,
-        unit,
-        additional_charges_dict,
-        leasea_agreement
-    ):
-        rent_periods = self.calculate_rent_periods(
-            lease_start_date, rent_frequency, lease_term
-        )
-        current_date = datetime.now().date()
-        due_date = None
-        for period_start, period_end in rent_periods:
-            if period_start.date() >= current_date:
-                # calculate the due date for current invoice
-                if rent_frequency == "month":
-                    due_date = period_start + relativedelta(months=1)
-                elif rent_frequency == "week":
-                    due_date = period_start + relativedelta(weeks=1)
-                elif rent_frequency == "day":
-                    due_date = period_start + relativedelta(days=1)
-                elif rent_frequency == "year":
-                    due_date = period_start + relativedelta(years=1)
-                # Create Stripe invoice for each rent payment period
-                self.create_invoice_for_period(
-                    period_start,
-                    rent_amount,
-                    customer_id,
-                    due_date,
-                    unit,
-                    additional_charges_dict,
-                    leasea_agreement
-                )
-
+ 
     @action(detail=False, methods=["post"], url_path="sign")
     def sign(self, request, pk=None):
         data = request.data.copy()
@@ -622,7 +451,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         additional_charges_dict = json.loads(unit.additional_charges)
         
         #Create rent invoices usiing the create_rent_invoices method
-        self.create_rent_invoices(
+        create_rent_invoices(
             new_lease_start_date,
             rent_value,
             rent_frequency_value,
