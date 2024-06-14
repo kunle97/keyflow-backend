@@ -1,6 +1,7 @@
 import json
 import stripe
 import os
+from keyflow_backend_app.models.maintenance_request import MaintenanceRequest
 from postmarker.core import PostmarkClient
 from dotenv import load_dotenv
 from rest_framework import viewsets
@@ -88,20 +89,30 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        collection_method = None
         # Check if tennt exists
         tenant_id = request.data.get("tenant", None)
         if type in expense_types and tenant_id is None:
             rental_unit = RentalUnit.objects.get(id=request.data.get("rental_unit"))
             rental_property = rental_unit.rental_property
+            collection_method = None
         #Check for if Rental unit exists when request_unit is passed in the request
         else:
             tenant = Tenant.objects.get(id=request.data.get("tenant"))
             rental_unit = RentalUnit.objects.get(tenant=tenant)
             rental_property = rental_unit.rental_property
+            tenant_preferences = json.loads(tenant.preferences)
+            #Retrieve the object in the array who's "name" key value is "invoice_recieved"
+            invoice_recieved = next(
+                item for item in tenant_preferences if item["name"] == "bill_created"
+            )
+            #Retrieve the "values" key value of the object
+            invoice_recieved_value = invoice_recieved["values"]
+            tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
+            collection_method ="send_invoice"
+
         rental_unit_lease_terms = json.loads(rental_unit.lease_terms)   
         billing_entry_status = data["status"]
-        # collection_method = request.data.get("collection_method", None)
-        collection_method = "send_invoice"
         stripe_invoice = None
         due_date = None
         if request.data.get("due_date", None) is not None:
@@ -116,13 +127,6 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
             # retrieve thestripe cusotmer object
 
-            tenant_preferences = json.loads(tenant.preferences)
-            #Retrieve the object in the array who's "name" key value is "invoice_recieved"
-            invoice_recieved = next(
-                item for item in tenant_preferences if item["name"] == "bill_created"
-            )
-            #Retrieve the "values" key value of the object
-            invoice_recieved_values = invoice_recieved["values"]
 
             # Calculate the Stripe fee based on the rent amount
             stripe_fee_in_cents = calculate_final_price_in_cents(amount)["stripe_fee_in_cents"]
@@ -139,7 +143,6 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             )
 
             if collection_method == "send_invoice":
-                tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
                 # Create a stripe invoice object if type is not in the expense_types list
                 if type not in expense_types:
                     stripe_invoice = stripe.Invoice.create(
@@ -182,39 +185,34 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     )
                     stripe.Invoice.finalize_invoice(stripe_invoice.id)
                     stripe.Invoice.send_invoice(stripe_invoice.id)
-
-
-                    for value in invoice_recieved_values:
-                        if value["name"] == "push" and value["value"] == True:
-                            #Create a notification for the tenant that a new invoice has been sent
-                            notification = Notification.objects.create(
-                                user=tenant.user,
-                                message=f"A new invoice has been recieved for {description}",
-                                type="invoice_recieved",
-                                title="Invoice Recieved",
-                                resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}",
-                            )
-                        elif value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                            #Create an email notification using postmark for the tenant that a new invoice has been recieved
-                            client_hostname = os.getenv("CLIENT_HOSTNAME")
-                            postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                    
+                    if invoice_recieved_value["name"] == "push" and invoice_recieved_value["value"] == True:
+                        #Create a notification for the tenant that a new invoice has been sent
+                        notification = Notification.objects.create(
+                            user=tenant.user,
+                            message=f"A new invoice has been recieved for {description}",
+                            type="invoice_recieved",
+                            title="Invoice Recieved",
+                            resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}",
+                        )
+                    elif invoice_recieved_value["name"] == "email" and invoice_recieved_value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                        #Create an email notification using postmark for the tenant that a new invoice has been recieved
+                        client_hostname = os.getenv("CLIENT_HOSTNAME")
+                        postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
+                        to_email = tenant.user.email
+                        if os.getenv("ENVIRONMENT") == "development":
+                            to_email = "keyflowsoftware@gmail.com"
+                        else:
                             to_email = tenant.user.email
-                            if os.getenv("ENVIRONMENT") == "development":
-                                to_email = "keyflowsoftware@gmail.com"
-                            else:
-                                to_email = tenant.user.email
-                            postmark.emails.send(
-                                From=os.getenv("KEYFLOW_SENDER_EMAIL"),
-                                To=to_email,
-                                Subject="New Invoice Recieved",
-                                HtmlBody=f"""
-                                A new invoice has been recieved for {description}.
-                                <a href='{client_hostname}/dashboard/tenant/bills/{stripe_invoice.id}'>View Invoice</a>
-                                """,
-                            )
-
-
-
+                        postmark.emails.send(
+                            From=os.getenv("KEYFLOW_SENDER_EMAIL"),
+                            To=to_email,
+                            Subject="New Invoice Recieved",
+                            HtmlBody=f"""
+                            A new invoice has been recieved for {description}.
+                            <a href='{client_hostname}/dashboard/tenant/bills/{stripe_invoice.id}'>View Invoice</a>
+                            """,
+                        )
                 # Create Billing Entry for the owner
                 billing_entry = BillingEntry.objects.create(
                     type=type,
@@ -245,6 +243,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     {
                         "message": "Billing entry created successfully.",
                         "data": serializer.data,
+                        "status": status.HTTP_201_CREATED
                     },
                     status=status.HTTP_201_CREATED,
                 )
@@ -275,10 +274,15 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                         timestamp=due_date_time_field,
                     )
                 serializer = BillingEntrySerializer(billing_entry)
+                if data['maintenance_request_id']:
+                    maintenance_request = MaintenanceRequest.objects.get(id=data['maintenance_request_id'])
+                    maintenance_request.billing_entry = billing_entry
+                    maintenance_request.save()
                 return Response(
                     {
                         "message": "Billing entry created successfully.",
                         "data": serializer.data,
+                        "status": status.HTTP_201_CREATED
                     },
                     status=status.HTTP_201_CREATED,
                 )
