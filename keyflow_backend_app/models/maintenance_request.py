@@ -1,5 +1,6 @@
 from django.db import models
 from datetime import datetime
+from keyflow_backend_app.models.billing_entry import BillingEntry
 from keyflow_backend_app.models.account_type import Owner,Tenant
 from keyflow_backend_app.models.rental_property import RentalProperty
 from keyflow_backend_app.models.rental_unit import RentalUnit
@@ -27,6 +28,7 @@ class MaintenanceRequest(models.Model):
     status = models.CharField(max_length=50, choices=STATUS_TYPE_CHOICES, default='pending')
     is_archived = models.BooleanField(default=False)
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE,default=None)
+    billing_entry = models.ForeignKey(BillingEntry, on_delete=models.CASCADE, default=None,blank=True, null=True)
     created_at = models.DateTimeField(default=datetime.now,  blank=True)
     updated_at = models.DateTimeField(default=datetime.now,  blank=True)
     
