@@ -185,7 +185,7 @@ default_rental_unit_lease_terms = """
 class RentalUnit(models.Model):
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None) #Owner of the unit
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, related_name='tenant_unit', blank=True, null=True) #Tenant of the unit
-    name = models.CharField(max_length=100, blank=True)
+    name = models.CharField(max_length=100, blank=False, null=False)
     beds = models.PositiveIntegerField()
     baths = models.PositiveIntegerField()
     rental_property = models.ForeignKey(RentalProperty, on_delete=models.CASCADE, related_name='rental_units')
