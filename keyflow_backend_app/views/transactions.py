@@ -16,7 +16,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]#IsResourceOwner, ResourceCreatePermission
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['description', 'type' ]
+    search_fields = ['description', 'type' ,"amount", "timestamp"]
     ordering_fields = ['description', 'type', 'amount', 'timestamp' ]
     filterset_fields = ['description', 'type', 'timestamp' ]
     def get_queryset(self):

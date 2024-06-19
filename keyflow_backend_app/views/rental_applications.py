@@ -55,7 +55,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
 
     search_fields = ["first_name", "last_name", "email"]
     filterset_fields = ["first_name", "last_name", "email", "phone_number","is_approved","is_archived"]
-    ordering_fields =  [ "first_name","last_name", "email","phone_number","created_at","is_approved","is_archived"]
+    ordering_fields =  ["first_name","last_name", "email","unit__rental_property__name","created_at","is_approved","is_archived"]
 
     def get_queryset(self):
         user = self.request.user  # Get the current user

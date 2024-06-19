@@ -30,7 +30,7 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
         "description",
         "status",
     ]
-    ordering_fields = ["status", "created_at", "id"]
+    ordering_fields = ["tenant__user__last_name","status","description", "type", "priority", "created_at"]
     filterset_fields = ["status"]
 
     def get_queryset(self):
