@@ -38,11 +38,15 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter,
     ]
     search_fields = [
-        "tenant__first_name",
-        "tenant__last_name",
+        "tenant__user__first_name",
+        "tenant__user__last_name",
     ]
     ordering_fields = [
-        "tenant",
+        "tenant__user__last_name",
+        "rental_unit__name",
+        "request_date",
+        "status",
+        "created_at",
     ]
 
     def get_queryset(self):

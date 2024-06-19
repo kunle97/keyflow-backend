@@ -462,7 +462,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
-    ordering_fields = ["user__first_name", "user__last_name", "date_joined"]
+    ordering_fields = ["user__first_name", "user__last_name","user__email", "date_joined"]
     search_fields = ["user__first_name", "user__last_name"]
     filterset_fields = ["user__first_name", "user__last_name"]
 

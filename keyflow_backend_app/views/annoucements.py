@@ -22,7 +22,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     ]
     filterset_fields = ["target"]
     search_fields = ["title", "body"]
-    ordering_fields = ["created_at"]
+    ordering_fields = ["title", "body","created_at","start_date","end_date"]
 
 
     def get_queryset(self):

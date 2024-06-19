@@ -51,7 +51,7 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['term', 'rent', 'security_deposit' ]
-    ordering_fields = ['term', 'rent', 'security_deposit', 'created_at' ]
+    ordering_fields = ['term', 'rent', 'security_deposit','late_fee', 'created_at' ]
     filterset_fields = ['term', 'rent', 'security_deposit' ]
    
     def get_queryset(self):

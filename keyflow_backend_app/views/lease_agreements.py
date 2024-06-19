@@ -53,15 +53,16 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter,
     ]
     search_fields = [
-        "tenant__first_name",
-        "tenant__last_name",
+        "tenant__user__first_name",
+        "tenant__user__last_name",
         "is_active",
         "start_date",
         "end_date",
     ]
     ordering_fields = [
-        "tenant__first_name",
-        "tenant__last_name",
+        "tenant__user__first_name",
+        "tenant__user__last_name",
+        "rental_unit__name",
         "is_active",
         "start_date",
         "end_date",
