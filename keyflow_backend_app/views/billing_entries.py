@@ -38,7 +38,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
     ]
     filterset_fields = ["tenant__user__first_name", "status"]
     search_fields = ["tenant__user__first_name", "status"]
-    ordering_fields = ["tenant__user__first_name", "status", "amount", "created_at"]
+    ordering_fields = ["tenant__user__first_name", "status", "amount", "type","created_at"]
 
     def get_queryset(self):
         user = self.request.user

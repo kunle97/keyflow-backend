@@ -37,9 +37,9 @@ class PropertyViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    ordering_fields = ['name', 'street', 'created_at', 'id', 'state' ]
-    search_fields = ['name', 'street' ]
-    filterset_fields = ['city', 'state']
+    ordering_fields = ['name', 'street','city', 'created_at', 'id', 'state' ]
+    search_fields = ['name', 'street', 'city', 'state']
+    filterset_fields = ['city', 'state', 'zip_code']
 
     def get_serializer_context(self): #TODO: Delete if not needed
             # Make sure you include the context in the serializer instance
