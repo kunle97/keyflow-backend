@@ -53,16 +53,17 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
 
         start_date_utc = datetime.fromisoformat(start_date_str).replace(tzinfo=timezone.utc)
         end_date_utc = datetime.fromisoformat(end_date_str).replace(tzinfo=timezone.utc)
-        #ADd a day to the end date
-        end_date_utc = end_date_utc + timedelta(days=1)
+        #ADd a day to the end date and start date
+        start_date_updated = start_date_utc + timedelta(days=1)
+        end_date_updated = end_date_utc + timedelta(days=1)
         announcement = Announcement.objects.create(
             title=title,
             body=body,
             severity=severity,
             target=target,
             owner=owner,
-            start_date=start_date_utc,
-            end_date=end_date_utc
+            start_date=start_date_updated,
+            end_date=end_date_updated
         )
         announcement.save()
         return Response({"message": "Announcement created successfully"}, status=status.HTTP_201_CREATED)
