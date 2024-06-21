@@ -1,6 +1,6 @@
 # views.py
 import os
-from django.http import JsonResponse, FileResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
 from rest_framework.response import Response
 from dotenv import load_dotenv
 from django.views.decorators.csrf import csrf_exempt
@@ -258,27 +258,19 @@ class CreateSigningLinkView(APIView):
 # Create a class that donwloads a doccument using the url  https://api.boldsign.com/v1/document/download and params documentId
 class DownloadBoldSignDocumentView(APIView):
     def post(self, request, *args, **kwargs):
-        url = f"https://api.boldsign.com/v1/document/download?documentId={request.data.get('document_id')}"
+        document_id = request.data.get('document_id')
+        if not document_id:
+            return Response({"error": "Document ID is required"}, status=400)
 
-        payload = {}
+        url = f"https://api.boldsign.com/v1/document/download?documentId={document_id}"
         headers = {"accept": "application/json", "X-API-KEY": f"{BOLDSIGN_API_KEY}"}
 
-        response = requests.request("GET", url, headers=headers, data=payload)
+        response = requests.get(url, headers=headers)
+
         if response.status_code == 200:
-            # Get the file content and content type from the response
-            file_content = response.content
-            content_type = response.headers.get("Content-Type")
-
-            # Create a FileResponse without specifying a filename
-            response = FileResponse(file_content)
-            response["Content-Type"] = content_type
-            response["Content-Disposition"] = "attachment"
-
+            content_type = response.headers.get('Content-Type', 'application/pdf')
+            response = HttpResponse(response.content, content_type=content_type)
+            response['Content-Disposition'] = f'attachment; filename="{document_id}.pdf"'
             return response
         else:
-            return JsonResponse(
-                {
-                    "error": "Failed to download document",
-                    "status_code": response.status_code,
-                }
-            )
+            return HttpResponse('Failed to download document', status=response.status_code)
