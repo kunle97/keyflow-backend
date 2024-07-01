@@ -1,5 +1,8 @@
+import json
 from django.db import models
 from datetime import datetime
+import os
+import requests
 from keyflow_backend_app.models.tenant_invite import TenantInvite
 from keyflow_backend_app.models.account_type import Owner,Tenant
 from keyflow_backend_app.models.rental_unit import RentalUnit
@@ -34,3 +37,27 @@ class LeaseAgreement(models.Model):
 
     def __str__(self):
         return f"Lease Agreement for RentalUnit {self.rental_unit} "
+    
+    def revoke_boldsign_document(self, message= "This document has been revoked. Please contact the owner for more information."):
+        BOLDSIGN_API_KEY = os.getenv("BOLDSIGN_API_KEY")
+        if not self.document_id:
+            raise ValueError("Document ID is not set for this lease agreement.")
+
+        url = f"https://api.boldsign.com/v1/document/revoke?documentId={self.document_id}"
+        payload = json.dumps({
+            "message":message
+        })
+        headers = {
+            'X-API-KEY': BOLDSIGN_API_KEY,
+            'Content-Type': 'application/json'
+        }
+
+        response = requests.post(url, headers=headers, data=payload)
+
+        if response.status_code == 204:
+            self.document_id = None
+            self.save()
+            return {"status":response.status_code}
+        else:
+            print(f"Failed to revoke document: {response.text}")
+            return {"status":response.status_code, "message":response.text}

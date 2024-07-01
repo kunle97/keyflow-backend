@@ -1,3 +1,4 @@
+from operator import le
 import os
 import json
 from rest_framework.response import Response
@@ -29,6 +30,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from ..helpers import strtobool
 from keyflow_backend_app.models import rental_unit
+
+from keyflow_backend_app.models import rental_application
 
 
 class RetrieveRentalApplicationByApprovalHash(APIView):
@@ -178,6 +181,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         unit = rental_application.unit
         user = request.user
         owner = Owner.objects.get(user=user)
+        sign_link = ""
         if rental_application.owner == owner:
             approval_hash = make_id(64)
             rental_application.is_approved = True
@@ -209,10 +213,11 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                 owner=owner,
                 approval_hash=approval_hash,
             )   
+            client_hostname = os.getenv("CLIENT_HOSTNAME")
+            sign_link = f"{client_hostname}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}/"
             try:
                 if os.getenv("ENVIRONMENT") == "production":
                     #Send an email to the person who submitted the rental application that their application has been approved. rental_application.email in the to field
-                    client_hostname = os.getenv("CLIENT_HOSTNAME")
                     postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                     to_email = ""
 
@@ -220,7 +225,6 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                         to_email = "keyflowsoftware@gmail.com"  
                     else:
                         to_email = rental_application.email
-                    sign_link = f"{client_hostname}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}/"
                     postmark.emails.send(
                         From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                         To=to_email,
@@ -248,6 +252,27 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         return Response(
             {"message": "You do not have the permissions to access this resource"}
         )
+    
+    #Create a method called revokeRentalApplication to delete an approved rental application and revoke the document
+    @action(detail=True, methods=["delete"], url_path="revoke-rental-application") #DELETE /api/rental-applications/{id}/revoke-rental-application/
+    def revoke_rental_application(self, request, pk=None):
+        rental_application = self.get_object()
+        user = request.user
+        owner = Owner.objects.get(user=user)
+        lease_agreement = None
+        #Check if rental application has a lease agreement
+        if  LeaseAgreement.objects.filter(rental_application=rental_application).exists():
+            lease_agreement = LeaseAgreement.objects.filter(rental_application=rental_application).first()
+            #Check if the leaseagreement has a document_id
+            if lease_agreement.document_id and rental_application.tenant is None:
+                lease_agreement.revoke_boldsign_document()
+            lease_agreement.delete()
+        if request.user.is_authenticated and rental_application.owner == owner:
+            rental_application.delete()
+            return Response({"message": "Rental application revoked successfully."})
+        return Response(
+            {"message": "You do not have the permissions to access this resource"}
+        )
 
     # Create a method to reject and delete a rental application
     @action(detail=True, methods=["post"], url_path="reject-rental-application") #POST /api/rental-applications/{id}/reject-rental-application/
@@ -255,6 +280,14 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         rental_application = self.get_object()
         user = request.user
         owner = Owner.objects.get(user=user)
+        lease_agreement = None
+        #Check if rental application has a lease agreement
+        if  LeaseAgreement.objects.filter(rental_application=rental_application).exists():
+            lease_agreement = LeaseAgreement.objects.filter(rental_application=rental_application).first()
+            #Check if the leaseagreement has a document_id
+            if lease_agreement.document_id and rental_application.tenant is None:
+                lease_agreement.revoke_boldsign_document()
+            lease_agreement.delete()
         if request.user.is_authenticated and rental_application.owner == owner:
             rental_application.is_approved = False
             rental_application.save()

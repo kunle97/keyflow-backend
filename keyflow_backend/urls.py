@@ -101,7 +101,7 @@ from keyflow_backend_app.views.transactions import (
 from keyflow_backend_app.views.tenant_invites import (
     TenantInviteViewSet,
 )
-from keyflow_backend_app.views.annoucements import (
+from keyflow_backend_app.views.announcements import (
     AnnouncementViewSet
 )
 

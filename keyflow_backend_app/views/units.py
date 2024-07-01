@@ -59,6 +59,7 @@ class UnitViewSet(viewsets.ModelViewSet):
         owner = Owner.objects.get(user=user)
         queryset = super().get_queryset().filter(owner=owner)
         return queryset
+    
     def partial_update(self, request, *args, **kwargs):
         unit = self.get_object()
         serializer = self.get_serializer(unit)
@@ -144,7 +145,7 @@ class UnitViewSet(viewsets.ModelViewSet):
 
         #If user has the premium plan, check to see if they have 10 or less units
         if product_id == os.getenv('STRIPE_STANDARD_PLAN_PRODUCT_ID'):
-            if RentalUnit.objects.filter(user=user).count() >= 10 or len(units) > 10 or len(units) + RentalUnit.objects.filter(user=user).count() > 10:
+            if RentalUnit.objects.filter(owner=owner).count() >= 10 or len(units) > 10 or len(units) + RentalUnit.objects.filter(owner=owner).count() > 10:
                 return Response({'message': 'You have reached the maximum number of units for your subscription plan. Please upgrade to a higher plan.'}, status=status.HTTP_400_BAD_REQUEST)
             #Create the unit
             for unit in units:
