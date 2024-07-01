@@ -33,6 +33,7 @@ SECRET_KEY = "2=ygj!*kw8p+g*-kpm_b@r91io6uswae2*8f1j(o5jr4a*&ja_"
 
 DEBUG = False
 # SECURITY WARNING: don't run with debug turned on in production!
+
 if os.getenv("ENVIRONMENT") == "production":
     DEBUG = False
 else:
@@ -48,7 +49,6 @@ ALLOWED_HOSTS = [
     "keyflow.co",
     "keyflow-frontend-production.onrender.com"
 ]
-
 
 # Application definition
 
