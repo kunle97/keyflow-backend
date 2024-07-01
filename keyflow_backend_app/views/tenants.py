@@ -194,7 +194,9 @@ class RetrieveTenantDashboardData(APIView):
         #    print("This should not be visible while testing the auto renew lease function")
             pass
         lease_agreement = active_leases[0]
+        print("LEASEAGERREEMENT",lease_agreement)
         unit = lease_agreement.rental_unit
+        print("LEAse AGreement Rental unit",unit)
         lease_terms = json.loads(unit.lease_terms)
 
         payment_dates = self.calculate_payment_dates(lease_agreement, unit, lease_terms)
@@ -331,6 +333,9 @@ class RetrieveTenantDashboardData(APIView):
             }
         
     def get_related_announcements(self, unit):
+        if unit is None:
+            return []
+
         related_announcements = []
         owner = unit.owner
         announcements = Announcement.objects.filter(
@@ -342,11 +347,13 @@ class RetrieveTenantDashboardData(APIView):
         for announcement in announcements:
             target = json.loads(announcement.target)
             if ("rental_unit" in target and target["rental_unit"] == unit.id) or \
-               ("rental_property" in target and target["rental_property"] == unit.rental_property.id) or \
-               ("portfolio" in target and target["portfolio"] == unit.rental_property.portfolio.id):
+            ("rental_property" in target and target["rental_property"] == getattr(unit.rental_property, 'id', None)) or \
+            ("portfolio" in target and target["portfolio"] == getattr(getattr(unit.rental_property, 'portfolio', None), 'id', None)):
                 related_announcements.append(announcement)
 
         return AnnouncementSerializer(related_announcements, many=True).data
+
+
 
     def reset_lease_and_unit(self, lease_agreement):
         lease_agreement.is_active = False

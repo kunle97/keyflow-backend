@@ -553,7 +553,7 @@ class TenantViewSet(viewsets.ModelViewSet):
             unit.is_occupied = True
             unit.save()
 
-            lease_agreement =  LeaseAgreement.objects.filter(rental_unit=unit).first()
+            lease_agreement = LeaseAgreement.objects.filter(rental_unit=unit).first()
             lease_agreement = LeaseAgreement.objects.get(id=lease_agreement.id)
             lease_agreement.tenant = tenant
             lease_agreement.save()
