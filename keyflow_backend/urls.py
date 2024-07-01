@@ -13,7 +13,9 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
+from django.conf.urls import handler404
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from keyflow_backend_app.views.auth import (
@@ -22,9 +24,10 @@ from keyflow_backend_app.views.auth import (
     UserLogoutView,
     UserActivationView,
 )
-from keyflow_backend_app.views.landlords import (
-    LandlordTenantDetailView,
-    LandlordTenantListView,
+from keyflow_backend_app.views.expiring_tokens import TokenValidationView
+from keyflow_backend_app.views.owners import (
+    OwnerTenantDetailView,
+    OwnerTenantListView,
 )
 from keyflow_backend_app.views.account_types import (
     OwnerViewSet,
@@ -51,9 +54,12 @@ from keyflow_backend_app.views.lease_templates import (
 from keyflow_backend_app.views.maintenance_requests import (
     MaintenanceRequestViewSet,
 )
+from keyflow_backend_app.views.maintenance_request_events import (
+    MaintenanceRequestEventViewSet,
+)
 from keyflow_backend_app.views.manage_subscriptions import (
     ManageTenantSubscriptionView,
-    RetrieveLandlordSubscriptionPriceView,
+    RetrieveOwnerSubscriptionPriceView,
 )
 from keyflow_backend_app.views.notifications import (
     NotificationViewSet,
@@ -71,6 +77,9 @@ from keyflow_backend_app.views.properties import (
     PropertyViewSet,
     RetrievePropertyByIdView,
 )
+from keyflow_backend_app.views.portfolios import (
+    PortfolioViewSet,
+)
 from keyflow_backend_app.views.rental_applications import (
     RentalApplicationViewSet,
     RetrieveRentalApplicationByApprovalHash,
@@ -80,6 +89,7 @@ from keyflow_backend_app.views.units import (
     RetrieveUnitByIdView,
 )
 from keyflow_backend_app.views.tenants import (
+    CreateRentInvoicesForTenantRenewal,
     OldTenantViewSet,
     TenantRegistrationView,
     TenantVerificationView,
@@ -88,19 +98,21 @@ from keyflow_backend_app.views.tenants import (
 from keyflow_backend_app.views.transactions import (
     TransactionViewSet,
 )
+from keyflow_backend_app.views.tenant_invites import (
+    TenantInviteViewSet,
+)
+from keyflow_backend_app.views.announcements import (
+    AnnouncementViewSet
+)
 
 from keyflow_backend_app.views.messages import (
     MessageViewSet,
     UserThreadsListView,
 )
 
-from keyflow_backend_app.views.stripe import (
-    StripeWebhookView,
-)
-from keyflow_backend_app.views.jwt import MyTokenObtainPairView
-
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
+from keyflow_backend_app.views.stripe_webhooks import (
+    StripeSubscriptionPaymentSucceededEventView,
+    StripeInvoicePaymentSucceededEventView,
 )
 
 from keyflow_backend_app.views.boldsign import (
@@ -115,12 +127,14 @@ from keyflow_backend_app.views.file_uploads import (
     S3FileDeleteView,
     UnauthenticatedRetrieveImagesBySubfolderView,
 )
-
+from keyflow_backend_app.views.billing_entries import (
+    BillingEntryViewSet,
+)
 from keyflow_backend_app.views.mailchimp import RequestDemoSubscribeView
 from keyflow_backend_app.views.dev import (
     test_token,
-    get_landlord_emails,
-    get_landlord_usernames,
+    get_owner_emails,
+    get_owner_usernames,
     get_tenant_emails,
     get_tenant_usernames,
     generate_properties,
@@ -131,19 +145,26 @@ from keyflow_backend_app.views.dev import (
     generate_messages,
     generate_maintenance_requests,
     generate_lease_cancellation_requests,
-    generate_lease_renewal_requests
+    generate_lease_renewal_requests,
+    generate_transactions,
 )
 
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="users")
 router.register(r"owners", OwnerViewSet, basename="owners")
-router.register(r"employees", StaffViewSet, basename="employees")
+router.register(r"staff", StaffViewSet, basename="staff")
 router.register(r"tenants", TenantViewSet, basename="tenants")
 router.register(r"properties", PropertyViewSet, basename="rental_properties")
+router.register(r"portfolios", PortfolioViewSet, basename="portfolios")
 router.register(r"units", UnitViewSet, basename="rental_units")
 router.register(r"lease-agreements", LeaseAgreementViewSet, basename="lease-agreements")
 router.register(
     r"maintenance-requests", MaintenanceRequestViewSet, basename="maintenance-requests"
+)
+router.register(
+    r"maintenance-request-events",
+    MaintenanceRequestEventViewSet,
+    basename="maintenance-request-events",
 )
 router.register(
     r"lease-cancellation-requests",
@@ -167,10 +188,13 @@ router.register(r"lease-templates", LeaseTemplateViewSet, basename="lease-templa
 router.register(r"notifications", NotificationViewSet, basename="notifications")
 router.register(r"messages", MessageViewSet, basename="messages")
 router.register(r"file-uploads", FileUploadViewSet, basename="file-uploads")
-
+router.register(r"tenant-invites", TenantInviteViewSet, basename="tenant-invites")
+router.register(r"billing-entries", BillingEntryViewSet, basename="billing-entries")
+router.register(r"announcements", AnnouncementViewSet, basename="announcements")
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(router.urls)),
+    path('api/auth/validate-token/', TokenValidationView.as_view(), name='token-validation'),
     path("api/auth/login/", UserLoginView.as_view(), name="login"),
     path("api/auth/logout/", UserLogoutView.as_view(), name="logout"),
     path(
@@ -180,6 +204,11 @@ urlpatterns = [
     ),
     path(
         "api/auth/tenant/register/verify/",
+        TenantVerificationView.as_view(),
+        name="tenant_register_verify",
+    ),
+    path(
+        "api/auth/invite/tenant/register/verify/",
         TenantVerificationView.as_view(),
         name="tenant_register_verify",
     ),
@@ -227,28 +256,41 @@ urlpatterns = [
         name="retrieve_tenant_dashboard_data",
     ),
     path(
+        "api/create-rent-invoices-for-tenant-renewal/",
+        CreateRentInvoicesForTenantRenewal.as_view(),
+        name="create_rent_invoices_for_tenant_renewal",
+    ),
+    path(
         "api/retrieve-property/",
         RetrievePropertyByIdView.as_view(),
         name="retrieve_property_unauthenticated",
     ),
     path(
-        "api/retrieve-landlord-subscription-prices/",
-        RetrieveLandlordSubscriptionPriceView.as_view(),
-        name="retrieve_landlord_subscription_price",
+        "api/retrieve-owner-subscription-prices/",
+        RetrieveOwnerSubscriptionPriceView.as_view(),
+        name="retrieve_owner_subscription_price",
     ),
     path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
-    path("api/token/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("api/stripe-webhook/", StripeWebhookView.as_view(), name="stripe_webhook"),
+    # Stripe Webhooks
     path(
-        "api/landlord-tenant-detail/",
-        LandlordTenantDetailView.as_view(),
-        name="landlord_tenant_detail",
+        "api/stripe-webhook/subscription-payment-suceeded/",
+        StripeSubscriptionPaymentSucceededEventView.as_view(),
+        name="subscription_payment_suceeded",
     ),
     path(
-        "api/landlord-tenant-list/",
-        LandlordTenantListView.as_view(),
-        name="landlord_tenant_list",
+        "api/stripe-webhook/invoice-payment-suceeded/",
+        StripeInvoicePaymentSucceededEventView.as_view(),
+        name="invoice_payment_suceeded",
+    ),
+    path(
+        "api/owner-tenant-detail/",
+        OwnerTenantDetailView.as_view(),
+        name="owner_tenant_detail",
+    ),
+    path(
+        "api/owner-tenant-list/",
+        OwnerTenantListView.as_view(),
+        name="owner_tenant_list",
     ),
     path("api/s3-file-delete/", S3FileDeleteView.as_view(), name="s3_file_delete"),
     path(
@@ -290,8 +332,8 @@ urlpatterns = [
     ),
     # Dev urls
     path("api/test_token", test_token, name="test_token"),
-    path("api/landlords-emails/", get_landlord_emails, name="landlord_emails"),
-    path("api/landlords-usernames/", get_landlord_usernames, name="landlord_usernames"),
+    path("api/owners-emails/", get_owner_emails, name="owner_emails"),
+    path("api/owners-usernames/", get_owner_usernames, name="owner_usernames"),
     path("api/tenants-emails/", get_tenant_emails, name="tenant_emails"),
     path("api/tenants-usernames/", get_tenant_usernames, name="tenant_usernames"),
     path("api/generate/properties/", generate_properties, name="generate_properties"),
@@ -323,4 +365,10 @@ urlpatterns = [
         generate_lease_renewal_requests,
         name="generate_lease_renewal_requests",
     ),
+    path(
+        "api/generate/transactions/",
+        generate_transactions,
+        name="generate_transactions",
+    ),
 ]
+handler404 =  "keyflow_backend_app.views.404.custom_404_view"

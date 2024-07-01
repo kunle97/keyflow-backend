@@ -1,4 +1,7 @@
+from itertools import count
 import os
+import time
+from tracemalloc import start
 import stripe
 import random
 from dotenv import load_dotenv
@@ -12,7 +15,8 @@ from django.contrib.auth.hashers import make_password
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.permissions import IsAuthenticated 
 from ..models.user import User
 from faker import Faker
 from ..models.rental_property import RentalProperty
@@ -35,45 +39,52 @@ from django.views.decorators.csrf import csrf_exempt
 faker = Faker()
 load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
+visa_payment_method = stripe.PaymentMethod.create(
+    type="card",
+    card={
+        "number": "4242424242424242",
+        "exp_month": 12,
+        "exp_year": 2034,
+        "cvc": "314",
+    },
+)
 
 # ----------TEST FUNCTIONS ----------------
 
 
 # test to see if tooken is valid and return user info
 @api_view(["GET"])
-@authentication_classes([JWTAuthentication])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
 def test_token(request):
     return Response("passed for {}".format(request.user.username))
 
 
-# Create a function to retrieve all landlord userss emails
+# Create a function to retrieve all owner userss emails
 @api_view(["GET"])
-# @authentication_classes([JWTAuthentication])
-def get_landlord_emails(request):
-    # Retrieve all landlord users
-    landlords = User.objects.filter(account_type="owner").order_by("-id")
-    # Create a list of landlord emails
-    landlord_emails = []
-    for landlord in landlords:
-        landlord_emails.append(landlord.email)
+# @authentication_classes([TokenAuthentication, SessionAuthentication])
+def get_owner_emails(request):
+    # Retrieve all owner users
+    owners = User.objects.filter(account_type="owner").order_by("-id")
+    # Create a list of owner emails
+    owner_emails = []
+    for owner in owners:
+        owner_emails.append(owner.email)
     # Return a response
-    return Response(landlord_emails, status=status.HTTP_200_OK)
+    return Response(owner_emails, status=status.HTTP_200_OK)
 
 
-# Create a function to retrieve all landlord userss usernames
+# Create a function to retrieve all owner userss usernames
 @api_view(["GET"])
-def get_landlord_usernames(request):
-    # Retrieve all landlord users
-    landlords = User.objects.filter(account_type="owner").order_by("-id")
-    # Create a list of landlord usernames
-    landlord_usernames = []
-    for landlord in landlords:
-        landlord_usernames.append(landlord.username)
+def get_owner_usernames(request):
+    # Retrieve all owner users
+    owners = User.objects.filter(account_type="owner").order_by("-id")
+    # Create a list of owner usernames
+    owner_usernames = []
+    for owner in owners:
+        owner_usernames.append(owner.username)
     # Return a response
-    return Response(landlord_usernames, status=status.HTTP_200_OK)
+    return Response(owner_usernames, status=status.HTTP_200_OK)
 
-
-@api_view(["POST"])
 
 # Create a function to retrieve all tenant userss emails
 @api_view(["GET"])
@@ -140,7 +151,7 @@ def generate_units(request):
     product_id = data["product_id"]
     # Retrieve owner
     owner = Owner.objects.get(user=User.objects.get(id=user_id))
-    # Retrieve all of the landlord's properties
+    # Retrieve all of the owner's properties
     properties = RentalProperty.objects.filter(owner=owner)
 
     stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
@@ -200,7 +211,7 @@ def generate_tenants(request):
     count = request.data.get("count", 1)
     int_count = int(count)
     user_id = request.data.get("user_id")
-    user = User.objects.get(id=user_id)  # retrieve user (landlord) making the request
+    user = User.objects.get(id=user_id)  # retrieve user (owner) making the request
     owner = Owner.objects.get(user=user)  # retrieve owner object
     unit_mode = request.data.get(
         "unit_mode"
@@ -230,7 +241,7 @@ def generate_tenants(request):
     tenant = None
     lease_agreement = None
     subscription = None
-    # Retrieve all of the landlord's properties
+    # Retrieve all of the owner's properties
     properties = RentalProperty.objects.filter(owner=owner)
 
     # create a entries for tenants with faker data with count number in a loop
@@ -249,12 +260,12 @@ def generate_tenants(request):
         customer = stripe.Customer.create(
             email=email,
             metadata={
-                "landlord_id": owner.id,
+                "owner_id": owner.id,
             },
         )
-        # retrieve current landlord users subscriprion
+        # retrieve current owner users subscriprion
         subscription = stripe.Subscription.retrieve(
-            user.stripe_subscription_id,  # Retrieve the subscription from stripe
+            owner.stripe_subscription_id,  # Retrieve the subscription from stripe
         )
         payment_method = stripe.PaymentMethod.create(
             type="card",
@@ -268,7 +279,7 @@ def generate_tenants(request):
 
         # attach the payment method to the customer
         stripe.PaymentMethod.attach(
-            payment_method.id,
+            visa_payment_method.id,
             customer=customer.id,
         )
 
@@ -286,7 +297,7 @@ def generate_tenants(request):
 
         # Create Tenant Obejct
         tenant = Tenant.objects.create(
-            user=tenant,
+            user=tenant_user,
             owner=owner,
             stripe_customer_id=stripe_customer_id,
         )
@@ -315,8 +326,6 @@ def generate_tenants(request):
             description = faker.text(max_nb_chars=200)
             # Create a lease term for the tenant
             lease_template = LeaseTemplate.objects.create(
-                start_date=faker.date_between(start_date="-1y", end_date="today"),
-                end_date=faker.date_between(start_date="today", end_date="+1y"),
                 term=term,
                 rent=rent,
                 owner=owner,
@@ -386,13 +395,13 @@ def generate_tenants(request):
                 subscription["items"]["data"][0].id,
                 quantity=RentalUnit.objects.filter(owner=owner).count(),
             )
-            # Create a notification for the landlord that a tenant has been added
+            # Create a notification for the owner that a tenant has been added
             notification = Notification.objects.create(
                 user=user,
                 message=f"{first_name} {last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
-                resource_url=f"/dashboard/landlord/tenants/{tenant.id}",
+                resource_url=f"/dashboard/owner/tenants/{tenant.id}",
             )
         # else if unit_mode is 'random' choose a random unoccumpued unit for the tenant
         elif unit_mode == "random":
@@ -410,13 +419,13 @@ def generate_tenants(request):
             unit.is_occupied = True
             unit.lease_template = lease_template
             unit.save()
-            # Create a notification for the landlord that a tenant has been added
+            # Create a notification for the owner that a tenant has been added
             notification = Notification.objects.create(
                 user=user,
                 message=f"{first_name} {last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
-                resource_url=f"/dashboard/landlord/tenants/{tenant.id}",
+                resource_url=f"/dashboard/owner/tenants/{tenant.id}",
             )
         # else if unit_mode is 'specific' assign the tenant to the specific unit
         elif unit_mode == "specific":
@@ -427,13 +436,13 @@ def generate_tenants(request):
             unit.lease_template = lease_template
             unit.is_occupied = True
             unit.save()
-            # Create a notification for the landlord that a tenant has been added
+            # Create a notification for the owner that a tenant has been added
             notification = Notification.objects.create(
                 user=user,
                 message=f"{first_name} {last_name} has been added as a tenant to unit {unit.name} at {unit.rental_property.name}",
                 type="tenant_registered",
                 title="Tenant Registered",
-                resource_url=f"/dashboard/landlord/tenants/{tenant.id}",
+                resource_url=f"/dashboard/owner/tenants/{tenant.id}",
             )
 
         # Get the current date
@@ -474,13 +483,13 @@ def generate_tenants(request):
                 owner=owner,
             )
 
-        # Create a notification for the landlord that a new rental application has been submitted
+        # Create a notification for the owner that a new rental application has been submitted
         notification = Notification.objects.create(
             user=unit.owner.user,
             message=f"{first_name} {last_name} has submitted a rental application for unit {unit.name} at {unit.rental_property.name}",
             type="rental_application_submitted",
             title="Rental Application Submitted",
-            resource_url=f"/dashboard/landlord/rental-applications/{rental_application.id}",
+            resource_url=f"/dashboard/owner/rental-applications/{rental_application.id}",
         )
 
         # Define the number of months to add
@@ -506,7 +515,7 @@ def generate_tenants(request):
         ##Security Deposit Payment
         owner = owner
         if lease_template.security_deposit > 0:
-            # Retrieve landlord from the unit
+            # Retrieve owner from the unit
             security_deposit_payment_intent = stripe.PaymentIntent.create(
                 amount=int(lease_template.security_deposit * 100),
                 currency="usd",
@@ -523,7 +532,7 @@ def generate_tenants(request):
                     "description": f"{tenant.user.first_name} {tenant.user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
                     "user_id": user.id,
                     "tenant_id": tenant.id,
-                    "landlord_id": owner.id,
+                    "owner_id": owner.id,
                     "rental_property_id": unit.rental_property.id,
                     "rental_unit_id": unit.id,
                     "payment_method_id": payment_method.id,
@@ -537,18 +546,19 @@ def generate_tenants(request):
                 rental_property=unit.rental_property,
                 rental_unit=unit,
                 user=owner.user,
-                tenant=user,
+                owner=owner,
+                tenant=tenant,
                 amount=int(lease_template.security_deposit),
                 payment_method_id=payment_method.id,
                 payment_intent_id=security_deposit_payment_intent.id,
             )
-            # Create a notification for the landlord that the security deposit has been paid
+            # Create a notification for the owner that the security deposit has been paid
             notification = Notification.objects.create(
                 user=owner.user,
                 message=f"{tenant.user.first_name} {tenant.user.last_name} has paid the security deposit for the amount of ${lease_template.security_deposit} for unit {unit.name} at {unit.rental_property.name}",
                 type="security_deposit_paid",
                 title="Security Deposit Paid",
-                resource_url=f"/dashboard/landlord/transactions/{security_deposit_transaction.id}",
+                resource_url=f"/dashboard/owner/transactions/{security_deposit_transaction.id}",
             )
 
         subscription = None
@@ -583,7 +593,7 @@ def generate_tenants(request):
                     "description": f"{tenant.user.first_name} {tenant.user.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                     "user_id": owner.id,
                     "tenant_id": tenant.id,
-                    "landlord_id": owner.id,
+                    "owner_id": owner.id,
                     "rental_property_id": unit.rental_property.id,
                     "rental_unit_id": unit.id,
                     "payment_method_id": payment_method.id,
@@ -609,7 +619,7 @@ def generate_tenants(request):
                     "description": f"{tenant.first_name} {tenant.last_name} Rent Payment for unit {unit.name} at {unit.rental_property.name}",
                     "user_id": owner.id,
                     "tenant_id": tenant.id,
-                    "landlord_id": owner.id,
+                    "owner_id": owner.id,
                     "rental_property_id": unit.rental_property.id,
                     "rental_unit_id": unit.id,
                     "payment_method_id": payment_method.id,
@@ -637,13 +647,13 @@ def generate_tenants(request):
                 payment_method_id=payment_method.id,
                 payment_intent_id="subscription",
             )
-            # Create a notification for the landlord that the tenant has paid the fisrt month's rent
+            # Create a notification for the owner that the tenant has paid the fisrt month's rent
             notification = Notification.objects.create(
                 user=user,
                 message=f"{tenant.user.first_name} {tenant.user.last_name} has paid the first month's rent for the amount of ${lease_template.rent} for unit {unit.name} at {unit.rental_property.name}",
                 type="first_month_rent_paid",
                 title="First Month's Rent Paid",
-                resource_url=f"/dashboard/landlord/transactions/{subscription_transaction.id}",
+                resource_url=f"/dashboard/owner/transactions/{subscription_transaction.id}",
             )
 
             print(f"subscription: {subscription}")
@@ -754,49 +764,54 @@ def generate_rental_applications(request):
 
     # Choose a random property
     property = RentalProperty.objects.all().order_by("?").first()
-    # retrieve current landlord users subscriprion
+    # retrieve current owner users subscriprion
     subscription = stripe.Subscription.retrieve(
         owner.stripe_subscription_id,  # Retrieve the subscription from stripe
     )
-    # ---------UNIT GENEREATION LOGIC----------------
-    # if unit_mode is 'new' create a new unit for the tenant
-    if unit_mode == "new":
-        # Choose a random lease template
-        lease_template = LeaseTemplate.objects.all().order_by("?").first()
-        unit = RentalUnit.objects.create(
-            name=faker.bothify(
-                text="?#"
-            ),  # Generate a 2 charachter string that the first character is a random letter and the 2nd character is a random number  using faker
-            rental_property=property,
-            beds=faker.pyint(min_value=1, max_value=5),
-            baths=faker.pyint(min_value=1, max_value=5),
-            owner=owner,
-            is_occupied=False,
-            lease_template=lease_template,
-        )
-
-        # Update the subscriptions quantity to the new number of units
-        subscription_item = stripe.SubscriptionItem.modify(
-            subscription["items"]["data"][0].id,
-            quantity=RentalUnit.objects.filter(owner=owner).count(),
-        )
-    # else if unit_mode is 'random' choose a random unoccumpued unit for the tenant
-    elif unit_mode == "random":
-        # Find a unit where the lease_tempalte field is NOT null
-        unit = (
-            RentalUnit.objects.filter(
-                is_occupied=False, owner=owner, lease_template__isnull=False
-            )
-            .order_by("?")
-            .first()
-        )
-    # else if unit_mode is 'specific' assign the tenant to the specific unit
-    elif unit_mode == "specific":
-        # Retrieve the unit
-        unit = RentalUnit.objects.get(id=rental_unit_id)
 
     # create a entries for rental applications with faker data with count number in a loop
     while int_count > 0:
+        # ---------UNIT GENEREATION LOGIC----------------
+        # if unit_mode is 'new' create a new unit for the tenant
+        if unit_mode == "new":
+            # Choose a random lease template
+            lease_template = LeaseTemplate.objects.all().order_by("?").first()
+            unit = RentalUnit.objects.create(
+                name=faker.bothify(
+                    text="?#"
+                ),  # Generate a 2 charachter string that the first character is a random letter and the 2nd character is a random number  using faker
+                rental_property=property,
+                beds=faker.pyint(min_value=1, max_value=5),
+                baths=faker.pyint(min_value=1, max_value=5),
+                owner=owner,
+                is_occupied=False,
+                lease_template=lease_template,
+            )
+
+            # Update the subscriptions quantity to the new number of units
+            subscription_item = stripe.SubscriptionItem.modify(
+                subscription["items"]["data"][0].id,
+                quantity=RentalUnit.objects.filter(owner=owner).count(),
+            )
+        # else if unit_mode is 'random' choose a random unoccumpued unit for the tenant
+        elif unit_mode == "random":
+            # Find a unit where the lease_tempalte field is NOT null
+            unit = (
+                RentalUnit.objects.filter(
+                    is_occupied=False, owner=owner, lease_template__isnull=False
+                )
+                #Check if the unit has a lease term
+                .exclude(lease_template__isnull=True)
+                .exclude(document_id__isnull=True)
+                #Check if lease term does not e=qual  '[]'
+                .exclude(lease_template__exact="[]")
+                .order_by("?")
+                .first()
+            )
+        # else if unit_mode is 'specific' assign the tenant to the specific unit
+        elif unit_mode == "specific":
+            # Retrieve the unit
+            unit = RentalUnit.objects.get(id=rental_unit_id)
         first_name = faker.first_name()
         last_name = faker.last_name()
         # Create a username from the first and last name and random number
@@ -921,7 +936,7 @@ def generate_maintenance_requests(request):
             type = request.data.get("type")
         if tenant_mode == "random":
             # Retreve one of the user's tenants at randome and use them as the recipient
-            # Retrieve landlord's properties
+            # Retrieve owner's properties
             tenants = Tenant.objects.filter(owner=owner)
             tenant = tenants.order_by("?").first()
         elif tenant_mode == "specific":
@@ -959,17 +974,17 @@ def generate_lease_cancellation_requests(request):
     owner = Owner.objects.get(user=user)
     int_count = int(count)
     # Fetch all of the reqest.user's tennats
-    landlord_tenants = Owner.objects.filter(owner=owner)
+    owner_tenants = Tenant.objects.filter(owner=owner)
 
     # find all tenants that have an active Lease agreement
-    landlord_tenants = landlord_tenants.filter(
+    owner_tenants = owner_tenants.filter(
         id__in=LeaseAgreement.objects.filter(is_active=True).values_list(
             "tenant__id", flat=True
         )
     )
 
-    # select int_count number of random tenants from the landlord's tenants
-    tenants = landlord_tenants.order_by("?")[:int_count]
+    # select int_count number of random tenants from the owner's tenants
+    tenants = owner_tenants.order_by("?")[:int_count]
     # Using a while loop, create a lease cancellation request for each tenant
     while int_count > 0:
         tenant = tenants[int_count - 1]
@@ -977,7 +992,7 @@ def generate_lease_cancellation_requests(request):
         # fetch tenant's lease agreement from the unit
         lease_agreement = LeaseAgreement.objects.get(tenant=tenant)
         lease_cancellation_request = LeaseCancellationRequest.objects.create(
-            user=unit.user,
+            owner=unit.owner,
             tenant=tenant,
             rental_unit=unit,
             rental_property=unit.rental_property,
@@ -1008,17 +1023,17 @@ def generate_lease_renewal_requests(request):
     user = User.objects.get(id=user_id)
     owner = Owner.objects.get(user=user)
     int_count = int(count)
-    # Fetch all of the reqest.user's tennats 
-    landlord_tenants = Owner.objects.filter(owner=owner)
+    # Fetch all of the reqest.user's tennats
+    owner_tenants = Owner.objects.filter(owner=owner)
     # find all tenants that have an active Lease agreement
-    landlord_tenants = landlord_tenants.filter(
+    owner_tenants = owner_tenants.filter(
         id__in=LeaseAgreement.objects.filter(is_active=True).values_list(
             "tenant__id", flat=True
         )
     )
 
-    # select int_count number of random tenants from the landlord's tenants
-    tenants = landlord_tenants.order_by("?")[:int_count]
+    # select int_count number of random tenants from the owner's tenants
+    tenants = owner_tenants.order_by("?")[:int_count]
     # Using a while loop, create a lease renewal request for each tenant
     while int_count > 0:
         tenant = tenants[int_count - 1]
@@ -1046,6 +1061,202 @@ def generate_lease_renewal_requests(request):
     return Response(
         {
             "message": "Lease Renewal Requests generated",
+            "status": status.HTTP_201_CREATED,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+# Create a function to generate a number of transactions for a user
+@csrf_exempt
+@api_view(["POST"])
+def generate_transactions(request):
+    count = request.data.get("count", 1)
+    int_count = int(count)
+    user_id = request.data.get("user_id")
+    user = User.objects.get(id=user_id)
+    owner = Owner.objects.get(user=user)
+    start_date = datetime.strptime(request.data.get("start_date"), "%Y-%m-%d").date()
+    end_date = datetime.strptime(request.data.get("end_date"), "%Y-%m-%d").date()   
+    amountRange = request.data.get("amountRange")
+    transaction_type = request.data.get("type")
+    transaction_target = request.data.get("transaction_target")
+    rental_unit = None
+    rental_property = None
+    tenant = None
+    generated_transactions = []
+    # portfolio = Portfolio.objects.get(id=request.data.get("portfolio"))
+    # Create a list of transaction types including random, security_deposit, rent_payment, late_fee, pet_fee, lease_renewal_fee, lease_cancellation_fee, maintenance_fee, vendor_payment
+    transaction_types_selection = [
+        "security_deposit",#Revenue 
+        "rent_payment",#Revenue
+        "late_fee",#Revenue
+        "pet_fee",#Revenue
+        "lease_renewal_fee",#Revenue
+        "lease_cancellation_fee",#Revenue
+        "maintenance_fee",#Revenue
+        "vendor_payment",#Expense
+    ]
+    # Create list of transaction targets including tenant, unit, property, portfolio
+    transaction_targets_selection = [
+        # "tenant",
+        "unit",
+        "property",
+        # "portfolio",
+    ]
+
+    # Create count number of transactions for the user using a while loop
+    while int_count > 0:
+        if transaction_type == "random":
+            transaction_type = random.choice(transaction_types_selection)
+
+        if transaction_target == "random":
+            transaction_target = random.choice(transaction_targets_selection)
+
+        #Choose a random date between the start and end date
+        transaction_date = faker.date_between(start_date=start_date, end_date=end_date)
+        amount = faker.pyfloat(min_value=float(amountRange[0]), max_value=float(amountRange[1]))
+        payment_method_id = faker.sha256(raw_output=False)
+        payment_intent_id = faker.sha256(raw_output=False)
+
+        if transaction_target == "property":
+            # Choose a random unit from the property
+            rental_property = RentalProperty.objects.get(
+                id=request.data.get("property")
+            )
+            rental_unit = rental_property.rental_units.filter(is_occupied=True).order_by("?").first()
+            tenant = rental_unit.tenant
+            customer_id = tenant.stripe_customer_id
+            description =  f"{tenant.user.first_name} {tenant.user.last_name}'s  {transaction_type.replace('_', ' ').capitalize()} for unit {rental_unit.name} at {rental_unit.rental_property.name}"
+            
+            payment_method = stripe.PaymentMethod.create(
+                type="card",
+                card={
+                    "number": "4242424242424242",
+                    "exp_month": 12,
+                    "exp_year": 2034,
+                    "cvc": "314",
+                },
+            )
+
+            #Attach visa payment method to customer 
+            stripe.PaymentMethod.attach(
+                payment_method.id,
+                customer=customer_id,
+            )
+            payment_intent = stripe.PaymentIntent.create(
+                amount=int(amount * 100),
+                currency="usd",
+                payment_method_types=["card"],
+                customer=rental_unit.tenant.stripe_customer_id,
+                payment_method=payment_method.id,
+                transfer_data={
+                    "destination": owner.stripe_account_id  # The Stripe Connected Account ID
+                },
+                confirm=True,
+                # Add Metadata to the transaction signifying that it is a security deposit
+                metadata={
+                    "type": transaction_type,
+                    "description": description,
+                    "user_id": rental_unit.owner.user.id,
+                    "tenant_id": rental_unit.tenant.id,
+                    "owner_id": rental_unit.owner.id,
+                    "rental_property_id": rental_unit.rental_property.id,
+                    "rental_unit_id": rental_unit.id,
+                    "payment_method_id": payment_method.id,
+                },
+            )
+
+            # Create a transaction for that unit
+            transaction = Transaction.objects.create(
+                type=transaction_type,
+                description=description,
+                rental_property=rental_property,
+                rental_unit=rental_unit,
+                user=user,
+                # Set the amount to a number within the amountRange. Amount range is an array of two numbers
+                amount=amount,
+                payment_method_id=visa_payment_method.id,
+                payment_intent_id=payment_intent.id,
+                timestamp=transaction_date,
+            )
+
+        if transaction_target == "unit":
+            rental_unit = RentalUnit.objects.get(id=request.data.get("unit"))
+            tenant = rental_unit.tenant
+            rental_property = rental_unit.rental_property
+            description =  f"{tenant.user.first_name} {tenant.user.last_name}'s  {transaction_type.replace('_', ' ').capitalize()} for unit {rental_unit.name} at {rental_unit.rental_property.name}"
+            
+            payment_method = stripe.PaymentMethod.create(
+                type="card",
+                card={
+                    "number": "4242424242424242",
+                    "exp_month": 12,
+                    "exp_year": 2034,
+                    "cvc": "314",
+                },
+            )
+
+            payment_intent = stripe.PaymentIntent.create(
+                amount=int(amount * 100),
+                currency="usd",
+                payment_method_types=["card"],
+                customer=rental_unit.tenant.stripe_customer_id,
+                payment_method=payment_method.id,
+                transfer_data={
+                    "destination": owner.stripe_account_id  # The Stripe Connected Account ID
+                },
+                confirm=True,
+                # Add Metadata to the transaction signifying that it is a security deposit
+                metadata={
+                    "type": transaction_type,
+                    "description":description,
+                    "user_id": tenant.user.id,
+                    "tenant_id": tenant.id,
+                    "owner_id": tenant.owner.id,
+                    "rental_property_id": rental_unit.rental_property.id,
+                    "rental_unit_id": rental_unit.id,
+                    "payment_method_id": payment_method.id,
+                },
+            )
+
+
+            # Create a transaction for that unit
+            transaction = Transaction.objects.create(
+                type=transaction_type,
+                description=description,
+                rental_property=rental_unit.rental_property,
+                rental_unit=rental_unit,
+                user=tenant.owner.user,
+                amount=amount,
+                payment_method_id=payment_method.id,
+                payment_intent_id=payment_intent.id,
+            )
+
+        if transaction_target == "tenant":
+            tenant = Tenant.objects.get(id=request.data.get("tenant"))
+            rental_unit = tenant.rental_unit
+            # Create a transaction for that unit
+            transaction = Transaction.objects.create(
+                type=transaction_type,
+                description=description,
+                rental_property=rental_unit.rental_property,
+                rental_unit=rental_unit,
+                user=user,
+                tenant=tenant,
+                amount=faker.pyint(min_value=amountRange[0], max_value=amountRange[1]),
+                payment_method_id=payment_method_id,
+                payment_intent_id=payment_intent_id,
+            )
+            generated_transactions.append(transaction)
+
+        int_count -= 1
+    
+    
+    # return a succes response
+    return Response(
+        {
+            "message": "Transactions generated",
             "status": status.HTTP_201_CREATED,
         },
         status=status.HTTP_201_CREATED,

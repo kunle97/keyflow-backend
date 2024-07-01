@@ -20,7 +20,7 @@ import stripe
 load_dotenv()
 
 
-class RetrieveLandlordSubscriptionPriceView(APIView):
+class RetrieveOwnerSubscriptionPriceView(APIView):
     def post(self, request):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
         standard_plan_product = stripe.Product.retrieve(
@@ -61,7 +61,7 @@ class ManageTenantSubscriptionView(viewsets.ModelViewSet):
     # TODO: Investigate why authentication CLasses not working
     queryset = User.objects.all()
     # serializer_class = UserSerializer
-    # authentication_classes = [JWTAuthentication]
+    # authentication_classes = [TokenAuthentication, SessionAuthentication]
     # permission_classes = [DisallowUserCreatePermission]
 
     # Create a method to cancel a subscription called turn_off_autopay

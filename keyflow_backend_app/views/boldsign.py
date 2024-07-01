@@ -1,12 +1,15 @@
 # views.py
 import os
-from django.http import JsonResponse, FileResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
+from rest_framework.response import Response
 from dotenv import load_dotenv
 from django.views.decorators.csrf import csrf_exempt
 import requests
 import json
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
+
+from keyflow_backend_app.models.account_type import Owner
 
 load_dotenv()
 BOLDSIGN_API_KEY = os.getenv("BOLDSIGN_API_KEY")
@@ -22,11 +25,11 @@ class CreateEmbeddedTemplateCreateLinkView(APIView):
         self, request, *args, **kwargs
     ):  # This will be called when a user  confirms the uploaded file int the lease term flow
         url = "https://api.boldsign.com/v1/template/createEmbeddedTemplateUrl"
-        landlord_signer_email = ""
+        owner_signer_email = ""
         if os.getenv("ENVIRONMENT") == "development":
-            landlord_signer_email = "landlord@boldsign.dev"
+            owner_signer_email = "owner@boldsign.dev"
         else:
-            landlord_signer_email = request.data.get("landlord_email")
+            owner_signer_email = request.data.get("owner_email")
         payload = {
             "Title": request.data.get("template_title"),
             "Description": request.data.get("template_description"),
@@ -35,10 +38,10 @@ class CreateEmbeddedTemplateCreateLinkView(APIView):
             "AllowMessageEditing": "true",
             "Roles[0][name]": "Tenant",
             "Roles[0][index]": "1",
-            "Roles[1][name]": "Landlord",
+            "Roles[1][name]": "Owner",
             "Roles[1][index]": "2",
-            "Roles[1][defaultSignerName]": request.data.get("landlord_name"),
-            "Roles[1][defaultSignerEmail]": landlord_signer_email,
+            "Roles[1][defaultSignerName]": request.data.get("owner_name"),
+            "Roles[1][defaultSignerEmail]": owner_signer_email,
             "ShowToolbar": "true",
             "ShowSaveButton": "true",
             "ShowSendButton": "false",
@@ -101,14 +104,16 @@ class CreateEmbeddedTemplateEditView(APIView):
                     "message": "Template created successfully",
                     "url": response.json()["editUrl"],
                     "status": response.status_code,
-                }
+                },
+                status=response.status_code,
             )
         else:
-            return JsonResponse(
+            return Response(
                 {
                     "error": "Failed to create document",
                     "status_code": response.status_code,
-                }
+                },
+                status=response.status_code,
             )
 
 
@@ -120,14 +125,16 @@ class CreateDocumentFromTemplateView(APIView):
         )
         tenant_first_name = request.data.get("tenant_first_name")
         tenant_last_name = request.data.get("tenant_last_name")
-        
+
         if tenant_first_name is None:
             tenant_first_name = ""
         if tenant_last_name is None:
             tenant_last_name = ""
 
         tenant_name = tenant_first_name + " " + tenant_last_name
-        landlord_name = request.user.first_name + " " + request.user.last_name
+        owner = Owner.objects.get(id=request.data.get("owner_id"))
+        owner_user = owner.user
+        owner_name = owner_user.first_name + " " + owner_user.last_name
 
         tenant_email = ""
         if os.getenv("ENVIRONMENT") == "development":
@@ -135,11 +142,11 @@ class CreateDocumentFromTemplateView(APIView):
         else:
             tenant_email = request.data.get("tenant_email")
 
-        landlord_email = ""
+        owner_email = ""
         if os.getenv("ENVIRONMENT") == "development":
-            landlord_email = "landlord@boldsign.dev"
+            owner_email = "owner@boldsign.dev"
         else:
-            landlord_email = request.user.email
+            owner_email = owner_user.email
 
         payload = {
             "title": request.data.get("document_title"),
@@ -152,8 +159,8 @@ class CreateDocumentFromTemplateView(APIView):
                 },
                 {
                     "roleIndex": 2,
-                    "signerName": landlord_name,
-                    "signerEmail": landlord_email,
+                    "signerName": owner_name,
+                    "signerEmail": owner_email,
                     "formFields": [
                         {
                             "fieldType": "Signature",
@@ -224,41 +231,46 @@ class CreateSigningLinkView(APIView):
 
         headers = {"X-API-KEY": BOLDSIGN_API_KEY}
         response = requests.request("GET", url, headers=headers, params=params)
-        if "signLink" in response.json():
-            return JsonResponse(response.json())
-        else:
+        print("Response:")
+        print(response.status_code)
+        if response.status_code == 429:
             return JsonResponse(
                 {
+                    "error": "Too many requests. Please try again later.",
+                    "status": 429,
+                },
+                status=429,
+            )
+        if response.status_code == 200:
+            return JsonResponse(
+                {"data": response.json(), "status": response.status_code}, status=200
+            )
+        else:
+            return Response(
+                {
                     "error": "Failed to retrieve signing link",
-                    "status_code": 500,
-                }
+                    "status": 500,
+                },
+                status=500,
             )
 
 
 # Create a class that donwloads a doccument using the url  https://api.boldsign.com/v1/document/download and params documentId
 class DownloadBoldSignDocumentView(APIView):
     def post(self, request, *args, **kwargs):
-        url = f"https://api.boldsign.com/v1/document/download?documentId={request.data.get('document_id')}"
+        document_id = request.data.get('document_id')
+        if not document_id:
+            return Response({"error": "Document ID is required"}, status=400)
 
-        payload = {}
+        url = f"https://api.boldsign.com/v1/document/download?documentId={document_id}"
         headers = {"accept": "application/json", "X-API-KEY": f"{BOLDSIGN_API_KEY}"}
 
-        response = requests.request("GET", url, headers=headers, data=payload)
+        response = requests.get(url, headers=headers)
+
         if response.status_code == 200:
-            # Get the file content and content type from the response
-            file_content = response.content
-            content_type = response.headers.get("Content-Type")
-
-            # Create a FileResponse without specifying a filename
-            response = FileResponse(file_content)
-            response["Content-Type"] = content_type
-            response["Content-Disposition"] = "attachment"
-
+            content_type = response.headers.get('Content-Type', 'application/pdf')
+            response = HttpResponse(response.content, content_type=content_type)
+            response['Content-Disposition'] = f'attachment; filename="{document_id}.pdf"'
             return response
         else:
-            return JsonResponse(
-                {
-                    "error": "Failed to download document",
-                    "status_code": response.status_code,
-                }
-            )
+            return HttpResponse('Failed to download document', status=response.status_code)

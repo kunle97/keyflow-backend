@@ -1,15 +1,18 @@
 from rest_framework import permissions
 from rest_framework.permissions import  BasePermission
+
+from keyflow_backend_app.models.account_type import Owner
 from .models.rental_property import RentalProperty
 from .models.rental_unit import RentalUnit
 from .models.message import Message
 from rest_framework.response import Response
 from rest_framework import status
-class IsLandlordOrReadOnly(permissions.BasePermission):
+class IsOwnerOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
-        return obj.user == request.user and request.user.account_type == 'owner'
+        request_owner = Owner.objects.get(user=request.user)
+        return obj.owner == request_owner and request.user.account_type == 'owner'
 
 class IsTenantOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -160,8 +163,16 @@ class IsResourceOwner(permissions.BasePermission):
     """
     
     def has_object_permission(self, request, view, obj):
-        # Check if the user is the owner of the resource (e.g., property, unit, lease agreement)
-        return obj.user == request.user
+        try:
+            # Check request user account type
+            if request.user.account_type == 'owner':
+                return obj.owner.user == request.user
+            elif request.user.account_type == 'tenant':
+                return obj.tenant.user == request.user
+        #Create exception for when obj does not have a tenant attribute
+        except AttributeError:
+            return obj.owner.user == request.user
+        return False
     
     def has_permission(self, request, view):
         # Allow resource creation (POST) only if the user is the owner
@@ -182,10 +193,10 @@ class RentalApplicationCreatePermission(BasePermission):
         # unit_user_id = unit_object.rental_property.user.id #id of the user who owns the property
         
         # #Create variable for RentalApplication
-        # landlord_id = request.data.get('landlord_id')
+        # owner_id = request.data.get('owner_id')
 
         # #confirm the id and unit's user id match
-        # if request.method  == 'POST' and (unit_user_id != landlord_id):
+        # if request.method  == 'POST' and (unit_user_id != owner_id):
         #     return False # not grant access
 
         #retrieve unit object from  request_body_unit variable
@@ -248,13 +259,11 @@ class UnitDeletePermission(permissions.BasePermission):
     
                 #retrieve unit object from  request_body_property variable
                 unit_object = RentalUnit.objects.get(id=request_body_unit)
-                unit_user_id = unit_object.rental_property.user.id #id of the user who owns the property
+                unit_user_id = unit_object.rental_property.owner.user.id #id of the user who owns the property
     
                 #Check if the unit has tenants
-                unit_has_tenants = RentalUnit.objects.filter(id=unit_object.id, is_occupied=True).count() > 0
-                
                 #return a 403 response  message if the property has units
-                if unit_has_tenants:
+                if  RentalUnit.objects.filter(id=unit_object.id, is_occupied=True).count() > 0:
                     return Response({"message": "You cannot delete a unit that has tenants"}, status=status.HTTP_403_FORBIDDEN)
     
                 #confirm the id and unit's user id match
@@ -288,7 +297,7 @@ class MessageDeletePermission(permissions.BasePermission):
                 return True # grant access otherwise
             return True # grant access otherwise
 
-#Create permission that only allows landlords to send messages to thier tenants and tenants to only send messages to their landlords
+#Create permission that only allows owners to send messages to thier tenants and tenants to only send messages to their owners
 class MessageCreatePermission(permissions.BasePermission):
         def has_permission(self, request, view):
             if request.method  == 'POST':

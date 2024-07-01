@@ -1,17 +1,16 @@
 from rest_framework import serializers
-
-from keyflow_backend_app.models import rental_property
 from ..models.rental_unit import RentalUnit
-from ..models.rental_property import RentalProperty
-
-
+from ..serializers.uploaded_file_serializer import UploadedFileSerializer
 class RentalUnitSerializer(serializers.ModelSerializer):
     rental_property_name = serializers.SerializerMethodField()
-
+    signed_lease_document_file = UploadedFileSerializer(many=False, read_only=False)
     class Meta:
         model = RentalUnit
         fields = "__all__"
-
-    # 
+        extra_kwargs = {
+            'id': {'read_only': True},  # example: set read_only for fields if needed
+            'other_nullable_field': {'allow_null': True},  # adjust as needed
+        }
+    
     def get_rental_property_name(self, obj):
         return obj.rental_property.name  # Replace 'name' with the field you want to display

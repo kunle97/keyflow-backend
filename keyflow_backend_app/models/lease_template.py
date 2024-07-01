@@ -4,8 +4,9 @@ from datetime import datetime
 from keyflow_backend_app.models.account_type import Owner
 
 class LeaseTemplate(models.Model):
-    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None) #Landlord that created the lease term
+    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None) #Owner that created the lease term
     rent = models.DecimalField(max_digits=10, decimal_places=2)
+    rent_frequency = models.CharField(max_length=100, blank=False, null=False, default="") #Frequency of rent payments
     term = models.IntegerField() #Integer for duration of lease in months
     template_id = models.CharField(max_length=100, blank=False, null=False, default="") #BoldSign template ID
     description = models.TextField() #descriptionn of the property and lease template id (to be displayed on REntal App page)

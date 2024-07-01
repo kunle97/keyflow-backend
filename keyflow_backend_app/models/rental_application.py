@@ -5,7 +5,7 @@ from keyflow_backend_app.models.rental_unit import RentalUnit
 
 class RentalApplication(models.Model):
     # Existing fields
-    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None, related_name='tenant_application_landlord') #related landlord that created the application
+    owner = models.ForeignKey(Owner, on_delete=models.CASCADE, default=None, related_name='tenant_application_owner') #related owner that created the application
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=None, blank=True, null=True, related_name='tenant_application_tenant') #related tenant that created the application
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)

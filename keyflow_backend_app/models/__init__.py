@@ -8,6 +8,6 @@ from keyflow_backend_app.models.rental_application import RentalApplication
 from keyflow_backend_app.models.password_reset_token import PasswordResetToken
 from keyflow_backend_app.models.account_activation_token import AccountActivationToken
 from keyflow_backend_app.models.lease_cancelleation_request import LeaseCancellationRequest
+from keyflow_backend_app.models.announcement import Announcement
 
-
-__all__ = ["User", "RentalProperty", "RentalUnit", "LeaseAgreement", "LeaseTemplate", "Notification", "RentalApplication", "PasswordResetToken", "AccountActivationToken", "LeaseCancellationRequest"]
+__all__ = ["User", "RentalProperty", "RentalUnit", "LeaseAgreement", "LeaseTemplate", "Notification", "RentalApplication", "PasswordResetToken", "AccountActivationToken", "LeaseCancellationRequest", "Announcement"]
