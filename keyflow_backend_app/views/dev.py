@@ -39,15 +39,17 @@ from django.views.decorators.csrf import csrf_exempt
 faker = Faker()
 load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-visa_payment_method = stripe.PaymentMethod.create(
-    type="card",
-    card={
-        "number": "4242424242424242",
-        "exp_month": 12,
-        "exp_year": 2034,
-        "cvc": "314",
-    },
-)
+visa_payment_method = None
+if os.getenv("ENVIRONMENT") == "development":
+    visa_payment_method = stripe.PaymentMethod.create(
+        type="card",
+        card={
+            "number": "4242424242424242",
+            "exp_month": 12,
+            "exp_year": 2034,
+            "cvc": "314",
+        },
+    )
 
 # ----------TEST FUNCTIONS ----------------
 
