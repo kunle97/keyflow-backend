@@ -6,6 +6,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from tomlkit import document
 from keyflow_backend_app.helpers import make_id, sendEmailBySendGrid
 from postmarker.core import PostmarkClient
 from keyflow_backend_app.models import tenant_invite
@@ -62,6 +63,8 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
         # Create Lease Agreement
         rental_unit = RentalUnit.objects.get(id=data["rental_unit"])
         approval_hash = make_id(64)
+        tenant_invite.approval_hash = approval_hash
+        tenant_invite.save()
         email_content = ""
         redirect_url = ""
         # Set document_id or signed_lease_document_file
@@ -120,6 +123,31 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
             {"data": serializer.data, "redirect_url": redirect_url},
             status=status.HTTP_201_CREATED,
         )
+    #Creata a destroy function that will be used to override the DELETE method. In addition to deleting the tenant invite, it will also delete the lease agreement
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        #Check if the lease agreement exists
+        if  LeaseAgreement.objects.filter(approval_hash=instance.approval_hash).exists():
+            print("Lease Agreement exists")
+            lease_agreement = LeaseAgreement.objects.get(approval_hash=instance.approval_hash)
+            document_id = lease_agreement.document_id
+            try:
+                if document_id:
+                    response = lease_agreement.revoke_boldsign_document()
+                lease_agreement.delete()
+            except Exception as e:
+                print(e)
+                # return Response(
+                #     {"message": "Error deleting lease agreement"},
+                #     status=status.HTTP_400_BAD_REQUEST,
+                # )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+
+
+    '''
 
     # @action(
     #     detail=False, methods=["post"], url_path="upload-csv-tenants"
@@ -216,3 +244,4 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
     #             {"message": f"Error processing CSV: {e}"},
     #             status=status.HTTP_400_BAD_REQUEST,
     #         )
+    '''

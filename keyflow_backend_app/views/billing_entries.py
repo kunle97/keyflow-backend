@@ -1,4 +1,5 @@
 import json
+import re
 import stripe
 import os
 from keyflow_backend_app.models.maintenance_request import MaintenanceRequest
@@ -90,28 +91,27 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         collection_method = None
+
+
         # Check if tennt exists
         tenant_id = request.data.get("tenant", None)
-        if type in expense_types and tenant_id is None:
+
+        if type in expense_types and tenant_id is None and request.data.get("rental_unit", None) is not None:
             rental_unit = RentalUnit.objects.get(id=request.data.get("rental_unit"))
             rental_property = rental_unit.rental_property
             collection_method = None
+        if type not in expense_types and tenant_id is  None:
+            collection_method = None
         #Check for if Rental unit exists when request_unit is passed in the request
-        else:
+        if tenant_id is not None and request.data.get("rental_unit", None) is None:
             tenant = Tenant.objects.get(id=request.data.get("tenant"))
             rental_unit = RentalUnit.objects.get(tenant=tenant)
             rental_property = rental_unit.rental_property
-            tenant_preferences = json.loads(tenant.preferences)
-            #Retrieve the object in the array who's "name" key value is "invoice_recieved"
-            invoice_recieved = next(
-                item for item in tenant_preferences if item["name"] == "bill_created"
-            )
-            #Retrieve the "values" key value of the object
-            invoice_recieved_value = invoice_recieved["values"]
+            
             tenant_stripe_customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
             collection_method ="send_invoice"
 
-        rental_unit_lease_terms = json.loads(rental_unit.lease_terms)   
+        #Check for if Rental unit exists when request_unit is passed in the request
         billing_entry_status = data["status"]
         stripe_invoice = None
         due_date = None
@@ -185,18 +185,36 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     )
                     stripe.Invoice.finalize_invoice(stripe_invoice.id)
                     stripe.Invoice.send_invoice(stripe_invoice.id)
-                    
-                    if invoice_recieved_value["name"] == "push" and invoice_recieved_value["value"] == True:
-                        #Create a notification for the tenant that a new invoice has been sent
+
+                    tenant_preferences = json.loads(tenant.preferences)
+
+                    # Retrieve the object in the array whose "name" key value is "bill_created"
+                    invoice_recieved = next(
+                        item for item in tenant_preferences if item["name"] == "bill_created"
+                    )
+
+                    # Retrieve the dictionary in the "values" list where the "name" key value is "push"
+                    push_value = next(
+                        value for value in invoice_recieved["values"] if value["name"] == "push"
+                    )
+
+                    if push_value["value"] == True:
+                        # Create a notification for the tenant that a new invoice has been sent
                         notification = Notification.objects.create(
                             user=tenant.user,
-                            message=f"A new invoice has been recieved for {description}",
+                            message=f"A new invoice has been received for {description}",
                             type="invoice_recieved",
-                            title="Invoice Recieved",
+                            title="Invoice Received",
                             resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}",
                         )
-                    elif invoice_recieved_value["name"] == "email" and invoice_recieved_value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                        #Create an email notification using postmark for the tenant that a new invoice has been recieved
+
+                    # Retrieve the dictionary in the "values" list where the "name" key value is "email"
+                    email_value = next(
+                        value for value in invoice_recieved["values"] if value["name"] == "email"
+                    )
+
+                    if email_value["value"] == True and os.getenv("ENVIRONMENT") == "production":
+                        # Create an email notification using Postmark for the tenant that a new invoice has been received
                         client_hostname = os.getenv("CLIENT_HOSTNAME")
                         postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
                         to_email = tenant.user.email
@@ -207,12 +225,13 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                         postmark.emails.send(
                             From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                             To=to_email,
-                            Subject="New Invoice Recieved",
+                            Subject="New Invoice Received",
                             HtmlBody=f"""
-                            A new invoice has been recieved for {description}.
+                            A new invoice has been received for {description}.
                             <a href='{client_hostname}/dashboard/tenant/bills/{stripe_invoice.id}'>View Invoice</a>
                             """,
                         )
+
                 # Create Billing Entry for the owner
                 billing_entry = BillingEntry.objects.create(
                     type=type,
@@ -274,10 +293,13 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                         timestamp=due_date_time_field,
                     )
                 serializer = BillingEntrySerializer(billing_entry)
-                if data['maintenance_request_id']:
+                maintenance_request_id = request.data.get("maintenance_request_id", None)
+                #Check if maintenance_request_id is passed in the request
+                if maintenance_request_id != None:
                     maintenance_request = MaintenanceRequest.objects.get(id=data['maintenance_request_id'])
                     maintenance_request.billing_entry = billing_entry
                     maintenance_request.save()
+
                 return Response(
                     {
                         "message": "Billing entry created successfully.",
@@ -326,6 +348,25 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                 billing_entry_status = updated_status
                 billing_entry.status = billing_entry_status
                 billing_entry.save()
+                billing_entry_rental_unit = None
+                billing_entry_rental_property = None
+                #check if the billing entry has a rental unit
+                if billing_entry.rental_unit:
+                    billing_entry_rental_unit = billing_entry.rental_unit
+                    billing_entry_rental_property = billing_entry.rental_unit.rental_property
+                
+                #Create transaction for the billing entry
+                transaction = Transaction.objects.create(
+                    amount=billing_entry.amount,
+                    billing_entry=billing_entry,
+                    description=billing_entry.description,
+                    type=billing_entry.type,
+                    tenant=billing_entry.tenant,
+                    owner=request.user.owner,
+                    user=request.user,
+                    rental_unit=billing_entry_rental_unit,
+                    rental_property=billing_entry_rental_property,
+                )
                 return super().partial_update(request, *args, **kwargs)
             else:
                 return Response(

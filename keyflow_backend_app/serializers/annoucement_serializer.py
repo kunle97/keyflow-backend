@@ -30,6 +30,7 @@ class AnnouncementSerializer(serializers.ModelSerializer):
                     rental_unit_data = RentalUnitSerializer(rental_unit).data  # Serialize the RentalUnit object
                     #append the key type to the rental_unit_data with the value "Rental Unit"
                     rental_unit_data["type"] = "Unit"
+                    rental_unit_data["datatype"] = "rental_unit"
                     return rental_unit_data  # Serialize and return the RentalUnit object
                 except (ValueError, RentalUnit.DoesNotExist):
                     pass  # Handle ValueErrors or DoesNotExist exceptions if necessary
@@ -40,6 +41,7 @@ class AnnouncementSerializer(serializers.ModelSerializer):
                     rental_property = RentalProperty.objects.get(id=rental_property_id)
                     rental_property_data = RentalPropertySerializer(rental_property).data
                     rental_property_data["type"] = "Property"
+                    rental_property_data["datatype"] = "rental_property"
                     return rental_property_data
                 except (ValueError, RentalProperty.DoesNotExist):
                     pass
@@ -50,6 +52,7 @@ class AnnouncementSerializer(serializers.ModelSerializer):
                     portfolio = Portfolio.objects.get(id=portfolio_id)
                     portfolio_data = PortfolioSerializer(portfolio).data
                     portfolio_data["type"] = "Portfolio"
+                    portfolio_data["datatype"] = "portfolio"
                     return portfolio_data
                 except (ValueError, Portfolio.DoesNotExist):
                     pass

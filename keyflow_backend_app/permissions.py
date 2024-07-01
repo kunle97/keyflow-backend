@@ -259,13 +259,11 @@ class UnitDeletePermission(permissions.BasePermission):
     
                 #retrieve unit object from  request_body_property variable
                 unit_object = RentalUnit.objects.get(id=request_body_unit)
-                unit_user_id = unit_object.rental_property.user.id #id of the user who owns the property
+                unit_user_id = unit_object.rental_property.owner.user.id #id of the user who owns the property
     
                 #Check if the unit has tenants
-                unit_has_tenants = RentalUnit.objects.filter(id=unit_object.id, is_occupied=True).count() > 0
-                
                 #return a 403 response  message if the property has units
-                if unit_has_tenants:
+                if  RentalUnit.objects.filter(id=unit_object.id, is_occupied=True).count() > 0:
                     return Response({"message": "You cannot delete a unit that has tenants"}, status=status.HTTP_403_FORBIDDEN)
     
                 #confirm the id and unit's user id match

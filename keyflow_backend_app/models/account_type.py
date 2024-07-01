@@ -11,8 +11,8 @@ default_owner_preverences_json = """
         "name": "tenant_lease_agreement_signed",
         "label": "Tenant Lease Agreement Signed",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable  or disable notifications for when a tenant signs a lease agreement"
     },
@@ -22,8 +22,8 @@ default_owner_preverences_json = """
         "name": "lease_cancellation_request_created",
         "label": "Lease Cancellation Request Created",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable  or disable notifications for when a tenant creates a lease cancellation request"
     },
@@ -33,8 +33,8 @@ default_owner_preverences_json = """
         "name": "lease_renewal_request_created",
         "label": "Lease Renewal Request Created",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable  or disable notifications for when a tenant creates a lease renewal request"
     },
@@ -44,8 +44,8 @@ default_owner_preverences_json = """
         "name": "lease_renewal_agreement_signed",
         "label": "Lease Renewal Agreement Signed",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable  or disable notifications for when a tenant signs a lease renewal agreement"
     },
@@ -55,8 +55,8 @@ default_owner_preverences_json = """
         "name": "rental_application_created",
         "label": "Rental Application Created",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable  or disable notifications for when a tenant creates a rental application"
     },
@@ -66,8 +66,8 @@ default_owner_preverences_json = """
         "name": "invoice_paid",
         "label": "Invoice Paid",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable  or disable notifications for when a tenant pays an invoice"
     },
@@ -77,8 +77,8 @@ default_owner_preverences_json = """
         "name": "new_tenant_registration_complete",
         "label": "New Tenant Registration Complete",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable  or disable notifications for when a new tenant completes registration"
     },
@@ -88,8 +88,8 @@ default_owner_preverences_json = """
         "label": "Message Received",
         "name": "message_received",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable or disable notifications for when you receive a message"
     }
@@ -104,8 +104,8 @@ default_tenant_preverences_json = """
         "label": "New Bill Due",
         "name": "bill_created",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable or disable notifications for when a bill is created or you are automatically charged"
     },
@@ -115,8 +115,8 @@ default_tenant_preverences_json = """
         "label": "Lease Cancellation Request Approval",
         "name": "lease_cancellation_request_approved",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable or disable notifications for when a lease cancellation request is approved"
     },
@@ -126,8 +126,8 @@ default_tenant_preverences_json = """
         "label": "Lease Cancellation Request Denial",
         "name": "lease_cancellation_request_denied",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable or disable notifications for when a lease cancellation request is denied"
     },
@@ -137,8 +137,8 @@ default_tenant_preverences_json = """
         "label": "Lease Renewal Request Approval",
         "name": "lease_renewal_request_approved",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false,"inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true,"inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable or disable notifications for when a lease renewal request is approved"
     },
@@ -148,8 +148,8 @@ default_tenant_preverences_json = """
         "label": "Lease Renewal Request Rejection",
         "name": "lease_renewal_request_rejected",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable or disable notifications for when a lease renewal request is rejected"
     },
@@ -159,8 +159,8 @@ default_tenant_preverences_json = """
         "label": "Message Received",
         "name": "message_received",
         "values": [
-            {"name": "push", "value": false, "inputType":"switch", "label": "Push Notifications"},
-            {"name": "email", "value": false, "inputType":"switch", "label": "Email Notifications"}
+            {"name": "push", "value": true, "inputType":"switch", "label": "Push Notifications"},
+            {"name": "email", "value": true, "inputType":"switch", "label": "Email Notifications"}
         ],
         "description": "Enable or disable notifications for when you receive a message"
     }

@@ -247,7 +247,11 @@ def create_invoice_for_period(
     # Add additional charges to the invoice if there are any
     if additional_charges_dict:
         for charge in additional_charges_dict:
-            charge_amount = int(charge["amount"])
+            amount = charge["amount"]
+            # Check if the charge is a string; if so, convert it to a float first
+            if isinstance(amount, str):
+                amount = float(amount)
+            charge_amount = amount
             charge_name = charge["name"]
             charge_product_name = f"{charge_name} for unit {unit.name} at {unit.rental_property.name}"
             
