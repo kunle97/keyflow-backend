@@ -14,15 +14,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from curses.ascii import US
 from django.contrib import admin
 from django.conf.urls import handler404
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from keyflow_backend_app.views.auth import (
+    UserEmailCheckView,
     UserViewSet,
     UserLoginView,
     UserLogoutView,
     UserActivationView,
+    UsernameCheckView,
 )
 from keyflow_backend_app.views.expiring_tokens import TokenValidationView
 from keyflow_backend_app.views.owners import (
@@ -217,6 +220,15 @@ urlpatterns = [
         RetrieveRentalApplicationByApprovalHash.as_view(),
         name="tenant_register_verify",
     ),
+    path(
+        "api/auth/user-email-check/",
+        UserEmailCheckView.as_view(),
+        name="user_email_check",
+    ),
+    path(
+        "api/auth/user-username-check/", 
+        UsernameCheckView.as_view(), 
+        name="user_username_check"),
     path(
         "api/plaid/create-link-token/",
         PlaidLinkTokenView.as_view(),
