@@ -175,15 +175,39 @@ class UserLogoutView(APIView):
             )
         else:
             return Response(
-                {"message": "No active token found for the user.", "status": status.HTTP_404_NOT_FOUND},
+            {"message": "No active token found for the user.", "status": status.HTTP_404_NOT_FOUND},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-# class UserRegistrationView(APIView):
-
-
-# Create a class that retrieve a price from stripe subscriptions for owners and returns it in the response
-
+#Create a class that has a post method to check if the email exists in the database
+class UserEmailCheckView(APIView):
+    def post(self, request):
+        email = request.data.get("email")
+        user = User.objects.filter(email=email).exists()
+        if user:
+            return Response(
+                {"message": "Email already exists.", "status": status.HTTP_400_BAD_REQUEST},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {"message": "Email does not exist.", "status": status.HTTP_200_OK},
+            status=status.HTTP_200_OK,
+        )
+    
+#Create a class that has a post method to check if a username exists in the database
+class UsernameCheckView(APIView):
+    def post(self, request):
+        username = request.data.get("username")
+        user = User.objects.filter(username=username).exists()
+        if user:
+            return Response(
+                {"message": "Username already exists.", "status": status.HTTP_400_BAD_REQUEST},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {"message": "Username does not exist.", "status": status.HTTP_200_OK},
+            status=status.HTTP_200_OK,
+        )
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
