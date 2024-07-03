@@ -9,7 +9,9 @@ import json
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 
-from keyflow_backend_app.models.account_type import Owner
+from keyflow_backend_app.models import account_type
+from keyflow_backend_app.models.lease_agreement import LeaseAgreement
+from keyflow_backend_app.models.account_type import Owner, Tenant
 
 load_dotenv()
 BOLDSIGN_API_KEY = os.getenv("BOLDSIGN_API_KEY")
@@ -258,7 +260,23 @@ class CreateSigningLinkView(APIView):
 # Create a class that donwloads a doccument using the url  https://api.boldsign.com/v1/document/download and params documentId
 class DownloadBoldSignDocumentView(APIView):
     def post(self, request, *args, **kwargs):
+        user = request.user
         document_id = request.data.get('document_id')
+        lease_agreement = None
+
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            lease_agreement = LeaseAgreement.objects.filter(owner=owner, document_id=document_id)
+        elif user.account_type == "tenant":
+            tenant = Tenant.objects.get(user=user)
+            lease_agreement = LeaseAgreement.objects.filter(document_id=document_id)
+        else:
+            return Response({"error": "Access Denied"}, status=400)
+
+        #Check if the lease agreement exists
+        if not lease_agreement.exists():
+            return Response({"error": "Lease agreement not found"}, status=404)            
+        
         if not document_id:
             return Response({"error": "Document ID is required"}, status=400)
 
