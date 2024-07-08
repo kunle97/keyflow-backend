@@ -19,6 +19,7 @@ from keyflow_backend_app.serializers.tenant_invite_serializer import (
     TenantInviteSerializer,
 )
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import filters
 import csv
@@ -36,7 +37,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
     permission_classes = [
         IsAuthenticated
     ]  # TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

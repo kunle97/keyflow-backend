@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from django.db.models import Q
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.models.account_type import Owner, Tenant 
 from ..models.transaction import Transaction
@@ -14,7 +15,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated]#IsResourceOwner, ResourceCreatePermission
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['description', 'type' ,"amount", "timestamp"]
     ordering_fields = ['description', 'type', 'amount', 'timestamp' ]
