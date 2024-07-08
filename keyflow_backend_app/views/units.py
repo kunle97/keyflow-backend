@@ -7,7 +7,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.models.account_type import Owner
 from keyflow_backend_app.helpers import unitNameIsValid
@@ -46,7 +47,7 @@ class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
     serializer_class = RentalUnitSerializer
     permission_classes = [ IsAuthenticated,IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     

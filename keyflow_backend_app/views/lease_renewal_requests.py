@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.models import account_type
 from keyflow_backend_app.models.account_type import Owner, Tenant
@@ -39,7 +40,7 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseRenewalRequest.objects.all()
     serializer_class = LeaseRenewalRequestSerializer
     permission_classes = [IsAuthenticated]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

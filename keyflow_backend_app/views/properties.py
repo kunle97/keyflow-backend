@@ -15,6 +15,7 @@ from rest_framework.parsers import MultiPartParser
 from django.core.exceptions import ValidationError
 from io import TextIOWrapper
 from rest_framework.response import Response
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.models.portfolio import Portfolio
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
@@ -33,7 +34,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = RentalPropertySerializer
     permission_classes = [IsAuthenticated] #TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     parser_classes = [MultiPartParser]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

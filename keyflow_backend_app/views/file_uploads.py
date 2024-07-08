@@ -11,6 +11,7 @@ from ..serializers.uploaded_file_serializer import UploadedFileSerializer
 from rest_framework import viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
 from rest_framework.filters import SearchFilter, OrderingFilter
 from dotenv import load_dotenv
@@ -30,7 +31,7 @@ class UnauthenticatedRetrieveImagesBySubfolderView(APIView): #TODO: secure this 
 class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = UploadedFile.objects.all()
     serializer_class = UploadedFileSerializer
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     filter_backends = [
         DjangoFilterBackend,
@@ -75,7 +76,7 @@ class FileUploadViewSet(viewsets.ModelViewSet):
 
 
 class S3FileDeleteView(APIView):
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
 
     def post(self, request):
         file_id = request.data.get("id")

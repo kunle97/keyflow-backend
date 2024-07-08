@@ -7,6 +7,7 @@ from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.models.account_type import Owner
 
 
@@ -14,7 +15,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     queryset = Announcement.objects.all()
     serializer_class = AnnouncementSerializer
     permission_classes = [IsAuthenticated]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
