@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
 from keyflow_backend_app.views import boldsign
 from ..helpers import make_id
@@ -49,7 +49,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         IsAuthenticated,
         RentalApplicationCreatePermission,
     ]  # TODO: Investigate why IsResourceOwner is not working
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

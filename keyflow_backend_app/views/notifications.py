@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
 from ..models.notification import Notification
 from ..serializers.notification_serializer import NotificationSerializer
@@ -14,7 +15,7 @@ load_dotenv()
 class NotificationViewSet(viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['message', 'is_read', 'type']
     search_fields = ['message']

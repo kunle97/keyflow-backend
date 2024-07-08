@@ -18,6 +18,7 @@ from ..serializers.billing_entry_serializer import BillingEntrySerializer
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from datetime import datetime, timedelta
@@ -31,7 +32,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
     queryset = BillingEntry.objects.all()
     serializer_class = BillingEntrySerializer
     permission_classes = [IsAuthenticated]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

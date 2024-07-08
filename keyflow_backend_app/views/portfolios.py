@@ -2,6 +2,7 @@ import json
 from django.http import JsonResponse
 from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.models.account_type import Owner
 from keyflow_backend_app.models.portfolio import Portfolio
@@ -15,7 +16,7 @@ from keyflow_backend_app.helpers import portfolioNameIsValid
 class PortfolioViewSet(viewsets.ModelViewSet):
     queryset = Portfolio.objects.all()
     serializer_class = PortfolioSerializer
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
