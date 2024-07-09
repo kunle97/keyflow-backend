@@ -13,9 +13,10 @@ import sendgrid
 import os
 from sendgrid.helpers.mail import Mail, Email, To, Content
 from sendgrid import SendGridAPIClient
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
+
 
 
 load_dotenv()
@@ -348,7 +349,6 @@ def create_rent_invoices(
                 description=f"Rent payment for {formatted_period_start}",
                 invoice=invoice.id,
             )
-            print("Additional charges dict for combined paymentzzz: ", additional_charges_dict)
 
             # Add additional charges to the invoice if there are any
             if additional_charges_dict:
@@ -381,12 +381,16 @@ def create_rent_invoices(
         for period_start, period_end in rent_periods:
             # Assuming the due date is at the start of the period plus a grace period
             due_date = period_start + relativedelta(days=+grace_period_days)
-
+            
+            # Make due_date timezone-aware if it isn't already
+            if due_date.tzinfo is None:
+                due_date = due_date.replace(tzinfo=timezone.utc)
+            
             # Ensure due_date is in the future
-            current_time = datetime.now()
+            current_time = datetime.now(timezone.utc)
             if due_date <= current_time:
                 due_date = current_time + relativedelta(days=1)  # Adjust as needed to ensure it's in the future
-
+            
             # Create Stripe invoice for each rent payment period
             create_invoice_for_period(
                 period_start,
