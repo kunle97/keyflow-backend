@@ -32,7 +32,7 @@ from ..models.maintenance_request import MaintenanceRequest
 from ..models.lease_cancelleation_request import LeaseCancellationRequest
 from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..models.account_type import Owner, Tenant
-from ..helpers import make_id, strtobool
+from ..helpers.helpers import make_id, strtobool
 from django.views.decorators.csrf import csrf_exempt
 
 

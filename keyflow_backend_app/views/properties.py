@@ -24,11 +24,12 @@ from ..models.rental_unit import  RentalUnit
 from ..serializers.user_serializer import UserSerializer
 from ..serializers.rental_property_serializer import RentalPropertySerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
-from keyflow_backend_app.helpers import propertyNameIsValid, unitNameIsValid
+from keyflow_backend_app.helpers.helpers import propertyNameIsValid, unitNameIsValid
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 load_dotenv()
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
@@ -56,6 +57,16 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         owner = Owner.objects.get(user=user)
+        owner_plan_permissions = OwnerPlanAccessControl(owner)
+
+        #Validate if the owner has reached the maximum number of rental properties allowed for their plan
+        if owner_plan_permissions.can_create_new_rental_property() is False:
+            return Response({
+                    'error_type':'max_properties_error',
+                    'message': 'You have reached the maximum number of rental properties allowed for your plan. Please upgrade your plan to create more properties.',
+                    "status":status.HTTP_400_BAD_REQUEST
+                }, status=status.HTTP_400_BAD_REQUEST)
+
          #Retrieve the users stripe account
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         stripe_account = stripe.Account.retrieve(owner.stripe_account_id)

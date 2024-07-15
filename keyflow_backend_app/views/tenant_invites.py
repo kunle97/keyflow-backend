@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from tomlkit import document
-from keyflow_backend_app.helpers import make_id, sendEmailBySendGrid
+from keyflow_backend_app.helpers.helpers import make_id, sendEmailBySendGrid
 from postmarker.core import PostmarkClient
 from keyflow_backend_app.models import tenant_invite
 from keyflow_backend_app.models.rental_unit import RentalUnit

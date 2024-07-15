@@ -155,6 +155,14 @@ class ManagePaymentMethodsView(viewsets.ModelViewSet):
 
         #Retrierve the default payment method from the subscription
         subscriptions = stripe.Subscription.list(customer=stripe_customer_id)
+        if subscriptions == None or len(subscriptions.data) == 0:
+            return Response(
+                {
+                    "payment_methods":payment_methods, 
+                    "default_payment_method":None
+                }, 
+            status=status.HTTP_200_OK
+        )
         subscription = subscriptions.data[0]
         default_payment_method = subscription.default_payment_method
 
