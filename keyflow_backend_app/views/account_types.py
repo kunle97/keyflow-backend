@@ -1,7 +1,9 @@
 # Standard library imports
+from calendar import c
 import json
 import os
 from datetime import timedelta, datetime, time
+import re
 from dotenv import load_dotenv
 # Third-party library imports
 from pkg_resources import require
@@ -20,9 +22,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
 # Model imports
-from keyflow_backend_app.helpers import create_rent_invoices
+from keyflow_backend_app.helpers.helpers import create_rent_invoices
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
+from keyflow_backend_app.models.lease_template import LeaseTemplate
 from keyflow_backend_app.models.notification import Notification
+from keyflow_backend_app.models.uploaded_file import UploadedFile
 from keyflow_backend_app.models.user import User
 from keyflow_backend_app.models.account_type import Owner, Staff, Tenant
 from keyflow_backend_app.models.rental_property import RentalProperty
@@ -59,6 +64,14 @@ class OwnerViewSet(viewsets.ModelViewSet):
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     serializer_class = OwnerSerializer
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            queryset = super().get_queryset().filter(user=owner.user)
+            return queryset
+        return super().get_queryset()
+
     # Replaces the UserREgistrationView(endpoint api/auth/register/)
     @action(
         detail=False, methods=["post"], url_path="register"
@@ -92,31 +105,34 @@ class OwnerViewSet(viewsets.ModelViewSet):
             # Create a customer id for the user
             customer = stripe.Customer.create(email=user.email)
 
-            # attach payment method to the customer adn make it default
-            payment_method_id = data["payment_method_id"]
-            stripe.PaymentMethod.attach(
-                payment_method_id,
-                customer=customer.id,
-            )
+            payment_method_id = None
+            subscription = None
+            if "payment_method_id" in data and data["payment_method_id"] != None:
+                # attach payment method to the customer adn make it default
+                payment_method_id = data["payment_method_id"]
+                stripe.PaymentMethod.attach(
+                    payment_method_id,
+                    customer=customer.id,
+                )
 
-            # Subscribe owner to thier selected plan using product id and price id
-            product_id = data["product_id"]
-            price_id = data["price_id"]
-            subscription = stripe.Subscription.create(
-                customer=customer.id,
-                items=[
-                    {"price": price_id},
-                ],
-                default_payment_method=payment_method_id,
-                metadata={
-                    "type": "revenue",
-                    "description": f"{user.first_name} {user.last_name} Owner Subscrtiption",
-                    "product_id": product_id,
-                    "user_id": user.id,
-                    "tenant_id": user.id,
-                    "payment_method_id": payment_method_id,
-                },
-            )
+                # Subscribe owner to thier selected plan using product id and price id
+                product_id = data["product_id"]
+                price_id = data["price_id"]
+                subscription = stripe.Subscription.create(
+                    customer=customer.id,
+                    items=[
+                        {"price": price_id},
+                    ],
+                    default_payment_method=payment_method_id,
+                    metadata={
+                        "type": "revenue",
+                        "description": f"{user.first_name} {user.last_name} Owner Subscrtiption",
+                        "product_id": product_id,
+                        "user_id": user.id,
+                        "tenant_id": user.id,
+                        "payment_method_id": payment_method_id,
+                    },
+                )
             client_hostname = os.getenv("CLIENT_HOSTNAME")
             refresh_url = f"{client_hostname}/dashboard/owner/login"
             return_url = f"{client_hostname}/dashboard/activate-account/"
@@ -131,12 +147,16 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 False  # TODO: Remove this for activation flow implementation
             )
             user.save()
-            
+            subscription_id = None
+            if subscription:
+                subscription_id = subscription.id
+            else:
+                subscription_id = None
             Owner.objects.create(
                 user=user,
                 stripe_account_id=stripe_account.id,
                 stripe_customer_id=customer.id,
-                stripe_subscription_id=subscription.id,
+                stripe_subscription_id=subscription_id,
             )
 
             # Create an account activation token for the user
@@ -306,6 +326,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
         subscriptions = stripe.Subscription.list(customer=customer_id)
         owner_subscription = None
 
+        #loop through the subscriptions and find the active subscription.
         for subscription in subscriptions.auto_paging_iter():
             if subscription.status == "active":
                 owner_subscription = subscription
@@ -343,83 +364,113 @@ class OwnerViewSet(viewsets.ModelViewSet):
     # Create a function to chagne a user's stripe susbcription plan
     @action(detail=True, methods=["post"], url_path="change-subscription-plan")
     def change_subscription_plan(self, request, pk=None):
-        user = self.get_object()
+        user = request.user
+        owner =  Owner.objects.get(user=user)
         data = request.data.copy()
+        
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-        # retrieve the customer's subscription
-        subscription = stripe.Subscription.retrieve(data["subscription_id"])
-        current_product_id = subscription["items"]["data"][0]["price"]["product"]
+        stripe_customer = stripe.Customer.retrieve(owner.stripe_customer_id)
+        price_id = data["price_id"]
+        product_id = data["product_id"]
+        subscription_id = data.get('subscription_id')
+        
+        current_subscription = self.get_current_subscription(subscription_id)
+        current_product_id = current_subscription["items"]["data"][0]["price"]["product"] if current_subscription else None
 
-        # Check if the product id from the current subscription matches the product id from the request and return an error that this current plan is already active
-        if current_product_id == data["product_id"]:
-            return Response(
-                {
-                    "message": "This subscription is already active.",
+        # Validation checks
+        error_response = self.validate_subscription_change(current_product_id, product_id, owner)
+        if error_response:
+            return error_response
+
+        # Handle subscription creation or updating
+        if current_subscription is None:
+            new_subscription = self.create_new_subscription(stripe_customer.id, price_id, product_id, user)
+        else:
+            stripe.Subscription.delete(current_subscription.id)
+            new_subscription = self.create_new_subscription(stripe_customer.id, price_id, product_id, user)
+
+        owner.stripe_subscription_id = new_subscription.id
+        owner.save()
+
+        # Update subscription items and metadata for specific plans
+        if product_id in [
+            os.getenv("STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID"), 
+            os.getenv("STRIPE_OWNER_ENTERPRISE_PLAN_PRODUCT_ID")
+        ]:
+            self.update_subscription_items(new_subscription, price_id, owner)
+
+        return Response({
+            "subscription": new_subscription,
+            "message": "Subscription plan changed successfully.",
+            "status": status.HTTP_200_OK,
+        }, status=status.HTTP_200_OK)
+
+    def get_current_subscription(self, subscription_id):
+        if subscription_id:
+            return stripe.Subscription.retrieve(subscription_id)
+        return None
+
+    def validate_subscription_change(self, current_product_id, new_product_id, owner):
+        if current_product_id and current_product_id == new_product_id:
+            return Response({
+                "message": "This subscription is already active.",
+                "status": status.HTTP_400_BAD_REQUEST,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if current_product_id == os.getenv("STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID"):
+            if new_product_id == os.getenv("STRIPE_OWNER_STANDARD_PLAN_PRODUCT_ID") and self.get_units_count(owner) > 15:
+                return Response({
+                    "message": "You cannot downgrade to the standard plan with more than 15 units.",
                     "status": status.HTTP_400_BAD_REQUEST,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if the product id from the current subscription is equal to os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID') then check if the user has 10 or more units. If they do return an error that they cannot downgrade to the standard plan
-        if current_product_id == os.getenv("STRIPE_PRO_PLAN_PRODUCT_ID") and data[
-            "product_id"
-        ] == os.getenv("STRIPE_STANDARD_PLAN_PRODUCT_ID"):
-            # Retrieve the user's units
-            units = RentalUnit.objects.filter(user=user)
-            if units.count() > 10:
-                return Response(
-                    {
-                        "message": "You cannot downgrade to the standard plan with more than 10 units.",
-                        "status": status.HTTP_400_BAD_REQUEST,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        if new_product_id == os.getenv("STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID") and self.get_units_count(owner) < 15:
+            return Response({
+                "message": "You cannot upgrade to the professional plan with less than 15 units.",
+                "status": status.HTTP_400_BAD_REQUEST,
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        # check if the product id from the request is equal to os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID') and update the subscription item to the new price id and quantity of units
-        if data["product_id"] == os.getenv("STRIPE_PRO_PLAN_PRODUCT_ID"):
-            # Retrieve the user's units
-            units = RentalUnit.objects.filter(user=user)
-            # Update the subscription item to the new price id and quantity of units
-            stripe.SubscriptionItem.modify(
-                subscription["items"]["data"][0].id,
-                price=data["price_id"],
-                quantity=units.count(),
-            )
-            # modify the subscription metadata field product_id
-            stripe.Subscription.modify(
-                subscription.id,
-                metadata={"product_id": data["product_id"]},
-            )
-            # Return a success message
-            return Response(
-                {
-                    "subscription": subscription,
-                    "message": "Subscription plan changed successfully.",
-                    "status": status.HTTP_200_OK,
-                },
-                status=status.HTTP_200_OK,
-            )
+        if new_product_id is None and self.get_units_count(owner) > 4:
+            return Response({
+                "message": "You cannot downgrade to the free plan with more than 4 units.",
+                "status": status.HTTP_400_BAD_REQUEST,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return None
 
+    def get_units_count(self, owner):
+        return RentalUnit.objects.filter(owner=owner).count()
+
+    def create_new_subscription(self, customer_id, price_id, product_id, user):
+        payment_methods = stripe.PaymentMethod.list(customer=customer_id, type="card")
+        payment_method_id = payment_methods["data"][0].id
+
+        new_subscription = stripe.Subscription.create(
+            customer=customer_id,
+            items=[{"price": price_id}],
+            default_payment_method=payment_method_id,
+            metadata={
+                "type": "revenue",
+                "description": f"{user.first_name} {user.last_name} Owner Subscription",
+                "product_id": product_id,
+                "user_id": user.id,
+                "owner_id": user.id,
+                "payment_method_id": payment_method_id,
+            },
+        )
+        return new_subscription
+
+    def update_subscription_items(self, subscription, price_id, owner):
+        units_count = self.get_units_count(owner)
         stripe.SubscriptionItem.modify(
             subscription["items"]["data"][0].id,
-            price=data["price_id"],
+            price=price_id,
+            quantity=units_count,
         )
-
-        # modify the subscription metadata field product_id
         stripe.Subscription.modify(
             subscription.id,
-            metadata={"product_id": data["product_id"]},
+            metadata={"product_id": subscription["metadata"]["product_id"]},
         )
-
-        return Response(
-            {
-                "subscription": subscription,
-                "message": "Subscription plan changed successfully.",
-                "status": status.HTTP_200_OK,
-            },
-            status=status.HTTP_200_OK,
-        )
-
     #Create a function that retireves the owner's preferences
     @action(detail=True, methods=["get"], url_path="preferences") #GET: api/owners/{id}/preferences
     def preferences(self, request, pk=None):
@@ -435,6 +486,47 @@ class OwnerViewSet(viewsets.ModelViewSet):
         owner.preferences = json.dumps(preferences)
         owner.save()
         return Response({"preferences":preferences},status=status.HTTP_200_OK)
+    
+    #Create a function that retrieves the owner's plan data
+    @action(detail=True, methods=["get"], url_path="subscription-plan-data") #GET: api/owners/{id}/subscription-plan-data
+    def subscription_plan_data(self, request, pk=None):
+        owner = self.get_object()
+        owner_plan_access_control = OwnerPlanAccessControl(owner)
+        plan_data = owner_plan_access_control.get_owner_plan_permission_data()
+        return Response({
+            "can_create_new_rental_property":owner_plan_access_control.can_create_new_rental_property(),
+            "can_create_new_rental_unit":owner_plan_access_control.can_create_new_rental_unit(),
+            "can_create_new_lease_template":owner_plan_access_control.can_create_new_lease_template(),
+            "can_create_new_lease_agreement":owner_plan_access_control.can_create_new_lease_agreement(),
+            "max_file_size":owner_plan_access_control.get_max_file_size(),
+            "can_use_announcements":owner_plan_access_control.can_use_announcements(),
+            "can_use_maintenance_requests":owner_plan_access_control.can_use_maintenance_requests(),
+            "can_use_portfolios":owner_plan_access_control.can_use_portfolios(),
+            "can_use_messaging":owner_plan_access_control.can_use_messaging(),
+            "can_use_rental_applications":owner_plan_access_control.can_use_rental_applications(),
+            "plan_data":plan_data
+        },
+            status=status.HTTP_200_OK
+        )
+    
+    #Create a function that retrieves the owner's usage stats on how many rental properties, file uploads, units, lease templates, lease agreements, and tenants they have
+    @action(detail=True, methods=["get"], url_path="usage-stats") #GET: api/owners/{id}/usage-stats
+    def usage_stats(self, request, pk=None):
+        owner = self.get_object()
+        rental_properties = RentalProperty.objects.filter(owner=owner)
+        rental_units = RentalUnit.objects.filter(owner=owner)
+        lease_templates = LeaseTemplate.objects.filter(owner=owner)
+        lease_agreements = LeaseAgreement.objects.filter(owner=owner)
+        tenants = Tenant.objects.filter(owner=owner)
+        file_uploads = UploadedFile.objects.filter(user=request.user)
+        return Response({
+            "rental_properties":rental_properties.count(),
+            "rental_units":rental_units.count(),
+            "tenants":tenants.count(),
+            "lease_templates":lease_templates.count(),
+            "lease_agreements":lease_agreements.count(),
+            "file_uploads":file_uploads.count()
+        },status=status.HTTP_200_OK)
     
 class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.all()

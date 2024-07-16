@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from rest_framework import viewsets
 import pytz
 from django.utils import timezone
-from keyflow_backend_app.helpers import calculate_final_price_in_cents
+from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents
 from keyflow_backend_app.models.notification import Notification
 from keyflow_backend_app.models.rental_unit import RentalUnit
 from ..models.account_type import Owner, Tenant

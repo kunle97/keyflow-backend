@@ -28,7 +28,7 @@ from ..models.notification import Notification
 from ..serializers.lease_renewal_request_serializer import (
     LeaseRenewalRequestSerializer,
 )
-from keyflow_backend_app.helpers import calculate_final_price_in_cents, create_rent_invoices
+from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents, create_rent_invoices
 from ..models.lease_template import LeaseTemplate
 from rest_framework import status
 from rest_framework.response import Response

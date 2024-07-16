@@ -5,6 +5,7 @@ import time
 from dotenv import load_dotenv
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.expiring_token import ExpiringToken
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -89,6 +90,8 @@ class UserLoginView(APIView):
         if user.account_type == "owner":
             try:
                 owner = Owner.objects.get(user=user)
+                owner_plan_permissions = OwnerPlanAccessControl(owner)
+                plan_data = owner_plan_permissions.plan_data
                 token = self.manage_token(user, expiration_date)
                 user_serializer = UserSerializer(instance=user)
                 owner_serializer = OwnerSerializer(instance=owner)
@@ -99,6 +102,7 @@ class UserLoginView(APIView):
                         "owner": owner_serializer.data,
                         "token": token.key,
                         "token_expiration_date": expiration_date,
+                        "subscription_plan_data": plan_data,
                         "statusCode": status.HTTP_200_OK,
                         "owner_id": owner.pk,
                         "isAuthenticated": True,

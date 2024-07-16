@@ -13,9 +13,10 @@ from rest_framework.views import APIView
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
 from keyflow_backend_app.views import boldsign
-from ..helpers import make_id
+from ..helpers.helpers import make_id
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.notification import Notification
@@ -28,7 +29,7 @@ from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from ..helpers import strtobool
+from ..helpers.helpers import strtobool
 from keyflow_backend_app.models import rental_unit
 
 from keyflow_backend_app.models import rental_application
@@ -78,6 +79,14 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         unit = RentalUnit.objects.get(id=data["unit_id"])
         user = unit.owner.user
         owner = unit.owner
+        owner_plan_permission = OwnerPlanAccessControl(owner)
+        if not owner_plan_permission.can_use_rental_applications():
+            return Response(
+                {
+                    "message": "This rental application is unable to be created. Please contact the owner to resolve this issue."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         pets = data["pets"]
         vehicles = data["vehicles"]
         convicted = data["convicted"]

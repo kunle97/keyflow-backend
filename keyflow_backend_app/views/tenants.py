@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-from keyflow_backend_app.helpers import calculate_final_price_in_cents, make_id, create_rent_invoices
+from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents, make_id, create_rent_invoices
 from keyflow_backend_app.views import boldsign
 from keyflow_backend_app.views.boldsign import CreateDocumentFromTemplateView, CreateSigningLinkView
 from keyflow_backend_app.models.account_type import Tenant

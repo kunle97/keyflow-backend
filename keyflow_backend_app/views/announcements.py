@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from datetime import datetime, timezone, timedelta
 from rest_framework.response import Response
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.announcement import Announcement
 from keyflow_backend_app.serializers.annoucement_serializer import AnnouncementSerializer
 from rest_framework import filters
@@ -42,6 +43,11 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
         user = request.user
         owner = Owner.objects.get(user=user)
+        owner_plan_permission = OwnerPlanAccessControl(owner)
+
+        if not owner_plan_permission.can_use_announcements():
+            return Response({"message": "To access the announcements feature, you need to upgrade your subscription plan to the Keyflow Owner Standard Plan or higher."}, status=status.HTTP_400_BAD_REQUEST)
+
         title = data['title']
         body = data['body']
         severity = data['severity']

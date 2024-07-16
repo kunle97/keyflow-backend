@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 
-from keyflow_backend_app.helpers import make_id
+from keyflow_backend_app.helpers.helpers import make_id
 from ..models.user import User
 from ..models.password_reset_token import PasswordResetToken
 from ..serializers.password_reset_token_serializer import PasswordResetTokenSerializer

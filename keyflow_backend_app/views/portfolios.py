@@ -4,6 +4,7 @@ from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.account_type import Owner
 from keyflow_backend_app.models.portfolio import Portfolio
 from ..serializers.portfolio_serializer import PortfolioSerializer
@@ -11,7 +12,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.decorators import action
 from rest_framework import status
-from keyflow_backend_app.helpers import portfolioNameIsValid
+from keyflow_backend_app.helpers.helpers import portfolioNameIsValid
 
 class PortfolioViewSet(viewsets.ModelViewSet):
     queryset = Portfolio.objects.all()
@@ -36,6 +37,9 @@ class PortfolioViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
         name = data.get("name")
         owner = Owner.objects.get(user=request.user)
+        owner_plan_permission = OwnerPlanAccessControl(owner)
+        if not owner_plan_permission.can_use_portfolios():
+            return JsonResponse({'message': 'To access the portfolios feature, you need to upgrade your subscription plan to the Keyflow Owner Standard Plan or higher.', "status":status.HTTP_400_BAD_REQUEST}, status=400)
         if not portfolioNameIsValid(name, owner):
             return JsonResponse({'message': 'A portfolio with this name already exists.', "status":status.HTTP_400_BAD_REQUEST}, status=400)
         return super().create(request, *args, **kwargs)
