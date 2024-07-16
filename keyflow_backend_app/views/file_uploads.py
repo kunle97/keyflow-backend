@@ -5,6 +5,8 @@ import boto3
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from ..models.uploaded_file import UploadedFile
 from ..models.user import User
 from ..serializers.uploaded_file_serializer import UploadedFileSerializer
@@ -54,6 +56,17 @@ class FileUploadViewSet(viewsets.ModelViewSet):
     #     return queryset
 
     def create(self, request, *args, **kwargs):
+        user = request.user
+        if user.account_type == "owner":
+            owner = user.owner
+            owner_uploaded_files = UploadedFile.objects.filter(user=owner.user)
+            owner_permission_data = OwnerPlanAccessControl(owner)
+            if len(owner_uploaded_files) >= owner_permission_data.plan_data["max_file_uploads"]:
+                return Response(
+                    {"message": "You have reached the maximum number of file uploads for your plan. Please upgrade your plan to upload more files.", "status":status.HTTP_400_BAD_REQUEST},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
         serializer = UploadedFileSerializer(
             data=request.data, context={"request": request}
         )

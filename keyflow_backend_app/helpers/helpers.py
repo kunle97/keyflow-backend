@@ -430,3 +430,4 @@ def portfolioNameIsValid(name, owner):
     if Portfolio.objects.filter(name=name, owner=owner).exists():
         return False
     return True
+

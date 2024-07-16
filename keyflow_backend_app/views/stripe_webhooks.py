@@ -8,7 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views import View
 from datetime import datetime
 
-from keyflow_backend_app.helpers import calculate_final_price_in_cents
+from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents
 from keyflow_backend_app.models.notification import Notification
 from ..models.transaction import Transaction
 from ..models.rental_property import RentalProperty

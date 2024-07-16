@@ -9,7 +9,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
@@ -65,7 +66,11 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
             user_id = request.data.get('user_id')
             user = User.objects.get(id=user_id)
             owner = Owner.objects.get(user=user)
+            owner_plan_permissions = OwnerPlanAccessControl(owner)
             
+            if not owner_plan_permissions.can_create_new_lease_template():
+                return Response({'message': 'You have reached the maximum number of lease templates allowed by your plan. Upgrade your plan to create more lease templates.' }, status=status.HTTP_403_FORBIDDEN)
+
             data = request.data.copy()
             additional_charges = data['additional_charges']
             additional_charges_dict = json.loads(additional_charges)

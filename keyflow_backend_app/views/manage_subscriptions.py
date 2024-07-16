@@ -23,30 +23,75 @@ load_dotenv()
 class RetrieveOwnerSubscriptionPriceView(APIView):
     def post(self, request):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-        standard_plan_product = stripe.Product.retrieve(
-            os.getenv("STRIPE_STANDARD_PLAN_PRODUCT_ID")
+        # Old Plans
+        # standard_plan_product = stripe.Product.retrieve(
+        #     os.getenv("STRIPE_STANDARD_PLAN_PRODUCT_ID")
+        # )
+        # standard_plan_price = stripe.Price.retrieve(standard_plan_product.default_price)
+        # pro_plan_product = stripe.Product.retrieve(
+        #     os.getenv("STRIPE_PRO_PLAN_PRODUCT_ID")
+        # )
+        # pro_plan_price = stripe.Price.retrieve(pro_plan_product.default_price)
+
+        #New Standard Plan
+        owner_standard_plan_product = stripe.Product.retrieve(
+            os.getenv("STRIPE_OWNER_STANDARD_PLAN_PRODUCT_ID")
         )
-        standard_plan_price = stripe.Price.retrieve(standard_plan_product.default_price)
-        pro_plan_product = stripe.Product.retrieve(
-            os.getenv("STRIPE_PRO_PLAN_PRODUCT_ID")
+        owner_standard_plan_price = stripe.Price.retrieve(owner_standard_plan_product.default_price)
+        
+        #New Professional Plan
+        owner_professional_plan_product = stripe.Product.retrieve(
+            os.getenv("STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID")
         )
-        pro_plan_price = stripe.Price.retrieve(pro_plan_product.default_price)
+        owner_professional_plan_price = stripe.Price.retrieve(owner_professional_plan_product.default_price)
+        
+        #New Enterprise Plan
+        owner_enterprise_plan_product = stripe.Product.retrieve(
+            os.getenv("STRIPE_OWNER_ENTERPRISE_PLAN_PRODUCT_ID")
+        )
+        owner_enterprise_plan_price = stripe.Price.retrieve(owner_enterprise_plan_product.default_price)
+
+
         serialized_products = [
+            # {
+            #     "product_id": standard_plan_product.id,
+            #     "name": standard_plan_product.name,
+            #     "price": standard_plan_price.unit_amount / 100,  # Convert to dollars
+            #     "price_id": standard_plan_price.id,
+            #     "features": standard_plan_product.features,
+            #     "billing_scheme": standard_plan_price.recurring,
+            # },
+            # {
+            #     "product_id": pro_plan_product.id,
+            #     "name": pro_plan_product.name,
+            #     "price": pro_plan_price.unit_amount / 100,  # Convert to dollars
+            #     "price_id": pro_plan_price.id,
+            #     "features": pro_plan_product.features,
+            #     "billing_scheme": pro_plan_price.recurring,
+            # },
             {
-                "product_id": standard_plan_product.id,
-                "name": standard_plan_product.name,
-                "price": standard_plan_price.unit_amount / 100,  # Convert to dollars
-                "price_id": standard_plan_price.id,
-                "features": standard_plan_product.features,
-                "billing_scheme": standard_plan_price.recurring,
+                "product_id": owner_standard_plan_product.id,
+                "name": owner_standard_plan_product.name,
+                "price": owner_standard_plan_price.unit_amount / 100,  # Convert to dollars
+                "price_id": owner_standard_plan_price.id,
+                "features": owner_standard_plan_product.features,
+                "billing_scheme": owner_standard_plan_price.recurring,
             },
             {
-                "product_id": pro_plan_product.id,
-                "name": pro_plan_product.name,
-                "price": pro_plan_price.unit_amount / 100,  # Convert to dollars
-                "price_id": pro_plan_price.id,
-                "features": pro_plan_product.features,
-                "billing_scheme": pro_plan_price.recurring,
+                "product_id": owner_professional_plan_product.id,
+                "name": owner_professional_plan_product.name,
+                "price": owner_professional_plan_price.unit_amount / 100,  # Convert to dollars
+                "price_id": owner_professional_plan_price.id,
+                "features": owner_professional_plan_product.features,
+                "billing_scheme": owner_professional_plan_price.recurring,
+            },
+            {
+                "product_id": owner_enterprise_plan_product.id,
+                "name": owner_enterprise_plan_product.name,
+                "price": owner_enterprise_plan_price.unit_amount / 100,  # Convert to dollars
+                "price_id": owner_enterprise_plan_price.id,
+                "features": owner_enterprise_plan_product.features,
+                "billing_scheme": owner_enterprise_plan_price.recurring,
             },
         ]
         return Response({"products": serialized_products}, status=status.HTTP_200_OK)
