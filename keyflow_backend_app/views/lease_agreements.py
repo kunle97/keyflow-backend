@@ -5,7 +5,7 @@ import stripe
 from postmarker.core import PostmarkClient
 from django.http import JsonResponse
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from django.utils import timezone 
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets
@@ -245,6 +245,97 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    #Create a function that checks the lease agreement and a tenants stripe customer object and tries to see if they have the correct number of invoices for the lease agreement. if not it creates the missing invoices
+    @action(detail=False, methods=["post"], url_path="check-lease-agreement-invoices") #POST: /api/lease-agreements/{lease_agreement_id}/check-lease-agreement-invoices/
+    def check_lease_agreement_invoices(self, request):
+        # Check if request user owns the lease agreement
+        owner = Owner.objects.get(user=request.user)
+        lease_agreement_id = request.data.get("lease_agreement_id")
+        lease_agreement = LeaseAgreement.objects.get(id=lease_agreement_id)
+        if lease_agreement.owner != owner:
+            return Response(
+                {"message": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        tenant = Tenant.objects.get(id=lease_agreement.tenant.id)
+        customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
+
+        # Retrieve all customer invoices
+        invoices = stripe.Invoice.list(customer=customer.id, limit=100)["data"]
+        # Fetch invoice with the metadata's lease_agreement_id property equal to the lease_agreement_id
+        lease_agreement_invoices = [invoice for invoice in invoices if invoice.metadata.get("type") == "rent_payment" and int(invoice.metadata.get("lease_agreement_id")) == lease_agreement.id]
+        # Check if the number of invoices is equal to the number of months the lease agreement has been active
+        lease_agreement_start_date = lease_agreement.start_date
+        lease_agreement_end_date = lease_agreement.end_date
+        lease_agreement_months = (lease_agreement_end_date.year - lease_agreement_start_date.year) * 12 + lease_agreement_end_date.month - lease_agreement_start_date.month
+        
+        unit = lease_agreement.rental_unit
+        unit_lease_terms = json.loads(unit.lease_terms)
+        rent = next(
+            (item for item in unit_lease_terms if item["name"] == "rent"),
+            None,
+        )
+        rent_value = float(rent["value"])
+        rent_frequency = next(
+            (item for item in unit_lease_terms if item["name"] == "rent_frequency"),
+            None,
+        )
+        rent_frequency_value = rent_frequency["value"]
+        if len(lease_agreement_invoices) < lease_agreement_months:
+            # Create invoices for the missing months
+            for i in range(len(lease_agreement_invoices), lease_agreement_months):
+                if rent_frequency_value == "month":
+                    # Calculate the due date for the invoice
+                    due_date_end_of_day = lease_agreement_start_date + relativedelta(months=i+1)
+                elif rent_frequency_value == "week":
+                    # Calculate the due date for the invoice
+                    due_date_end_of_day = lease_agreement_start_date + relativedelta(weeks=i+1)
+                elif rent_frequency_value == "day":
+                    # Calculate the due date for the invoice
+                    due_date_end_of_day = lease_agreement_start_date + relativedelta(days=i+1)
+
+                # Convert due_date_end_of_day to a datetime object
+                due_date_end_of_day = datetime.combine(due_date_end_of_day, time.max)
+                # Create Stripe Invoice for the specified rent payment period
+                invoice = stripe.Invoice.create(
+                    customer=lease_agreement.tenant.stripe_customer_id,
+                    auto_advance=True,
+                    collection_method="send_invoice",
+                    due_date=int(due_date_end_of_day.timestamp()),
+                    metadata={
+                        "type": "rent_payment",
+                        "description": "Rent payment",
+                        "tenant_id": unit.tenant.id,
+                        "owner_id": unit.owner.id,
+                        "rental_property_id": unit.rental_property.id,
+                        "rental_unit_id": unit.id,
+                        "lease_agreement_id": lease_agreement.id, # TODO: Add lease agreement to metadata
+                    },
+                    transfer_data={"destination": unit.owner.stripe_account_id},
+                )
+
+                # Create an invoice for the month
+                stripe.InvoiceItem.create(
+                    customer=customer.id,
+                    amount=int(rent_value * 100),  # amount is in cents
+                    currency="usd",
+                    description=f"Rent for {lease_agreement.rental_unit.name} at {lease_agreement.rental_unit.rental_property.name}",
+                    metadata={
+                        "lease_agreement_id": lease_agreement.id,
+                        "type": "rent_payment",
+                    },
+                    invoice=invoice.id,
+                )
+                #finalize invoice
+                stripe.Invoice.finalize_invoice(invoice.id)
+
+        return Response(
+            {
+                "message": "Lease agreement invoices checked successfully.",
+                "status": status.HTTP_200_OK,
+            },
+            status=status.HTTP_200_OK,
+        )
 # Create an endpoint that will handle when a person signs a lease agreement
 class SignLeaseAgreementView(APIView):
     def post(self, request):
