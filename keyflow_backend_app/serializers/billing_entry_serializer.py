@@ -1,4 +1,3 @@
-from os import read
 from ..models.billing_entry import BillingEntry
 from rest_framework import serializers
 from .account_type_serializer import TenantSerializer

@@ -1,16 +1,12 @@
-import os
 from dotenv import load_dotenv
 from rest_framework import viewsets
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
-from rest_framework.permissions import IsAuthenticated 
 from ..models.notification import Notification
 from ..serializers.notification_serializer import NotificationSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
 load_dotenv()
-
 
 class NotificationViewSet(viewsets.ModelViewSet):
     queryset = Notification.objects.all()

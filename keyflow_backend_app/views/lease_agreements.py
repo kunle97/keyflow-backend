@@ -1,32 +1,22 @@
 import os
 import json
-from requests import delete
 import stripe
 from postmarker.core import PostmarkClient
-from django.http import JsonResponse
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
 from django.utils import timezone 
-from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
-from keyflow_backend_app.models import lease_renewal_request
 from keyflow_backend_app.models.account_type import Owner, Tenant
-from keyflow_backend_app.models.uploaded_file import UploadedFile
-
-from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
 from ..models.rental_unit import RentalUnit
 from ..models.lease_agreement import LeaseAgreement
-from ..models.rental_application import RentalApplication
 from ..models.notification import Notification
-from ..models.lease_template import LeaseTemplate
 from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
 from ..permissions import (
@@ -38,10 +28,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
-
 load_dotenv()
-
 
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
@@ -321,11 +308,11 @@ class SignLeaseAgreementView(APIView):
                     )
         except StopIteration:
             # Handle case where "tenant_lease_agreement_signed" is not found
-            print("tenant_lease_agreement_signed not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "tenant_lease_agreement_signed"
-            print("values key not found in tenant_lease_agreement_signed. Notification not sent.")
+
             pass
 
         # return a response for the lease being signed successfully

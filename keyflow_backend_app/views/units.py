@@ -8,7 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.models.account_type import Owner
@@ -50,7 +50,6 @@ class UnitViewSet(viewsets.ModelViewSet):
     serializer_class = RentalUnitSerializer
     permission_classes = [ IsAuthenticated,IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
-    # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
     search_fields = ['name']
@@ -100,9 +99,7 @@ class UnitViewSet(viewsets.ModelViewSet):
                 return super().partial_update(request, *args, **kwargs)
         if 'template_id' in request.data:
             template_id = request.data.get('template_id')
-            print(template_id)
             if template_id is  None:
-                print("template_id is None")
                 unit.template_id = None
                 unit.save()
                 return super().partial_update(request, *args, **kwargs)
@@ -111,8 +108,6 @@ class UnitViewSet(viewsets.ModelViewSet):
                 unit.save()
                 return super().partial_update(request, *args, **kwargs)
         return super().partial_update(request, *args, **kwargs)
-
-
 
     #Make a create function that creates a unit with all of the expected values as well as a subscription_id to check to see what subscription plan thee user has
     def create(self, request):

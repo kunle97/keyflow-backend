@@ -8,11 +8,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.models.account_type import Owner, Tenant
-
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
 from ..models.rental_unit import RentalUnit
@@ -160,11 +159,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_cancellation_request_created" is not found
-            print("lease_cancellation_request_created not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_cancellation_request_created"
-            print("values key not found in lease_cancellation_request_created. Notification not sent.")
+
             pass
         # Return a success response containing the lease cancellation request object as well as a message and a 201 stuats code
         serializer = LeaseCancellationRequestSerializer(lease_cancellation_request)
@@ -198,7 +197,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
         # Retreive tenant from lease Agreement
         tenant_user = User.objects.get(id=lease_agreement.tenant.user.id)
-        print("Tenant User: ", tenant_user)
+
         tenant = Tenant.objects.get(user=tenant_user)
         customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
 
@@ -286,11 +285,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "tenant_lease_agreement_signed" is not found
-            print("tenant_lease_agreement_signed not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "tenant_lease_agreement_signed"
-            print("values key not found in lease_cancellation_request_approved. Notification not sent.")
+
             pass
 
         # Return a success response
@@ -348,11 +347,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_cancellation_request_denied" is not found
-            print("lease_cancellation_request_denied not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_cancellation_request_denied"
-            print("values key not found in lease_cancellation_request_denied. Notification not sent.")
+
             pass
 
         # Return a success response

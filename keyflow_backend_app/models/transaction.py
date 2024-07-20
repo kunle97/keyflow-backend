@@ -1,6 +1,5 @@
 from django.db import models
 from datetime import datetime
-from keyflow_backend_app.models import billing_entry
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
 from keyflow_backend_app.models.rental_unit import RentalUnit 

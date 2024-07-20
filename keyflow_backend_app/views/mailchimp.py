@@ -1,12 +1,9 @@
 import os
 import mailchimp_marketing as MailchimpMarketing
 from mailchimp_marketing.api_client import ApiClientError
-from django.conf import settings
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 from rest_framework.views import APIView
-
 load_dotenv()
 
 

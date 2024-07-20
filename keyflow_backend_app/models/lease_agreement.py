@@ -59,5 +59,4 @@ class LeaseAgreement(models.Model):
             self.save()
             return {"status":response.status_code}
         else:
-            print(f"Failed to revoke document: {response.text}")
             return {"status":response.status_code, "message":response.text}

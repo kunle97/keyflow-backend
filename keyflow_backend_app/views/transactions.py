@@ -1,15 +1,13 @@
 from rest_framework import viewsets
 from django.db.models import Q
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.models.account_type import Owner, Tenant 
 from ..models.transaction import Transaction
 from ..serializers.transaction_serializer import  TransactionSerializer
-from ..permissions import IsResourceOwner, ResourceCreatePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
 #Create a viewset for transactions model
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
