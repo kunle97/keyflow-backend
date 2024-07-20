@@ -46,8 +46,8 @@ class DisallowUserCreatePermission(BasePermission):
 
     def has_permission(self, request, view):
         # check that its a create request and user is creating a resource only
-        print(f"Request Method {request.method}")
-        print(f"View Action  {view.action}")
+
+
         if request.method  == 'POST' or view.action == 'create':
             return False # not grant access
         return True # grant access otherwise
@@ -107,7 +107,7 @@ class ResourceCreatePermission(BasePermission):
             #create variable for request body
             request_body_property = request.data.get('rental_property')
             #retrieve property object from  request_body_property variable
-            print(f"Request body proprerty {request_body_property}")
+
             property_object = RentalProperty.objects.get(pk=request_body_property)
             property_user_id = property_object.owner.user.id #id of the user who owns the property
             if request.method  == 'POST' and (property_user_id != int(request_id)):
@@ -115,47 +115,6 @@ class ResourceCreatePermission(BasePermission):
             
         return True # grant access otherwise
 
-#Create Custome permission class for updating a unit where only users who own the property can update a unit for that property
-# class UnitUpdatePermission(BasePermission):
-#     """
-#     Permission class to check that a user can update his own unit resource only
-#     """
-
-#     def has_permission(self, request, view):
-#         # check that its a create request and user is creating a resource only
-#         request_id = request.user.id #id of the user making the request
-        
-#         #create variable for request body
-#         request_body_property = request.data.get('rental_property')
-
-#         #retrieve property object from  request_body_property variable
-#         property_object = RentalProperty.objects.get(id=request_body_property)
-#         property_user_id = property_object.user.id #id of the user who owns the property
-
-#         if (request.method  == 'PUT' or request.method  == 'PATCH') and (property_user_id != int(request_id)):
-#             return False # not grant access
-#         return True # grant access otherwise
-    
-# #Create Custome permission class for deleting a unit where only users who own the property can delete a unit for that property
-# class UnitDeletePermission(BasePermission):
-#     """
-#     Permission class to check that a user can delete his own unit resource only
-#     """
-
-#     def has_permission(self, request, view):
-#         # check that its a create request and user is creating a resource only
-#         request_id = request.user.id #id of the user making the request
-        
-#         #create variable for request body
-#         request_body_property = request.data.get('rental_property')
-
-#         #retrieve property object from  request_body_property variable
-#         property_object = RentalProperty.objects.get(id=request_body_property)
-#         property_user_id = property_object.user.id #id of the user who owns the property
-
-#         if request.method  == 'DELETE' and (property_user_id != int(request_id)):
-#             return False # not grant access
-#         return True # grant access otherwise
 
 class IsResourceOwner(permissions.BasePermission):
     """
@@ -211,7 +170,7 @@ class PropertyDeletePermission(permissions.BasePermission):
     def has_permission(self, request, view):
         
         if request.method  == 'GET':
-            print(f"Request Method {request.method}")
+
             return True
         #Check if method is POST and user  owns the property
         if request.method  == 'POST':
@@ -219,7 +178,7 @@ class PropertyDeletePermission(permissions.BasePermission):
 
 
         if request.method  == 'DELETE':
-            print(f"Request Method {request.method}")
+
             #retrieve primarky key from url 
             url_id = view.kwargs.get('pk', None) #id in the url converted to int
 
@@ -234,7 +193,7 @@ class PropertyDeletePermission(permissions.BasePermission):
 
             #Check if the property has units
             property_has_units = RentalUnit.objects.filter(rental_property=property_object).count() > 0
-            print(f"zx Property has units {property_has_units}")
+
             #return a 403 response  message if the property has units
             if property_has_units:
                 return Response({"message": "You cannot delete a property that has units"}, status=status.HTTP_403_FORBIDDEN)

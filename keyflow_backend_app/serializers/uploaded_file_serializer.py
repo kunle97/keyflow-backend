@@ -1,5 +1,3 @@
-import os
-import boto3
 from rest_framework import serializers
 from ..models.uploaded_file import UploadedFile
 from django.core.files.storage import default_storage

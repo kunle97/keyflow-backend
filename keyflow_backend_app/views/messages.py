@@ -7,9 +7,8 @@ from ..models.message import Message
 from ..serializers.message_serializer import MessageSerializer
 from ..serializers.uploaded_file_serializer import UploadedFileSerializer
 from ..serializers.user_serializer import UserSerializer
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
-from rest_framework.permissions import IsAuthenticated 
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.response import Response
@@ -22,11 +21,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
-from django.core import serializers
 from django.db.models import Q
-from datetime import datetime
 from django.utils import timezone
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 
 class UserThreadsListView(APIView):
@@ -191,11 +187,11 @@ class MessageViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "message_received" is not found
-            print("message_received not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "message_received"
-            print("values key not found in message_received. Notification not sent.")
+
             pass
         
         # return a response with a success message and status code

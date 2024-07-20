@@ -1,7 +1,4 @@
-from itertools import count
 import os
-import time
-from tracemalloc import start
 import stripe
 import random
 from dotenv import load_dotenv
@@ -16,7 +13,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
-from rest_framework.permissions import IsAuthenticated 
 from ..models.user import User
 from faker import Faker
 from ..models.rental_property import RentalProperty
@@ -658,8 +654,8 @@ def generate_tenants(request):
                 resource_url=f"/dashboard/owner/transactions/{subscription_transaction.id}",
             )
 
-            print(f"subscription: {subscription}")
-            print(f"lease_agreement: {lease_agreement}")
+
+
 
         # add subscription id to the lease agreement
         lease_agreement.stripe_subscription_id = subscription.id
@@ -865,7 +861,7 @@ def generate_messages(request):
     int_count = int(count)
     message_mode = request.data.get("message_mode")
     conversation_mode = strtobool(request.data.get("conversation_mode"))
-    print("CONVO MODE", conversation_mode)
+
     tenant_id = request.data.get("tenant_id")
     user_id = request.data.get("user_id")
     user = User.objects.get(id=user_id)

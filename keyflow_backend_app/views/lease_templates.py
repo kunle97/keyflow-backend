@@ -1,7 +1,5 @@
-import os
 import json
 import logging
-
 from dotenv import load_dotenv
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -9,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
@@ -23,7 +21,6 @@ from ..models.portfolio import Portfolio
 from ..models.lease_agreement import LeaseAgreement
 from ..models.lease_template import  LeaseTemplate
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
-from ..permissions import  IsResourceOwner
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
@@ -237,8 +234,8 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
         lease_template = LeaseTemplate.objects.get(id=data['lease_template_id'])
         selected_assignments_dict = json.loads(data['selected_assignments'])
         assignment_mode = data['assignment_mode']
-        print(selected_assignments_dict)
-        print(assignment_mode)
+
+
         if selected_assignments_dict and assignment_mode:
             if assignment_mode == 'unit':
                 for assignment in selected_assignments_dict:

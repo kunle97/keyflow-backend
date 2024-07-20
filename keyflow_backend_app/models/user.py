@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.contrib.auth import get_user_model
 from datetime import datetime
 class User(AbstractUser):
     ACCOUNT_TYPE_CHOICES = (

@@ -1,9 +1,7 @@
 from datetime import timedelta
 import os
 from postmarker.core import PostmarkClient
-import time
 from dotenv import load_dotenv
-from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.expiring_token import ExpiringToken
@@ -14,31 +12,16 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth import get_user_model, authenticate, login
+from django.contrib.auth import login
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
-from rest_framework.permissions import IsAuthenticated
-from django.db import transaction
 from keyflow_backend_app.serializers.account_type_serializer import OwnerSerializer, TenantSerializer
-from ..models.notification import Notification
 from ..models.user import User
 from ..models.account_type import Owner, Tenant
-from ..models.rental_property import RentalProperty
-from ..models.rental_unit import RentalUnit
-from ..models.maintenance_request import MaintenanceRequest
-from ..models.lease_template import LeaseTemplate
 from ..models.transaction import Transaction
-from ..models.rental_application import RentalApplication
 from ..models.account_activation_token import AccountActivationToken
-from ..serializers.notification_serializer import NotificationSerializer
 from ..serializers.user_serializer import UserSerializer
-from ..serializers.rental_property_serializer import RentalPropertySerializer
-from ..serializers.rental_unit_serializer import RentalUnitSerializer
-from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer
-from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.transaction_serializer import TransactionSerializer
-from ..serializers.rental_application_serializer import RentalApplicationSerializer
-
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
@@ -54,7 +37,7 @@ class UserLoginView(APIView):
         password = request.data.get("password")
         user = User.objects.filter(email=email).first()
         remember_me = request.data.get("remember_me")
-        print("remember_me: ", remember_me)
+
 
         expiration_time_in_days = 1
         if user is None:

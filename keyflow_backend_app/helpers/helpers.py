@@ -65,63 +65,11 @@ def generate_presigned_url(file_key):
     return presigned_url
 
 
-def sendEmailBySendGrid(from_email, to_email, subject, content, is_html=False):
-    api_key = os.getenv("SENDGRID_API_KEY")
-    sg = sendgrid.SendGridAPIClient(api_key=api_key)
-    from_email = Email(from_email)  # Change to your verified sender
-    if os.getenv("ENVIRONMENT") == "development":
-        to_email = "keyflowsoftware@gmail.com"
-    to_emails = To(to_email)  # Change to your recipient
-    # Check if content is html
-    if is_html:
-        content = Content("text/html", content)
-        mail = Mail(
-            from_email=from_email,
-            to_emails=to_emails,
-            subject=subject,
-            html_content=content
-        )
-    else:
-        content = Content("text/plain", content)
-        mail = Mail(
-            from_email=from_email,
-            to_emails=to_emails,
-            subject=subject,
-            html_content=content
-        )
-
-    try:
-        # Send an HTTP POST request to /mail/send
-        response = sg.send(mail)
-        print(response.status_code)
-        print(response.headers)
-        print(response.body)
-        return response
-    except Exception as e:
-        print(e)
-
-
-#Test Integration  SendGrid API KEy: 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
-def sendGridTestIntegreation():
-    message = Mail(
-    from_email='from_email@example.com',
-    to_emails='to@example.com',
-    subject='Sending with Twilio SendGrid is Fun',
-    html_content='<strong>and easy to do anywhere, even with Python</strong>')
-    try:
-        sg = SendGridAPIClient("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")
-        response = sg.send(message)
-        print(response.status_code)
-        print(response.body)
-        print(response.headers)
-    except Exception as e:
-        print(e)
-
 def calculate_final_price_in_cents(invoice_amount):
     invoice_amount_in_cents = int(invoice_amount * 100)
     # Ensure invoice_amount_in_cents is an int
     if not isinstance(invoice_amount_in_cents, int):
-        print(invoice_amount_in_cents)
+
         raise ValueError("invoice_amount_in_cents must be an integer representing cents")
 
     stripe_fee_percentage = 0.03 # 3% fee
