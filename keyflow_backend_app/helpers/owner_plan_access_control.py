@@ -93,7 +93,7 @@ class OwnerPlanAccessControl:
         
         subscription = stripe.Subscription.retrieve(self.owner.stripe_subscription_id)
         stripe_product_id = subscription["items"]["data"][0]["plan"]["product"]
-        print(stripe_product_id)
+
 
         for plan_data in self.stripe_plan_permission_data:
             if plan_data["stripe_product_id"] == stripe_product_id:

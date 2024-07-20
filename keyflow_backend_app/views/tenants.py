@@ -8,25 +8,20 @@ from django.utils import timezone as tz
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets
 from django.contrib.auth.hashers import make_password
-from rest_framework.decorators import action, authentication_classes, permission_classes
+from rest_framework.decorators import action, authentication_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth import get_user_model
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents, make_id, create_rent_invoices
-from keyflow_backend_app.views import boldsign
 from keyflow_backend_app.views.boldsign import CreateDocumentFromTemplateView, CreateSigningLinkView
 from keyflow_backend_app.models.account_type import Tenant
 from keyflow_backend_app.models.tenant_invite import TenantInvite
-from keyflow_backend_app.views.lease_renewal_requests import LeaseRenewalRequestViewSet
 from ..models.notification import Notification
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
 from ..models.lease_agreement import LeaseAgreement
-from ..models.lease_cancelleation_request import LeaseCancellationRequest
 from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..models.transaction import Transaction
 from ..models.rental_application import RentalApplication
@@ -43,9 +38,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.test import RequestFactory
 from rest_framework.test import force_authenticate
-
 load_dotenv()
-
 
 class TenantVerificationView(APIView):
     # Create a function that verifies the lease agreement id and approval hash
@@ -191,12 +184,12 @@ class RetrieveTenantDashboardData(APIView):
         elif len(active_leases) == 0 and tenant.auto_renew_lease_is_enabled == True:# If there are no active leases but auto renew is enabled, renew the lease
         #    recently_ended_lease_agreement = lease_agreements.order_by("-end_date").first()#retrieve the most recently ended lease agreement
         #    auto_renew_response = self.auto_renew_lease(tenant, recently_ended_lease_agreement) #Real implementation of auto renew lease
-        #    print("This should not be visible while testing the auto renew lease function")
+
             pass
         lease_agreement = active_leases[0]
-        print("LEASEAGERREEMENT",lease_agreement)
+
         unit = lease_agreement.rental_unit
-        print("LEAse AGreement Rental unit",unit)
+
         lease_terms = json.loads(unit.lease_terms)
 
         payment_dates = self.calculate_payment_dates(lease_agreement, unit, lease_terms)
@@ -747,11 +740,11 @@ class TenantRegistrationView(APIView):
                         )
             except StopIteration:
                 # Handle case where "new_tenant_registration_complete" is not found
-                print("new_tenant_registration_complete not found. Notification not sent.")
+
                 pass
             except KeyError:
                 # Handle case where "values" key is missing in "new_tenant_registration_complete"
-                print("values key not found in new_tenant_registration_complete. Notification not sent.")
+
                 pass
             # Retrieve unit from the request unit_id parameter
 
@@ -859,11 +852,11 @@ class TenantRegistrationView(APIView):
                             )
                 except StopIteration:
                     # Handle case where "security_deposit_paid" is not found
-                    print("security_deposit_paid not found. Notification not sent.")
+
                     pass
                 except KeyError:
                     # Handle case where "values" key is missing in "security_deposit_paid"
-                    print("values key not found in security_deposit_paid. Notification not sent.")
+
                     pass
             subscription = None
             if lease_template.grace_period != 0:

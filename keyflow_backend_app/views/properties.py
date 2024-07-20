@@ -8,7 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from rest_framework.permissions import IsAuthenticated 
 import csv
 from rest_framework.parsers import MultiPartParser
@@ -145,7 +145,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
                         **property_data  # Unpack the dictionary into keyword arguments
                     )
                 else:
-                    print(f'Property name already exists {row["name"]}')
+
                     return Response({'error_type':'duplicate_name_error','message': 'One more more of the properties you are trying to import have a name that conflicts with a property name that already exists.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
                 
             return Response({'message': 'Units created successfully.'}, status=status.HTTP_201_CREATED)
@@ -218,7 +218,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def update_portfolio(self, request, pk=None):
         property_instance = self.get_object()
         data = request.data.copy()
-        print(data)
+
         portfolio_instance = Portfolio.objects.get(id=data["portfolio"])
         portfolio_preferences = json.loads(portfolio_instance.preferences)
 
@@ -251,7 +251,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['patch'], url_path="update-portfolios")
     def update_portfolios(self, request):
         data = request.data.copy()
-        print(data["properties"])
+
         properties = json.loads(data["properties"])
         portfolio_id = data["portfolio"]
         selected_properties = RentalProperty.objects.filter(id__in=properties)

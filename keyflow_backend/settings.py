@@ -54,8 +54,6 @@ ALLOWED_HOSTS = [
 
 INSTALLED_APPS = [
     "corsheaders",
-    # "rest_framework_simplejwt",
-    # "rest_framework_simplejwt.token_blacklist",
     "rest_framework",
     "rest_framework.authtoken",
     "django_extensions",
@@ -74,7 +72,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    # "whitenose.middleware.WhiteNoiseMiddleware",  # whitenoise
     "django.middleware.common.CommonMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # CORS
     "django.middleware.csrf.CsrfViewMiddleware",

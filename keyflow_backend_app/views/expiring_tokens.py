@@ -1,7 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from ..serializers.expiring_token_serializer import TokenValidationSerializer
 from ..models.expiring_token import ExpiringToken
 
 class TokenValidationView(APIView):

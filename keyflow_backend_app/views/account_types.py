@@ -1,12 +1,10 @@
 # Standard library imports
-from calendar import c
 import json
 import os
-from datetime import timedelta, datetime, time
+from datetime import timedelta, datetime
 import re
 from dotenv import load_dotenv
 # Third-party library imports
-from pkg_resources import require
 import stripe
 from postmarker.core import PostmarkClient
 from dateutil.relativedelta import relativedelta
@@ -14,9 +12,8 @@ from django.contrib.auth.hashers import make_password
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import viewsets, status
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
-from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
@@ -636,11 +633,11 @@ class TenantViewSet(viewsets.ModelViewSet):
                         )
             except StopIteration:
                 # Handle case where "new_tenant_registration_complete" is not found
-                print("new_tenant_registration_complete not found. Notification not sent")
+
                 pass
             except KeyError:
                 # Handle case where "values" key is missing in "new_tenant_registration_complete"
-                print("values key not found in new_tenant_registration_complete. Notification not sent")
+
                 pass
             unit.tenant = tenant
             unit.is_occupied = True
@@ -1205,35 +1202,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         invoice = stripe.Invoice.retrieve(invoice_id)
         payment_method_id = request.data.get("payment_method_id")
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-
-        #Check if the invoice is past due and charge the late fee if it is
-        # if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
-        #     #retrieve the late fee from the unit's lease terms
-        #     lease_terms = json.loads(unit.lease_terms)
-        #     late_fee = next(
-        #         (item for item in lease_terms if item["name"] == "late_fee"),
-        #         None,
-        #     )
-        #     late_fee_value = float(late_fee["value"])
-        #     #Charge the late fee by creating payment intent
-        #     stripe.PaymentIntent.create(
-        #         amount=int(late_fee_value * 100),
-        #         currency="usd",
-        #         customer=invoice.customer,
-        #         payment_method=payment_method_id,
-        #         off_session=True,
-        #         confirm=True,
-        #         metadata={
-        #             "type": "late_fee",
-        #             "description": "Late Fee Payment",
-        #             "tenant_id": invoice.metadata["tenant_id"],
-        #             "owner_id": invoice.metadata["owner_id"],
-        #             "rental_property_id": invoice.metadata["rental_property_id"],
-        #             "rental_unit_id": invoice.metadata["rental_unit_id"],
-        #             "payment_method_id": payment_method_id,
-        #         },
-        #     )
-
+        
         # Pay the invoice
         stripe.Invoice.pay(invoice_id, payment_method=payment_method_id)
 
@@ -1266,7 +1235,7 @@ class TenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="preferences") #GET: api/tenants/{id}/preferences
     def preferences(self, request, pk=None):
         tenant = self.get_object()
-        print(tenant.preferences)
+
         preferences = json.loads(tenant.preferences)
         return Response({"preferences":preferences},status=status.HTTP_200_OK)
    

@@ -1,15 +1,12 @@
 # views.py
 import os
-from django.http import HttpResponse, JsonResponse, FileResponse
+from django.http import HttpResponse, JsonResponse
 from rest_framework.response import Response
 from dotenv import load_dotenv
-from django.views.decorators.csrf import csrf_exempt
 import requests
 import json
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
-
-from keyflow_backend_app.models import account_type
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
 from keyflow_backend_app.models.account_type import Owner, Tenant
 
@@ -184,7 +181,7 @@ class CreateDocumentFromTemplateView(APIView):
         response = requests.post(url, headers=headers, data=json.dumps(payload))
 
         # Print the response content (the full response body)
-        print("Response Content:", response.content)
+
         try:
             if response.status_code == 429:
                 return JsonResponse(
@@ -233,8 +230,8 @@ class CreateSigningLinkView(APIView):
 
         headers = {"X-API-KEY": BOLDSIGN_API_KEY}
         response = requests.request("GET", url, headers=headers, params=params)
-        print("Response:")
-        print(response.status_code)
+
+
         if response.status_code == 429:
             return JsonResponse(
                 {

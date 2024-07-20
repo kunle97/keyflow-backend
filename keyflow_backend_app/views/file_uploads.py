@@ -12,7 +12,7 @@ from ..models.user import User
 from ..serializers.uploaded_file_serializer import UploadedFileSerializer
 from rest_framework import viewsets
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
 from rest_framework.filters import SearchFilter, OrderingFilter

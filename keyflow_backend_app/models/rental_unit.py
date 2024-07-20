@@ -1,4 +1,3 @@
-from email.policy import default
 import json
 from decimal import Decimal
 from django.db import models

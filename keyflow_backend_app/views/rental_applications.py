@@ -10,15 +10,13 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
-from keyflow_backend_app.views import boldsign
 from ..helpers.helpers import make_id
 from keyflow_backend_app.models.account_type import Owner
-from ..models.user import User
 from ..models.notification import Notification
 from ..models.rental_application import RentalApplication
 from ..models.rental_unit import RentalUnit
@@ -30,10 +28,6 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from ..helpers.helpers import strtobool
-from keyflow_backend_app.models import rental_unit
-
-from keyflow_backend_app.models import rental_application
-
 
 class RetrieveRentalApplicationByApprovalHash(APIView):
     def post(self, request):
@@ -162,11 +156,11 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                     )   
         except StopIteration:
             # Handle case where "rental_application_created" is not found
-            print("rental_application_created not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "rental_application_created"
-            print("values key not found in rental_application_created. Notification not sent.")
+
             pass
 
         return Response({"message": "Rental application created successfully."})
@@ -241,7 +235,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                         HtmlBody=f"Your rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name} has been approved. <a href='{sign_link}'>Sign Lease Agreement</a>",
                     )
             except Exception as e:
-                print(e)
+
                 pass
         
             #Delete remaining rental applications for the unit

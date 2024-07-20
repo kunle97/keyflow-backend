@@ -17,7 +17,7 @@ from ..models.transaction import Transaction
 from ..serializers.billing_entry_serializer import BillingEntrySerializer
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters

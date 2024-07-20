@@ -1,8 +1,5 @@
 from django.db import models
 from datetime import datetime
-from keyflow_backend_app.models.account_type import Owner,Tenant
-from keyflow_backend_app.models.rental_property import RentalProperty
-from keyflow_backend_app.models.rental_unit import RentalUnit
 from keyflow_backend_app.models.maintenance_request import MaintenanceRequest
 
 class MaintenanceRequestEvent(models.Model):

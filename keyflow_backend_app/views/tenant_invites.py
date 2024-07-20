@@ -1,15 +1,11 @@
 import os
 import json
-from django.shortcuts import redirect
 from dotenv import load_dotenv
 from rest_framework import viewsets
-from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from tomlkit import document
-from keyflow_backend_app.helpers.helpers import make_id, sendEmailBySendGrid
+from keyflow_backend_app.helpers.helpers import make_id
 from postmarker.core import PostmarkClient
-from keyflow_backend_app.models import tenant_invite
 from keyflow_backend_app.models.rental_unit import RentalUnit
 from keyflow_backend_app.models.tenant_invite import TenantInvite
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
@@ -18,15 +14,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from keyflow_backend_app.serializers.tenant_invite_serializer import (
     TenantInviteSerializer,
 )
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import filters
-import csv
 from rest_framework.parsers import MultiPartParser
-from django.core.exceptions import ValidationError
-from io import TextIOWrapper
-
 load_dotenv()
 
 
@@ -89,10 +81,10 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
             )
             redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/dashboard/tenant/register/{lease_agreement.id}/{rental_unit.id}/{approval_hash}/"
             email_content = f"Hi {serializer.data['first_name']},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to register and manage your lease.<br><br>Thanks,<br>Keyflow Team"
-            print(redirect_url)
+
         elif rental_unit.template_id:
             document_id = data["boldsign_document_id"]
-            print(document_id)
+
             lease_agreement = LeaseAgreement.objects.create(
                 owner=owner,
                 rental_unit=rental_unit,
@@ -103,7 +95,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
             )
             redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}"  # TODO: CHANGE THIS TO THE ACTUAL LINK
             email_content = f"Hi {serializer.data['first_name']},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to sign your lease.<br><br>Thanks,<br>Keyflow Team"
-            print(redirect_url)
+
 
         # Send email to tenant via Postmark
         if os.getenv("ENVIRONMENT") == "production":
@@ -130,7 +122,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
         
         #Check if the lease agreement exists
         if  LeaseAgreement.objects.filter(approval_hash=instance.approval_hash).exists():
-            print("Lease Agreement exists")
+
             lease_agreement = LeaseAgreement.objects.get(approval_hash=instance.approval_hash)
             document_id = lease_agreement.document_id
             try:
@@ -138,11 +130,10 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
                     response = lease_agreement.revoke_boldsign_document()
                 lease_agreement.delete()
             except Exception as e:
-                print(e)
-                # return Response(
-                #     {"message": "Error deleting lease agreement"},
-                #     status=status.HTTP_400_BAD_REQUEST,
-                # )
+                return Response(
+                    {"message": "Error deleting lease agreement"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
     
@@ -204,7 +195,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
     #                 )
     #                 redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/dashboard/tenant/register/{lease_agreement.id}/{rental_unit.id}/{approval_hash}/"
     #                 email_content = f"Hi {tenant_invite.first_name},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to register and manage your lease.<br><br>Thanks,<br>Keyflow Team"
-    #                 print(redirect_url)
+
     #             elif rental_unit.template_id:
     #                 document_id = data["boldsign_document_id"]
     #                 lease_agreement = LeaseAgreement.objects.create(
@@ -217,7 +208,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
     #                 )
     #                 redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}"  # TODO: CHANGE THIS TO THE ACTUAL LINK
     #                 email_content = f"Hi {tenant_invite.first_name},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to sign your lease.<br><br>Thanks,<br>Keyflow Team"
-    #                 print(redirect_url)
+
 
     #             # Send email to tenant via Postmark
     #             if os.getenv("ENVIRONMENT") == "production":

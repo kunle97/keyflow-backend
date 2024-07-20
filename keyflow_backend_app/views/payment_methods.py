@@ -1,4 +1,3 @@
-from calendar import c
 import os
 from dotenv import load_dotenv
 import stripe
@@ -8,7 +7,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from ..models.user import User
 from ..models.lease_agreement import LeaseAgreement

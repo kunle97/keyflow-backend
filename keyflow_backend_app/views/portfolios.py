@@ -1,9 +1,8 @@
 import json
 from django.http import JsonResponse
 from rest_framework import viewsets
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
-from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.account_type import Owner
 from keyflow_backend_app.models.portfolio import Portfolio
