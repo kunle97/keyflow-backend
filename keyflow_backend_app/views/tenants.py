@@ -3,7 +3,9 @@ import os
 import stripe
 from postmarker.core import PostmarkClient
 from dotenv import load_dotenv
-from datetime import timedelta, timezone, datetime, date
+from datetime import datetime,date,timedelta,timezone, time
+from django.utils.timezone import now
+from django.db.models.functions import TruncDate
 from django.utils import timezone as tz
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets
@@ -331,10 +333,16 @@ class RetrieveTenantDashboardData(APIView):
 
         related_announcements = []
         owner = unit.owner
-        announcements = Announcement.objects.filter(
+
+        current_date = now().date()
+
+        announcements = Announcement.objects.annotate(
+            start_date_only=TruncDate('start_date'),
+            end_date_only=TruncDate('end_date')
+        ).filter(
             owner=owner,
-            start_date__lte=datetime.now(timezone.utc),
-            end_date__gte=datetime.now(timezone.utc),
+            start_date_only__lte=current_date,
+            end_date_only__gte=current_date,
         )
         
         for announcement in announcements:
@@ -345,8 +353,6 @@ class RetrieveTenantDashboardData(APIView):
                 related_announcements.append(announcement)
 
         return AnnouncementSerializer(related_announcements, many=True).data
-
-
 
     def reset_lease_and_unit(self, lease_agreement):
         lease_agreement.is_active = False
