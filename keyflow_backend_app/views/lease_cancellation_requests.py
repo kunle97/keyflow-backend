@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
+from keyflow_backend_app.models import account_type
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
@@ -51,10 +52,17 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        owner = Owner.objects.get(user=user)
-        queryset = super().get_queryset().filter(owner=owner)
-        return queryset
 
+        if user.account_type == "tenant":
+            tenant = Tenant.objects.get(user=user)
+            queryset = super().get_queryset().filter(tenant=tenant)
+            return queryset
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            queryset = super().get_queryset().filter(owner=owner)
+            return queryset
+        #Return empty queryset if user is not an owner or tenant
+        return LeaseCancellationRequest.objects.none() 
     # Create a function to override the post method to create a lease cancellation request
     def create(self, request, *args, **kwargs):
         tenant_user_id = request.data.get("tenant")
@@ -308,7 +316,30 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         lease_cancellation_request = LeaseCancellationRequest.objects.get(
             id=data["lease_cancellation_request_id"]
         )
-
+        account_type = request.user.account_type
+        if account_type == "tenant":
+            #check that the request user is the tenant that owns the lease cancellation request
+            if lease_cancellation_request.tenant.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease cancellation request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        elif account_type == "owner":
+            #check that the request user is the owner that owns the lease cancellation request
+            if lease_cancellation_request.owner.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease cancellation request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            
         # Delete Lease Cancellation Request
         lease_cancellation_request.status = "denied"
         lease_cancellation_request.save()

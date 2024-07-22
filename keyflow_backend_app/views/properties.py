@@ -81,7 +81,14 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
         return super().create(request, *args, **kwargs)
 
-        
+    #Create a destroy method that checks if the property has units before deleting it
+    def destroy(self, request, *args, **kwargs):
+        property = self.get_object()
+        if property.rental_units.count() > 0:
+            return Response({'message': 'You cannot delete a property with units.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
+    
+
     #Create an endpont that validates the property name using the helper function propertyNameIsValid
     @action(detail=False, methods=['post'], url_path='validate-name')
     def validate_property_name_endpoint(self, request):

@@ -186,6 +186,10 @@ class UnitViewSet(viewsets.ModelViewSet):
         subscription_id = data['subscription_id']
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
 
+        #Check if unit is occupied
+        if unit.is_occupied:
+            return Response({'message': 'Unit is occupied and cannot be deleted.', 'status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+
         if product_id is None:
             unit.delete()
             return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_204_NO_CONTENT}, status=status.HTTP_204_NO_CONTENT)

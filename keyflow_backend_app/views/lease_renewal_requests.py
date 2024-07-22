@@ -229,6 +229,30 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
             id=data["lease_renewal_request_id"]
         )
 
+        account_type = request.user.account_type
+        if account_type == "tenant":
+            #check that the request user is the tenant that owns the lease renewal request
+            if lease_renewal_request.tenant.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease renewal request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        elif account_type == "owner":
+            #check that the request user is the owner that owns the lease renewal request
+            if lease_renewal_request.owner.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease renewal request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         # Delete Lease Renewal Request
         lease_renewal_request.delete()
 

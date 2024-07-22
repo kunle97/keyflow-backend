@@ -1,5 +1,8 @@
+import pytz
 from rest_framework import viewsets, status
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+import pytz
+from django.utils.timezone import make_aware
 from rest_framework.response import Response
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.announcement import Announcement
@@ -37,7 +40,9 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset().filter(target=tenant)
         return queryset
     
-    #Create a "create" function that will used to overrride the POST method
+
+
+    # Create a "create" function that will be used to override the POST method
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         user = request.user
@@ -54,22 +59,32 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         start_date = data['start_date']
         end_date = data['end_date']
 
-        start_date_str = start_date[:-5]  # Remove the 'Z' at the end
-        end_date_str = end_date[:-5]  # Remove the 'Z' at the end
+        start_date_str = start_date[:-1]  # Remove the 'Z' at the end
+        end_date_str = end_date[:-1]  # Remove the 'Z' at the end
 
-        start_date_utc = datetime.fromisoformat(start_date_str).replace(tzinfo=timezone.utc)
-        end_date_utc = datetime.fromisoformat(end_date_str).replace(tzinfo=timezone.utc)
-        #ADd a day to the end date and start date
-        start_date_updated = start_date_utc + timedelta(days=1)
-        end_date_updated = end_date_utc + timedelta(days=1)
+        # Convert to datetime
+        start_date_local = datetime.fromisoformat(start_date_str)
+        end_date_local = datetime.fromisoformat(end_date_str)
+
+        # Define the local timezone (assuming -04:00 offset)
+        local_timezone = pytz.timezone('America/New_York')
+
+        # Set the start date's time to 12am and the end date's time to 11:59pm
+        start_date_updated = start_date_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date_updated = end_date_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        # Make the dates timezone-aware in the local timezone
+        start_date_aware = make_aware(start_date_updated, local_timezone)
+        end_date_aware = make_aware(end_date_updated, local_timezone)
+
         announcement = Announcement.objects.create(
             title=title,
             body=body,
             severity=severity,
             target=target,
             owner=owner,
-            start_date=start_date_updated,
-            end_date=end_date_updated
+            start_date=start_date_aware,
+            end_date=end_date_aware
         )
         announcement.save()
         return Response({"message": "Announcement created successfully"}, status=status.HTTP_201_CREATED)
