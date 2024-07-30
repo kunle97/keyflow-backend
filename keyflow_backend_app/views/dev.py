@@ -37,16 +37,16 @@ load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
 visa_payment_method = None
 if os.getenv("ENVIRONMENT") == "development":
-    visa_payment_method = stripe.PaymentMethod.create(
-        type="card",
-        card={
-            "number": "4242424242424242",
-            "exp_month": 12,
-            "exp_year": 2034,
-            "cvc": "314",
-        },
-    )
-
+#     visa_payment_method = stripe.PaymentMethod.create(
+#         type="card",
+#         card={
+#             "number": "4242424242424242",
+#             "exp_month": 12,
+#             "exp_year": 2034,
+#             "cvc": "314",
+#         },
+#     )
+    pass
 # ----------TEST FUNCTIONS ----------------
 
 
@@ -277,7 +277,7 @@ def generate_tenants(request):
 
         # attach the payment method to the customer
         stripe.PaymentMethod.attach(
-            visa_payment_method.id,
+            payment_method.id,
             customer=customer.id,
         )
 
@@ -1174,7 +1174,7 @@ def generate_transactions(request):
                 user=user,
                 # Set the amount to a number within the amountRange. Amount range is an array of two numbers
                 amount=amount,
-                payment_method_id=visa_payment_method.id,
+                payment_method_id=payment_method.id,
                 payment_intent_id=payment_intent.id,
                 timestamp=transaction_date,
             )

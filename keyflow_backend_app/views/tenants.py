@@ -211,6 +211,7 @@ class RetrieveTenantDashboardData(APIView):
             "lease_agreement": lease_agreement_data,
             "auto_renew_response": auto_renew_response,
             "auto_renew_lease_is_enabled": tenant.auto_renew_lease_is_enabled,
+            "auto_pay_is_allowed": tenant.auto_pay_is_enabled,
             "payment_dates": payment_dates,
             "late_fees": late_fees,
             "total_balance": total_balance,

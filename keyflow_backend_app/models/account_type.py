@@ -205,6 +205,7 @@ class Tenant(models.Model):
         Owner, on_delete=models.CASCADE, default=None, related_name="owner_tenant"
     )
     auto_renew_lease_is_enabled = models.BooleanField(default=False, blank=True, null=True)
+    auto_pay_is_enabled = models.BooleanField(default=True, blank=True, null=True)
     date_joined = models.DateTimeField(default=datetime.now, blank=True)
     preferences = models.TextField(blank=True, null=True, default=default_tenant_preverences_json) #JSON string of default tenant preferences
 
