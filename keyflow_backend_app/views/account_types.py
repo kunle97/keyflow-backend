@@ -675,6 +675,11 @@ class TenantViewSet(viewsets.ModelViewSet):
                 payment_method_id,
                 customer=customer.id,
             )
+            #Set payment method as default for the customer
+            stripe.Customer.modify(
+                customer.id,
+                invoice_settings={"default_payment_method": payment_method_id},
+            )
 
             owner_user = owner.user
             lease_terms = json.loads(unit.lease_terms)
