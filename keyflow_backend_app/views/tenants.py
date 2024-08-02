@@ -34,7 +34,7 @@ from ..serializers.rental_unit_serializer import RentalUnitSerializer
 from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.transaction_serializer import TransactionSerializer
-from ..serializers.annoucement_serializer import AnnouncementSerializer
+from ..serializers.announcement_serializer import AnnouncementSerializer
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
