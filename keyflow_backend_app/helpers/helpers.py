@@ -1,6 +1,5 @@
 from math import e
 import json
-from tkinter import E
 import stripe
 import os
 import random
