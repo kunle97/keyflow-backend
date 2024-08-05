@@ -34,14 +34,13 @@ class RetrieveOwnerSubscriptionPriceView(APIView):
         )
         owner_enterprise_plan_price = stripe.Price.retrieve(owner_enterprise_plan_product.default_price)
 
-
         serialized_products = [
             {
                 "product_id": owner_standard_plan_product.id,
                 "name": owner_standard_plan_product.name,
                 "price": owner_standard_plan_price.unit_amount / 100,  # Convert to dollars
                 "price_id": owner_standard_plan_price.id,
-                "features": owner_standard_plan_product.features,
+                "features": owner_standard_plan_product.marketing_features,
                 "billing_scheme": owner_standard_plan_price.recurring,
             },
             {
@@ -49,7 +48,7 @@ class RetrieveOwnerSubscriptionPriceView(APIView):
                 "name": owner_professional_plan_product.name,
                 "price": owner_professional_plan_price.unit_amount / 100,  # Convert to dollars
                 "price_id": owner_professional_plan_price.id,
-                "features": owner_professional_plan_product.features,
+                "features": owner_professional_plan_product.marketing_features,
                 "billing_scheme": owner_professional_plan_price.recurring,
             },
             {
@@ -57,7 +56,7 @@ class RetrieveOwnerSubscriptionPriceView(APIView):
                 "name": owner_enterprise_plan_product.name,
                 "price": owner_enterprise_plan_price.unit_amount / 100,  # Convert to dollars
                 "price_id": owner_enterprise_plan_price.id,
-                "features": owner_enterprise_plan_product.features,
+                "features": owner_enterprise_plan_product.marketing_features,
                 "billing_scheme": owner_enterprise_plan_price.recurring,
             },
         ]
