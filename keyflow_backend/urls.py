@@ -183,7 +183,7 @@ router.register(r"transactions", TransactionViewSet, basename="transactions")
 router.register(
     r"rental-applications", RentalApplicationViewSet, basename="rental-applications"
 )
-router.register(r"tenants-v1", OldTenantViewSet, basename="tenants")
+router.register(r"tenants-v1", OldTenantViewSet, basename="tenants-v1")
 router.register(r"manage-lease", ManageTenantSubscriptionView, basename="manage_lease")
 router.register(r"password-reset", PasswordResetTokenView, basename="password_reset")
 router.register(r"stripe", ManagePaymentMethodsView, basename="stripe")

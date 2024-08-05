@@ -51,22 +51,21 @@ ALLOWED_HOSTS = [
 
 
 # Application definition
-
 INSTALLED_APPS = [
-    "corsheaders",
-    "rest_framework",
-    "rest_framework.authtoken",
-    "django_extensions",
-    "keyflow_backend_app.apps.KeyflowBackendAppConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
+    "rest_framework",
+    "rest_framework.authtoken",
+    "django_extensions",
     "django_filters",
     "storages",
-    'django_celery_beat',
+    "django_celery_beat",
+    "keyflow_backend_app.apps.KeyflowBackendAppConfig",
 ]
 
 MIDDLEWARE = [
