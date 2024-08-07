@@ -194,7 +194,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
         refresh_url = f"{client_hostname}/dashboard/owner/login"
         return_url = f"{client_hostname}/dashboard/activate-account/"
         account_link = stripe.Account.create_login_link(
-            id=owner.stripe_account_id,
+            owner.stripe_account_id,
         )
 
         return Response(
