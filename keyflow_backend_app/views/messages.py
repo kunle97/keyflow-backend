@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q
+from django.db.models import Q,Max
 from django.utils import timezone
 from rest_framework.decorators import action
 
@@ -59,7 +59,7 @@ class UserThreadsListView(APIView):
                 conversations[conversation_key] = {
                     "id": conversation_key,
                     "recipient_id": other_user.pk,
-                    "user_data": UserSerializer(other_user).data,
+                    # "user_data": UserSerializer(other_user).data,
                     "name": other_user.get_full_name(),  # Assuming get_full_name() retrieves the user's full name
                     "messages": [],
                     "latest_message_timestamp": None,  # Initialize latest message timestamp
@@ -96,7 +96,6 @@ class UserThreadsListView(APIView):
         )
 
         return Response(sorted_conversations)
-
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
@@ -112,49 +111,40 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Message.objects.filter(sender=user) | Message.objects.filter(
-            recipient=user
-        )
+        return Message.objects.filter(sender=user) | Message.objects.filter(recipient=user)
 
-    # override post method uising create method to create a message
     def create(self, request, *args, **kwargs):
+        # Existing create method logic
         data = request.data.copy()
         recipient = None
         sender = User.objects.get(id=data["sender"])
         body = data["body"]
         preferences = {}
 
-        if request.user.account_type == "owner":#If owner is sending a message
+        if request.user.account_type == "owner":
             tenant_user = User.objects.get(id=data["recipient"])
             tenant = Tenant.objects.get(user=tenant_user)
             preferences = json.loads(tenant.preferences)
             recipient = tenant_user
-        elif request.user.account_type == "tenant":#If tenant is sending a message
-            owner = Owner.objects.get(id=data["recipient"])
+        elif request.user.account_type == "tenant":
+            owner_user = User.objects.get(id=data["recipient"])
+            owner = Owner.objects.get(user=owner_user)
             preferences = json.loads(owner.preferences)
-            recipient = owner.user
+            recipient = owner_user
 
-        # CHeck if payload has a file attached and upload it then add the file to a variable
         if request.FILES:
             uploaded_file = request.FILES["file"]
-            # Create a new uploaded file
             uploaded_file = UploadedFile.objects.create(
                 user=sender, file=uploaded_file, subfolder="message"
             )
-            # Add the uploaded file to the message
             message = Message.objects.create(
                 sender=sender, recipient=recipient, body=body, file=uploaded_file
             )
-
         else:
             message = Message.objects.create(
                 sender=sender, recipient=recipient, body=body
             )
-            # Create notification for the recipient
-            notification_title = (
-                f"New Message from {sender.first_name} {sender.last_name}"
-            )
-        
+        notification_title = f"New Message from {sender.first_name} {sender.last_name}"
 
         try:
             message_recieved_preferences = next(
@@ -163,64 +153,104 @@ class MessageViewSet(viewsets.ModelViewSet):
             message_recieved_preferences_values = message_recieved_preferences["values"]
             for value in message_recieved_preferences_values:
                 if value["name"] == "push" and value["value"] == True:
-                    # Create notification for the recipient
-                    notification_title = f"New Message from {sender.first_name} {sender.last_name}"
-
                     notification = Notification.objects.create(
                         title=notification_title, message=body, user=recipient, type="message", resource_url=f"/dashboard/messages/"
                     )
                 if value["name"] == "email" and value["value"] == True and os.getenv("ENVIRONMENT") == "production":
-                    #Create an email notification for the recipient
                     client_hostname = os.getenv("CLIENT_HOSTNAME")
                     postmark = PostmarkClient(server_token=os.getenv("POSTMARK_SERVER_TOKEN"))
-                    to_email = ""
-                    if os.getenv("ENVIRONMENT") == "development":
-                        to_email = "keyflowsoftware@gmail.com"
-                    else:
-                        to_email = recipient.email
-                    # Send email to recipient
+                    to_email = recipient.email if os.getenv("ENVIRONMENT") != "development" else "keyflowsoftware@gmail.com"
                     postmark.emails.send(
                         From=os.getenv("KEYFLOW_SENDER_EMAIL"),
                         To=to_email,
                         Subject=f"New Message from {sender.first_name} {sender.last_name}",
                         HtmlBody=f"<p>{body}</p><p><a href='{client_hostname}/dashboard/messages/'>View Message</a></p>",
                     )
-        except StopIteration:
-            # Handle case where "message_received" is not found
-
+        except (StopIteration, KeyError):
             pass
-        except KeyError:
-            # Handle case where "values" key is missing in "message_received"
 
-            pass
-        
-        # return a response with a success message and status code
         return Response(
             {"message": "Message sent successfully", "status": status.HTTP_201_CREATED},
             status=status.HTTP_201_CREATED,
         )
 
-    #Create a function that returns the users number of unread messages. call the function name retrieve_unread_messages_count and url_path retrieve-unread-messages-count
     @action(detail=False, methods=["get"], url_path="retrieve-unread-messages-count")
     def retrieve_unread_messages_count(self, request):
         user = request.user
-        unread_messages_count = Message.objects.filter(
-            recipient=user, is_read=False
-        ).count()
+        unread_messages_count = Message.objects.filter(recipient=user, is_read=False).count()
         return Response({"unread_messages_count": unread_messages_count})
-     
-     #Create a function that sets messages to read. call the function name set_messages_as_read and url_path set-messages-as-read
+
     @action(detail=False, methods=["patch"], url_path="set-messages-thread-as-read")
     def set_messages_thread_as_read(self, request):
         user = request.user
         other_user = User.objects.get(id=request.data.get("other_user_id"))
-        #GEt unread messages from when the user is the recipient and the sender is the recipient_user and when the user is the sender and the recipient is the recipient_user
-        unread_messages = Message.objects.filter(
-            recipient=user, sender=other_user, is_read=False
-        ) 
-
+        unread_messages = Message.objects.filter(recipient=user, sender=other_user, is_read=False)
         unread_messages.update(is_read=True)
-        return Response(
-            {"message": "Messages set as read successfully"},
-            status=status.HTTP_200_OK,
-        )
+        return Response({"message": "Messages set as read successfully"}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="list-threads")
+    def list_threads(self, request):
+        logged_in_user = request.user
+        messages = Message.objects.filter(Q(sender=logged_in_user) | Q(recipient=logged_in_user)).values('sender', 'recipient').annotate(latest_message_timestamp=Max('timestamp'))
+        threads = {}
+        for msg in messages:
+            other_user_id = msg['recipient'] if msg['sender'] == logged_in_user.id else msg['sender']
+            other_user = User.objects.get(pk=other_user_id)
+            thread_id = f"{min(logged_in_user.id, other_user.pk)}-{max(logged_in_user.id, other_user.pk)}"
+            #Retrieve most recent message in the thread
+            most_recent_message = Message.objects.filter(Q(sender=logged_in_user, recipient=other_user) | Q(sender=other_user, recipient=logged_in_user)).order_by('-timestamp').first()
+            #Retrieve number of unread messages in the thread
+            unread_messages_count = Message.objects.filter(sender=other_user, recipient=logged_in_user, is_read=False).count()
+            if thread_id not in threads:
+                threads[thread_id] = {
+                    "id": thread_id,
+                    "recipient_id": other_user.pk,
+                    "name": other_user.get_full_name(),
+                    "latest_message_timestamp": msg['latest_message_timestamp'],
+                    "latest_message": most_recent_message.body,
+                    "unread_messages_count": unread_messages_count,
+                }
+        sorted_threads = sorted(threads.values(), key=lambda x: x['latest_message_timestamp'] or timezone.datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        return Response(sorted_threads)
+
+    @action(detail=False, methods=["get"], url_path="list-thread-messages")
+    def list_thread_messages(self, request, pk=None):
+        logged_in_user = request.user
+        thread_id = request.query_params.get("thread_id")
+        
+        if not thread_id:
+            return Response({"error": "Thread ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user_ids = thread_id.split('-')
+        if len(user_ids) != 2:
+            return Response({"error": "Invalid thread ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user1_id = int(user_ids[0])
+            user2_id = int(user_ids[1])
+        except ValueError:
+            return Response({"error": "Invalid user IDs in thread ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if logged_in_user.id not in [user1_id, user2_id]:
+            return Response({"error": "User not part of the conversation"}, status=status.HTTP_403_FORBIDDEN)
+        
+        messages = Message.objects.filter(
+            (Q(sender_id=user1_id) & Q(recipient_id=user2_id)) | 
+            (Q(sender_id=user2_id) & Q(recipient_id=user1_id))
+        ).order_by('timestamp')
+        
+        serialized_messages = []
+        for message in messages:
+            file_info = None
+            if message.file:
+                file_info = UploadedFileSerializer(message.file).data
+            serialized_messages.append({
+                "id": message.pk,
+                "text": message.body,
+                "timestamp": message.timestamp.replace(tzinfo=timezone.utc),
+                "isSender": message.sender == logged_in_user,
+                "isRead": message.is_read,
+                "file": file_info,
+            })
+        
+        return Response(serialized_messages)

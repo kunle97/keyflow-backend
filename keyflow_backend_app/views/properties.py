@@ -22,7 +22,7 @@ from ..models.user import User
 from ..models.rental_property import  RentalProperty
 from ..models.rental_unit import  RentalUnit
 from ..serializers.user_serializer import UserSerializer
-from ..serializers.rental_property_serializer import RentalPropertySerializer
+from ..serializers.rental_property_serializer import RentalPropertySerializer, RentalPropertyDetailSerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
 from keyflow_backend_app.helpers.helpers import propertyNameIsValid, unitNameIsValid
 from django_filters.rest_framework import DjangoFilterBackend
@@ -42,6 +42,12 @@ class PropertyViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'street','city', 'created_at', 'id', 'state' ]
     search_fields = ['name', 'street', 'city', 'state']
     filterset_fields = ['city', 'state', 'zip_code']
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return RentalPropertyDetailSerializer
+        return RentalPropertySerializer
+
 
     def get_serializer_context(self): #TODO: Delete if not needed
             # Make sure you include the context in the serializer instance
