@@ -12,10 +12,11 @@ from rest_framework import filters
 from rest_framework.decorators import action
 from rest_framework import status
 from keyflow_backend_app.helpers.helpers import portfolioNameIsValid
-
+from ..permissions.portfolio_permissions import IsOwner
 class PortfolioViewSet(viewsets.ModelViewSet):
     queryset = Portfolio.objects.all()
     serializer_class = PortfolioSerializer
+    permission_classes = [IsOwner]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
