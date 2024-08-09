@@ -19,21 +19,18 @@ from ..models.lease_agreement import LeaseAgreement
 from ..models.notification import Notification
 from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
-from ..permissions import (
-    IsOwnerOrReadOnly,
-    IsResourceOwner,
-)
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+from ..permissions.lease_agreement_permissions import IsResourceOwnerOrReadOnly, IsResourceOwner
 load_dotenv()
 
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
     serializer_class = LeaseAgreementSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly, IsResourceOwner]
+    permission_classes = [IsAuthenticated, IsResourceOwnerOrReadOnly, IsResourceOwner]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,

@@ -16,7 +16,7 @@ from keyflow_backend_app.helpers.helpers import unitNameIsValid
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_template import LeaseTemplate
 from keyflow_backend_app.models.rental_property import RentalProperty
-from ..models.rental_unit import RentalUnit, default_rental_unit_lease_terms
+from ..models.rental_unit import RentalUnit
 from ..models.lease_agreement import LeaseAgreement
 from ..models.maintenance_request import MaintenanceRequest
 from ..models.rental_application import RentalApplication
@@ -25,14 +25,12 @@ from ..serializers.rental_unit_serializer import  RentalUnitSerializer
 from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer 
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.rental_application_serializer import RentalApplicationSerializer
-from ..serializers.uploaded_file_serializer import UploadedFileSerializer
-from ..permissions import  IsResourceOwner, ResourceCreatePermission, UnitDeletePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import filters
-
+from ..permissions.rental_unit_permissions import IsOwner
 load_dotenv()
 
 #Create a class to retrieve a unit by its id using the class name RetrieveUnitByIdView
@@ -48,7 +46,7 @@ class RetrieveUnitByIdView(APIView):
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
     serializer_class = RentalUnitSerializer
-    permission_classes = [ IsAuthenticated,IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
+    permission_classes = [ IsAuthenticated,IsOwner]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     

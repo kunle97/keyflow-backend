@@ -12,9 +12,12 @@ from ..serializers.maintenance_request_serializer import MaintenanceRequestSeria
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
+from ..permissions.maintenance_request_permissions import IsOwnerOrTenant
+from rest_framework.permissions import IsAuthenticated 
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
+    permission_classes = [IsOwnerOrTenant, IsAuthenticated]
     serializer_class = MaintenanceRequestSerializer
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [

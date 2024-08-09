@@ -24,6 +24,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from datetime import datetime, timedelta
 from rest_framework import status
+from keyflow_backend_app.permissions.billing_entry_permissions import IsResourceOwner
 
 load_dotenv()
 
@@ -32,7 +33,7 @@ load_dotenv()
 class BillingEntryViewSet(viewsets.ModelViewSet):
     queryset = BillingEntry.objects.all()
     serializer_class = BillingEntrySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsResourceOwner]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
@@ -412,6 +413,11 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
         billing_entry = self.get_object()
+        #Check if there is a transaction for the billing entry
+        transaction = Transaction.objects.filter(billing_entry=billing_entry)
+        if transaction.exists():
+            #Delete the transaction
+            transaction.delete()
         if billing_entry.stripe_invoice_id != None:
             invoice = stripe.Invoice.retrieve(billing_entry.stripe_invoice_id)
             if invoice.status == "open" or invoice.status == "draft":

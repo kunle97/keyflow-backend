@@ -19,6 +19,7 @@ from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import filters
 from rest_framework.parsers import MultiPartParser
+from ..permissions.tenant_invite_permissions import IsOwner
 load_dotenv()
 
 
@@ -27,7 +28,8 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
     serializer_class = TenantInviteSerializer
     parser_classes = [MultiPartParser]
     permission_classes = [
-        IsAuthenticated
+        IsAuthenticated,
+        IsOwner,
     ]  # TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [

@@ -21,7 +21,6 @@ from ..models.notification import Notification
 from ..models.rental_application import RentalApplication
 from ..models.rental_unit import RentalUnit
 from ..serializers.rental_application_serializer import RentalApplicationSerializer
-from ..permissions import RentalApplicationCreatePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
@@ -42,7 +41,6 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = RentalApplicationSerializer
     permission_classes = [
         IsAuthenticated,
-        RentalApplicationCreatePermission,
     ]  # TODO: Investigate why IsResourceOwner is not working
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [

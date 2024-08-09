@@ -31,12 +31,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
+from ..permissions.lease_renewal_request_permissions import IsOwnerOrReadOnly
 
 class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseRenewalRequest.objects.all()
     serializer_class = LeaseRenewalRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,

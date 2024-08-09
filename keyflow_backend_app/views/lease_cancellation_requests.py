@@ -27,11 +27,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+from ..permissions.lease_cancellation_request_permissions import IsOwnerOrReadOnly
 
 class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseCancellationRequest.objects.all()
     serializer_class = LeaseCancellationRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,

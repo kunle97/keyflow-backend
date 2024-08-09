@@ -1,7 +1,6 @@
 import pytz
-import logging
 from rest_framework import viewsets, status
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from django.utils.timezone import make_aware
 from rest_framework.response import Response
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
@@ -14,11 +13,12 @@ from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.models.account_type import Owner
 from django.utils.timezone import make_aware
+from ..permissions.announcement_permissions import IsResourceOwnerOrReadOnly
 
 class AnnouncementViewSet(viewsets.ModelViewSet):
     queryset = Announcement.objects.all()
     serializer_class = AnnouncementSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsResourceOwnerOrReadOnly]
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
@@ -41,8 +41,6 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset().filter(target=tenant)
         return queryset
     
-
-
     # Create a "create" function that will be used to override the POST method
     def create(self, request, *args, **kwargs):
         data = request.data.copy()

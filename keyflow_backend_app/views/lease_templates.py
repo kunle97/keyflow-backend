@@ -11,8 +11,6 @@ from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from rest_framework.permissions import IsAuthenticated 
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
-from rest_framework.permissions import IsAuthenticated 
-from rest_framework.permissions import IsAuthenticated
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
@@ -26,7 +24,7 @@ from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from ..permissions.lease_template_permissions import IsOwner
 logger = logging.getLogger(__name__)
 load_dotenv()
 
@@ -45,7 +43,7 @@ class RetrieveLeaseTemplateByUnitView(APIView):
 class LeaseTemplateViewSet(viewsets.ModelViewSet):
     queryset = LeaseTemplate.objects.all()
     serializer_class = LeaseTemplateSerializer
-    permission_classes = [IsAuthenticated] #TODO: Add IsResourceOwner permission
+    permission_classes = [IsAuthenticated, IsOwner] #TODO: Add IsResourceOwner permission
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['term', 'rent', 'security_deposit' ]
