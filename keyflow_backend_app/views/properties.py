@@ -1,6 +1,7 @@
+import os
+import csv
 import json
 import stripe
-import os
 from dotenv import load_dotenv
 from django.http import JsonResponse
 from rest_framework import viewsets
@@ -10,7 +11,6 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication 
 from rest_framework.permissions import IsAuthenticated 
-import csv
 from rest_framework.parsers import MultiPartParser
 from django.core.exceptions import ValidationError
 from io import TextIOWrapper
@@ -30,11 +30,12 @@ from rest_framework import filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
+from ..permissions.rental_proeprty_permissions import IsOwner
 load_dotenv()
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = RentalPropertySerializer
-    permission_classes = [IsAuthenticated] #TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
+    permission_classes = [IsAuthenticated, IsOwner] #TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
     authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     parser_classes = [MultiPartParser]
     # pagination_class = CustomPagination

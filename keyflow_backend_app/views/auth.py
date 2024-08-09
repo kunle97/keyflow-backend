@@ -147,26 +147,31 @@ class UserLoginView(APIView):
 
         return token
     
-# create a logout endpoint that deletes the token
+
 class UserLogoutView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
 
     def post(self, request):
         user = request.user
-        # Check if the user has an expiring token
-        expiring_token = ExpiringToken.objects.filter(user=user).first()
-        if expiring_token:
-            expiring_token.delete()  # Delete the expiring token
-            return Response(
-                {"message": "User logged out successfully.", "status": status.HTTP_200_OK},
-                status=status.HTTP_200_OK,
-            )
+        if user.is_authenticated:
+            # Check if the user has an expiring token
+            expiring_token = ExpiringToken.objects.filter(user=user).first()
+            if expiring_token:
+                expiring_token.delete()  # Delete the expiring token
+                return Response(
+                    {"message": "User logged out successfully."},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"message": "No active token found for the user."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
         else:
             return Response(
-            {"message": "No active token found for the user.", "status": status.HTTP_404_NOT_FOUND},
-                status=status.HTTP_404_NOT_FOUND,
+                {"message": "User is not authenticated."},
+                status=status.HTTP_401_UNAUTHORIZED,
             )
-
 #Create a class that has a post method to check if the email exists in the database
 class UserEmailCheckView(APIView):
     def post(self, request):

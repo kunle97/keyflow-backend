@@ -199,7 +199,6 @@ CORS_ALLOWED_ORIGINS = [  # JWT Config
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        # "rest_framework.authentication.TokenAuthentication",
         "keyflow_backend_app.authentication.ExpiringTokenAuthentication",
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",

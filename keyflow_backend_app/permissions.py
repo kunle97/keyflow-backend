@@ -1,12 +1,39 @@
 from rest_framework import permissions
 from rest_framework.permissions import  BasePermission
-
 from keyflow_backend_app.models.account_type import Owner
 from .models.rental_property import RentalProperty
 from .models.rental_unit import RentalUnit
 from .models.message import Message
 from rest_framework.response import Response
 from rest_framework import status
+
+class IsResourceOwnerOrReadOnly(BasePermission):
+    """
+    Custom permission to only allow owners of a resource to edit or delete it.
+    Everyone else can only view (read) the resources.
+    """
+
+    def has_permission(self, request, view):
+        # Allow any authenticated user to list and create resources
+        if view.action in ['list', 'retrieve', 'create']:
+            return request.user and request.user.is_authenticated
+
+        # Allow safe methods (GET, HEAD, OPTIONS) for authenticated users
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return request.user and request.user.is_authenticated
+
+        # Otherwise, only allow access if the user is authenticated and is the owner
+        return request.user and request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        # Read permissions are allowed to any authenticated user
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return request.user and request.user.is_authenticated
+
+        # Write permissions are only allowed to the owner of the resource
+        return obj.owner.user == request.user
+
+
 class IsOwnerOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
@@ -231,51 +258,3 @@ class UnitDeletePermission(permissions.BasePermission):
                 return True # grant access otherwise
             return True # grant access otherwise
         
-#-----MESSAGE PERMISSIONS-----#
-#Create a permission that only allows a message to be deleted if the user is the sender or recipient
-class MessageDeletePermission(permissions.BasePermission):
-    
-        def has_permission(self, request, view):
-            if request.method  == 'DELETE':
-                #retrieve primarky key from url 
-                url_id = view.kwargs.get('pk', None) #id in the url converted to int
-    
-                request_id = request.user.id #id of the user making the request
-                #request.data.get('rental_property')
-                #create variable for request body
-                request_body_message = url_id
-    
-                #retrieve unit object from  request_body_property variable
-                message_object = Message.objects.get(id=request_body_message)
-                message_sender_id = message_object.sender.id #id of the user who owns the property
-                message_recipient_id = message_object.recipient.id #id of the user who owns the property
-    
-                #confirm the id and unit's user id match
-                if (message_sender_id != int(request_id) and message_recipient_id != int(request_id)):
-                    return Response({"message": "You cannot delete a message that you did not send"}, status=status.HTTP_401_UNAUTHORIZED)
-                return True # grant access otherwise
-            return True # grant access otherwise
-
-#Create permission that only allows owners to send messages to thier tenants and tenants to only send messages to their owners
-class MessageCreatePermission(permissions.BasePermission):
-        def has_permission(self, request, view):
-            if request.method  == 'POST':
-                #retrieve primarky key from url 
-                # url_id = view.kwargs.get('pk', None) #id in the url converted to int
-    
-                request_id = request.user.id #id of the user making the request
-                #request.data.get('rental_property')
-                #create variable for request body
-                request_body_sender = request.data.get('sender')
-                request_body_recipient = request.data.get('recipient')
-    
-                #retrieve unit object from  request_body_property variable
-                # message_object = Message.objects.get(id=request_body_message)
-                # message_sender_id = message_object.sender.id #id of the user who owns the property
-                # message_recipient_id = message_object.recipient.id #id of the user who owns the property
-    
-                #confirm the id and unit's user id match
-                if (request_body_sender != int(request_id) and request_body_recipient != int(request_id)):
-                    return Response({"message": "You cannot send a message to a user that you are not associated with"}, status=status.HTTP_401_UNAUTHORIZED)
-                return True # grant access otherwise
-            return True # grant access otherwise
