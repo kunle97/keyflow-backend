@@ -128,6 +128,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
                         "tenant_id": user.id,
                         "payment_method_id": payment_method_id,
                     },
+                    trial_end=int((datetime.now() + timedelta(days=90)).timestamp())
                 )
             client_hostname = os.getenv("CLIENT_HOSTNAME")
             refresh_url = f"{client_hostname}/dashboard/owner/login"
@@ -322,9 +323,9 @@ class OwnerViewSet(viewsets.ModelViewSet):
         subscriptions = stripe.Subscription.list(customer=customer_id)
         owner_subscription = None
 
-        #loop through the subscriptions and find the active subscription.
+        #loop through the subscriptions and find the active subscription
         for subscription in subscriptions.auto_paging_iter():
-            if subscription.status == "active":
+            if subscription.status == "active" or subscription.status == "trialing":
                 owner_subscription = subscription
                 break
 
