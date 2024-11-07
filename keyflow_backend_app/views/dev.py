@@ -519,7 +519,7 @@ def generate_tenants(request):
                 currency="usd",
                 payment_method_types=["card"],
                 customer=customer.id,
-                payment_method=payment_method.id,
+            payment_method=payment_method.id,
                 transfer_data={
                     "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                 },

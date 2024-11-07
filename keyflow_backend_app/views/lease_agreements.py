@@ -77,6 +77,8 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         unit_id = request.data.get("rental_unit")
         # Retrieve the unit object from the database
         unit = RentalUnit.objects.get(id=unit_id)
+        unit_lease_terms = unit.lease_terms
+
         approval_hash = request.data.get("approval_hash")
         # Check if  request.data.get("lease_renewal_request") exists if not set it to none
         lease_renewal_request = None
@@ -114,6 +116,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
                 start_date=start_date,
                 end_date=end_date,
                 lease_renewal_request=lease_renewal_request,
+                lease_terms=unit_lease_terms,
             )
 
         if request.data.get("signed_lease_document_file"):
@@ -131,6 +134,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
                 end_date=end_date,
                 lease_renewal_request=lease_renewal_request,
                 is_active=True,
+                lease_terms=unit_lease_terms,
             )
 
         # Return a success response containing the lease agreement object as well as a message and a 201 stuats code
