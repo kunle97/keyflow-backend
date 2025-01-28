@@ -1,5 +1,6 @@
 from math import e
 import json
+from click import confirm
 import stripe
 import os
 import random
@@ -468,9 +469,9 @@ def create_autopay_subscription_for_tenant(customer_id, unit, lease_agreement):
                     "lease_agreement_id": lease_agreement.id,
                 },
                 transfer_data={"destination": unit.owner.stripe_account_id},
+                confirm=True,
+                return_url= f"{os.getenv('CLIENT_HOSTNAME')}/dashboard/tenant",
             )
-            #Confirm the payment intent
-            stripe.PaymentIntent.confirm(payment_intent.id)
             #Cancel the security deposit invoice
             stripe.Invoice.void_invoice(invoice.id)
 

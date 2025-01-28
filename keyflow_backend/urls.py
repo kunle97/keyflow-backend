@@ -200,6 +200,7 @@ urlpatterns = [
     path('api/auth/validate-token/', TokenValidationView.as_view(), name='token-validation'),
     path("api/auth/login/", UserLoginView.as_view(), name="login"),
     path("api/auth/logout/", UserLogoutView.as_view(), name="logout"),
+    path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
     path(
         "api/auth/tenant/register/",
         TenantRegistrationView.as_view(),
@@ -282,7 +283,6 @@ urlpatterns = [
         RetrieveOwnerSubscriptionPriceView.as_view(),
         name="retrieve_owner_subscription_price",
     ),
-    path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
     # Stripe Webhooks
     path(
         "api/stripe-webhook/subscription-payment-suceeded/",

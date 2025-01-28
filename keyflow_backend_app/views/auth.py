@@ -172,6 +172,40 @@ class UserLogoutView(APIView):
                 {"message": "User is not authenticated."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+ 
+# create an endpoint to activate the account of a new user that will set the  is_active field to true
+class UserActivationView(APIView):
+    def post(self, request):
+        # Verify that the account activation token is valid
+        account_activation_token = AccountActivationToken.objects.get(
+            token=request.data.get("activation_token")
+        )
+        if account_activation_token is None:
+            return Response(
+                {"message": "Invalid token.", "status": status.HTTP_400_BAD_REQUEST},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # retrieve user via account activation token
+        user = User.objects.get(email=account_activation_token.email)
+
+        if user is None:
+            return Response(
+                {"message": "Error activating user."}, status=status.HTTP_404_NOT_FOUND
+            )
+        user.is_active = True
+        user.save()
+        # Delete the account activation token
+        account_activation_token.delete()
+        return Response(
+            {
+                "account_type": user.account_type,
+                "message": "User activated successfully.",
+                "status": status.HTTP_200_OK,
+            },
+            status=status.HTTP_200_OK,
+        )
+   
 #Create a class that has a post method to check if the email exists in the database
 class UserEmailCheckView(APIView):
     def post(self, request):
@@ -186,7 +220,8 @@ class UserEmailCheckView(APIView):
             {"message": "Email does not exist.", "status": status.HTTP_200_OK},
             status=status.HTTP_200_OK,
         )
-    
+
+
 #Create a class that has a post method to check if a username exists in the database
 class UsernameCheckView(APIView):
     def post(self, request):
@@ -265,36 +300,3 @@ class UserViewSet(viewsets.ModelViewSet):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-
-# create an endpoint to activate the account of a new user that will set the  is_active field to true
-class UserActivationView(APIView):
-    def post(self, request):
-        # Verify that the account activation token is valid
-        account_activation_token = AccountActivationToken.objects.get(
-            token=request.data.get("activation_token")
-        )
-        if account_activation_token is None:
-            return Response(
-                {"message": "Invalid token.", "status": status.HTTP_400_BAD_REQUEST},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # retrieve user via account activation token
-        user = User.objects.get(email=account_activation_token.email)
-
-        if user is None:
-            return Response(
-                {"message": "Error activating user."}, status=status.HTTP_404_NOT_FOUND
-            )
-        user.is_active = True
-        user.save()
-        # Delete the account activation token
-        account_activation_token.delete()
-        return Response(
-            {
-                "account_type": user.account_type,
-                "message": "User activated successfully.",
-                "status": status.HTTP_200_OK,
-            },
-            status=status.HTTP_200_OK,
-        )
