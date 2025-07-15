@@ -11,10 +11,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='maintenancerequest',
-            name='user',
-        ),
+        # migrations.RemoveField(
+        #     model_name='maintenancerequest',
+        #     name='user',
+        # ),
         migrations.RemoveField(
             model_name='rentalapplication',
             name='user',
