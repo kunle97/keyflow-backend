@@ -11,7 +11,8 @@ This project is integrated with a PostgreSQL database and requires an installati
 ## How to Run (locally)
 #### In order to get started you will need a few dependancies to run the application
 
-1. When cloning the repository for the first time `keyflow_backend_app/migrations` directory should only have a `__init__.py` file in it. If not delete all other files and folders EXCEPT `__init__.py`
+1. When cloning the repository for the first time `keyflow_backend_app/migrations` directory should have several migration files. DO NOT DELETE them. They are needed in order to create all appropriate tables in the database.
+ <!-- only have a `__init__.py` file in it. If not delete all other files and folders EXCEPT `__init__.py` -->
 
 2. Navigate to the project directory
 

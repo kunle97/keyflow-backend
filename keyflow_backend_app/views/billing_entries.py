@@ -1,5 +1,6 @@
 import json
 import re
+import resource
 import stripe
 import os
 from keyflow_backend_app.models.maintenance_request import MaintenanceRequest
@@ -8,7 +9,7 @@ from dotenv import load_dotenv
 from rest_framework import viewsets
 import pytz
 from django.utils import timezone
-from keyflow_backend_app.helpers import calculate_final_price_in_cents
+from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents
 from keyflow_backend_app.models.notification import Notification
 from keyflow_backend_app.models.rental_unit import RentalUnit
 from ..models.account_type import Owner, Tenant
@@ -17,11 +18,13 @@ from ..models.transaction import Transaction
 from ..serializers.billing_entry_serializer import BillingEntrySerializer
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from datetime import datetime, timedelta
 from rest_framework import status
+from keyflow_backend_app.permissions.billing_entry_permissions import IsResourceOwner
 
 load_dotenv()
 
@@ -30,8 +33,8 @@ load_dotenv()
 class BillingEntryViewSet(viewsets.ModelViewSet):
     queryset = BillingEntry.objects.all()
     serializer_class = BillingEntrySerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsResourceOwner]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -145,46 +148,47 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
             if collection_method == "send_invoice":
                 # Create a stripe invoice object if type is not in the expense_types list
                 if type not in expense_types:
-                    stripe_invoice = stripe.Invoice.create(
-                        customer=tenant_stripe_customer,
-                        auto_advance=True,
-                        collection_method=collection_method,
-                        due_date=due_date_timestamp,
-                        metadata={
-                            "description": description,
-                            "tenant_id": tenant.pk,
-                            "owner_id": owner.pk,
-                            "type": type,
-                        },
-                    )
+                    if billing_entry_status == "unpaid":
+                        stripe_invoice = stripe.Invoice.create(
+                            customer=tenant_stripe_customer,
+                            auto_advance=True,
+                            collection_method=collection_method,
+                            due_date=due_date_timestamp,
+                            metadata={
+                                "description": description,
+                                "tenant_id": tenant.pk,
+                                "owner_id": owner.pk,
+                                "type": type,
+                            },
+                        )
 
-                    # Create a stripe price object
-                    price = stripe.Price.create(
-                        unit_amount=int(amount * 100),
-                        currency="usd",
-                        product_data={
-                            "name": description,
-                        },
-                    )
+                        # Create a stripe price object
+                        price = stripe.Price.create(
+                            unit_amount=int(amount * 100),
+                            currency="usd",
+                            product_data={
+                                "name": description,
+                            },
+                        )
 
-                    # Create an invoice item for the stripe invoice
-                    invoice_item = stripe.InvoiceItem.create(
-                        customer=tenant_stripe_customer,
-                        price=price.id,
-                        quantity=1,
-                        invoice=stripe_invoice.id,
-                        description=description,
-                    )
-                    # Create a Stripe invoice item for the Stripe fee
-                    invoice_item = stripe.InvoiceItem.create(
-                        customer=tenant_stripe_customer,
-                        price=stripe_fee_price.id,
-                        currency="usd",
-                        description=f"Stripe fee for rent payment of {rental_unit.name} at {rental_unit.rental_property.name}",
-                        invoice=stripe_invoice.id,
-                    )
-                    stripe.Invoice.finalize_invoice(stripe_invoice.id)
-                    stripe.Invoice.send_invoice(stripe_invoice.id)
+                        # Create an invoice item for the stripe invoice
+                        invoice_item = stripe.InvoiceItem.create(
+                            customer=tenant_stripe_customer,
+                            price=price.id,
+                            quantity=1,
+                            invoice=stripe_invoice.id,
+                            description=description,
+                        )
+                        # Create a Stripe invoice item for the Stripe fee
+                        invoice_item = stripe.InvoiceItem.create(
+                            customer=tenant_stripe_customer,
+                            price=stripe_fee_price.id,
+                            currency="usd",
+                            description=f"Stripe fee for rent payment of {rental_unit.name} at {rental_unit.rental_property.name}",
+                            invoice=stripe_invoice.id,
+                        )
+                        stripe.Invoice.finalize_invoice(stripe_invoice.id)
+                        stripe.Invoice.send_invoice(stripe_invoice.id)
 
                     tenant_preferences = json.loads(tenant.preferences)
 
@@ -199,13 +203,18 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     )
 
                     if push_value["value"] == True:
+                        resource_url = None
+                        if stripe_invoice != None:
+                            resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}"
+                        else:
+                            resource_url="/dashboard/tenant/bills"
                         # Create a notification for the tenant that a new invoice has been sent
                         notification = Notification.objects.create(
                             user=tenant.user,
                             message=f"A new invoice has been received for {description}",
                             type="invoice_recieved",
                             title="Invoice Received",
-                            resource_url=f"/dashboard/tenant/bills/{stripe_invoice.id}",
+                            resource_url=resource_url,
                         )
 
                     # Retrieve the dictionary in the "values" list where the "name" key value is "email"
@@ -231,7 +240,10 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                             <a href='{client_hostname}/dashboard/tenant/bills/{stripe_invoice.id}'>View Invoice</a>
                             """,
                         )
-
+                stripe_invoice_id = None
+                if stripe_invoice != None:
+                    stripe_invoice_id = stripe_invoice.id
+                
                 # Create Billing Entry for the owner
                 billing_entry = BillingEntry.objects.create(
                     type=type,
@@ -242,7 +254,7 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
                     rental_unit=rental_unit,
                     owner=owner,
                     status=billing_entry_status,
-                    stripe_invoice_id=stripe_invoice.id,
+                    stripe_invoice_id=stripe_invoice_id,
                 )
                 if billing_entry_status == "paid":
                     # Create Transaction for the billing entry
@@ -401,6 +413,11 @@ class BillingEntryViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
         billing_entry = self.get_object()
+        #Check if there is a transaction for the billing entry
+        transaction = Transaction.objects.filter(billing_entry=billing_entry)
+        if transaction.exists():
+            #Delete the transaction
+            transaction.delete()
         if billing_entry.stripe_invoice_id != None:
             invoice = stripe.Invoice.retrieve(billing_entry.stripe_invoice_id)
             if invoice.status == "open" or invoice.status == "draft":

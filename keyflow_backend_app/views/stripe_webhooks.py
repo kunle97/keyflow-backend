@@ -7,8 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views import View
 from datetime import datetime
-
-from keyflow_backend_app.helpers import calculate_final_price_in_cents
+from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents
 from keyflow_backend_app.models.notification import Notification
 from ..models.transaction import Transaction
 from ..models.rental_property import RentalProperty
@@ -16,10 +15,6 @@ from ..models.rental_unit import RentalUnit
 from ..models.account_type import Tenant
 from ..models.user import User
 from ..models.account_type import Owner
-from keyflow_backend_app.models import rental_property
-
-from keyflow_backend_app.models import user
-
 load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
 
@@ -36,7 +31,7 @@ class StripeSubscriptionPaymentSucceededEventView(View):
         try:
             event = stripe.Event.construct_from(json.loads(payload), stripe.api_key)
 
-            print(f"Event Type: {event.type}")
+
             if event.type == "invoice.payment_succeeded":
                 # Test using the the following CLI Command:
                 """
@@ -54,7 +49,7 @@ class StripeSubscriptionPaymentSucceededEventView(View):
                 amount = invoice.amount_paid
                 metadata = invoice.lines.data[0].metadata
                 payment_intent = event.data.object
-                print(f"XZZX Metadata: {metadata}")
+
                 owner = Owner.objects.get(id=(metadata.get("owner_id", None)))
                 owner_user = User.objects.get(id=owner.user.id)
                 tenant = Tenant.objects.get(id=metadata.get("tenant_id", None))
@@ -105,7 +100,7 @@ class StripeInvoicePaymentSucceededEventView(View):
             event = stripe.Event.construct_from(json.loads(payload), stripe.api_key)
 
             if event.type == "invoice.payment_succeeded":
-                print(f"Event Type: {event.type}")
+
                 # Test using the the following windows CLI Command:
                 """
                 stripe trigger subscription.payment_succeeded --add subscription:metadata.amount=1000 ^
@@ -136,7 +131,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                 metadata = invoice.lines.data[0].metadata
                 payment_intent = event.data.object
                 if invoice_metadata['type'] == "rent_payment":
-                    print("Ownerrrr IDD: ",invoice_metadata["owner_id"])
+
                     owner = Owner.objects.get(id=invoice_metadata["owner_id"])
                     owner_user = User.objects.get(id=owner.user.id)
                     tenant = Tenant.objects.get(id=invoice_metadata["tenant_id"])
@@ -148,7 +143,7 @@ class StripeInvoicePaymentSucceededEventView(View):
                         id=invoice_metadata["rental_unit_id"]
                     )
                     
-                    print("Stripe Webhook: Rent Payment has been paid")
+
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
                         #retrieve the late fee from the unit's lease terms
                         lease_terms = json.loads(rental_unit.lease_terms)
@@ -218,9 +213,6 @@ class StripeInvoicePaymentSucceededEventView(View):
                         rental_property=rental_property,
                         rental_unit=rental_unit,
                         tenant=tenant,  # related tenant
-                        # payment_method_id=invoice_metadata.get(
-                        #     "payment_method_id", None
-                        # ),  # or payment_intent.payment_method.id
                         payment_intent_id=invoice.payment_intent,
                     )
                     try: 
@@ -255,11 +247,11 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 )
                     except StopIteration:
                         # Handle case where "invoice_paid" is not found
-                        print("invoice_paid not found. Notification not sent.")
+
                         pass
                     except KeyError:
                         # Handle case where "values" key is missing in "invoice_paid"
-                        print("values key not found in invoice_paid. Notification not sent.")
+
                         pass                        
                 if invoice_metadata.get("type", None) == "security_deposit":
                     if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
@@ -342,11 +334,11 @@ class StripeInvoicePaymentSucceededEventView(View):
                                 )
                     except StopIteration:
                         # Handle case where "invoice_paid" is not found
-                        print("invoice_paid not found. Notification not sent.")
+
                         pass
                     except KeyError:
                         # Handle case where "values" key is missing in "invoice_paid"
-                        print("values key not found in invoice_paid. Notification not sent.")
+
                         pass
                 else:
                     return JsonResponse({"status": "ok"})

@@ -7,7 +7,6 @@ class OwnerSerializer(serializers.ModelSerializer):
     user = UserSerializer(many=False, read_only=True)
     # Create a field for the owner's tenants
     rental_properties = RentalPropertySerializer(many=True, read_only=True) 
-    
     class Meta:
         model = Owner
         fields = "__all__"

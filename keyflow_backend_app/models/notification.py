@@ -1,4 +1,3 @@
-from email.policy import default
 from django.db import models
 from keyflow_backend_app.models.user import User
 

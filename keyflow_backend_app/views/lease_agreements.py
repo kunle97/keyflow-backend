@@ -1,52 +1,37 @@
 import os
 import json
-from requests import delete
 import stripe
 from postmarker.core import PostmarkClient
-from django.http import JsonResponse
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
 from django.utils import timezone 
-from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
-from keyflow_backend_app.models import lease_renewal_request
 from keyflow_backend_app.models.account_type import Owner, Tenant
-from keyflow_backend_app.models.uploaded_file import UploadedFile
-
-from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
 from ..models.rental_unit import RentalUnit
 from ..models.lease_agreement import LeaseAgreement
-from ..models.rental_application import RentalApplication
 from ..models.notification import Notification
-from ..models.lease_template import LeaseTemplate
 from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..serializers.lease_agreement_serializer import LeaseAgreementSerializer
-from ..permissions import (
-    IsOwnerOrReadOnly,
-    IsResourceOwner,
-)
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
-
+from ..permissions.lease_agreement_permissions import IsResourceOwnerOrReadOnly, IsResourceOwner
 load_dotenv()
-
 
 class LeaseAgreementViewSet(viewsets.ModelViewSet):
     queryset = LeaseAgreement.objects.all()
     serializer_class = LeaseAgreementSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly, IsResourceOwner]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsResourceOwnerOrReadOnly, IsResourceOwner]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -92,6 +77,8 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
         unit_id = request.data.get("rental_unit")
         # Retrieve the unit object from the database
         unit = RentalUnit.objects.get(id=unit_id)
+        unit_lease_terms = unit.lease_terms
+
         approval_hash = request.data.get("approval_hash")
         # Check if  request.data.get("lease_renewal_request") exists if not set it to none
         lease_renewal_request = None
@@ -129,6 +116,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
                 start_date=start_date,
                 end_date=end_date,
                 lease_renewal_request=lease_renewal_request,
+                lease_terms=unit_lease_terms,
             )
 
         if request.data.get("signed_lease_document_file"):
@@ -146,6 +134,7 @@ class LeaseAgreementViewSet(viewsets.ModelViewSet):
                 end_date=end_date,
                 lease_renewal_request=lease_renewal_request,
                 is_active=True,
+                lease_terms=unit_lease_terms,
             )
 
         # Return a success response containing the lease agreement object as well as a message and a 201 stuats code
@@ -320,11 +309,11 @@ class SignLeaseAgreementView(APIView):
                     )
         except StopIteration:
             # Handle case where "tenant_lease_agreement_signed" is not found
-            print("tenant_lease_agreement_signed not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "tenant_lease_agreement_signed"
-            print("values key not found in tenant_lease_agreement_signed. Notification not sent.")
+
             pass
 
         # return a response for the lease being signed successfully

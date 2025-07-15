@@ -14,15 +14,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from curses.ascii import US
 from django.contrib import admin
 from django.conf.urls import handler404
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from keyflow_backend_app.views.auth import (
+    UserEmailCheckView,
     UserViewSet,
     UserLoginView,
     UserLogoutView,
     UserActivationView,
+    UsernameCheckView,
 )
 from keyflow_backend_app.views.expiring_tokens import TokenValidationView
 from keyflow_backend_app.views.owners import (
@@ -180,7 +183,7 @@ router.register(r"transactions", TransactionViewSet, basename="transactions")
 router.register(
     r"rental-applications", RentalApplicationViewSet, basename="rental-applications"
 )
-router.register(r"tenants-v1", OldTenantViewSet, basename="tenants")
+router.register(r"tenants-v1", OldTenantViewSet, basename="tenants-v1")
 router.register(r"manage-lease", ManageTenantSubscriptionView, basename="manage_lease")
 router.register(r"password-reset", PasswordResetTokenView, basename="password_reset")
 router.register(r"stripe", ManagePaymentMethodsView, basename="stripe")
@@ -197,6 +200,7 @@ urlpatterns = [
     path('api/auth/validate-token/', TokenValidationView.as_view(), name='token-validation'),
     path("api/auth/login/", UserLoginView.as_view(), name="login"),
     path("api/auth/logout/", UserLogoutView.as_view(), name="logout"),
+    path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
     path(
         "api/auth/tenant/register/",
         TenantRegistrationView.as_view(),
@@ -217,6 +221,15 @@ urlpatterns = [
         RetrieveRentalApplicationByApprovalHash.as_view(),
         name="tenant_register_verify",
     ),
+    path(
+        "api/auth/user-email-check/",
+        UserEmailCheckView.as_view(),
+        name="user_email_check",
+    ),
+    path(
+        "api/auth/user-username-check/", 
+        UsernameCheckView.as_view(), 
+        name="user_username_check"),
     path(
         "api/plaid/create-link-token/",
         PlaidLinkTokenView.as_view(),
@@ -270,7 +283,6 @@ urlpatterns = [
         RetrieveOwnerSubscriptionPriceView.as_view(),
         name="retrieve_owner_subscription_price",
     ),
-    path("api/auth/activate-account/", UserActivationView.as_view(), name="activate"),
     # Stripe Webhooks
     path(
         "api/stripe-webhook/subscription-payment-suceeded/",

@@ -1,7 +1,4 @@
-from itertools import count
 import os
-import time
-from tracemalloc import start
 import stripe
 import random
 from dotenv import load_dotenv
@@ -16,7 +13,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
-from rest_framework.permissions import IsAuthenticated 
 from ..models.user import User
 from faker import Faker
 from ..models.rental_property import RentalProperty
@@ -32,7 +28,7 @@ from ..models.maintenance_request import MaintenanceRequest
 from ..models.lease_cancelleation_request import LeaseCancellationRequest
 from ..models.lease_renewal_request import LeaseRenewalRequest
 from ..models.account_type import Owner, Tenant
-from ..helpers import make_id, strtobool
+from ..helpers.helpers import make_id, strtobool
 from django.views.decorators.csrf import csrf_exempt
 
 
@@ -41,16 +37,16 @@ load_dotenv()
 stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
 visa_payment_method = None
 if os.getenv("ENVIRONMENT") == "development":
-    visa_payment_method = stripe.PaymentMethod.create(
-        type="card",
-        card={
-            "number": "4242424242424242",
-            "exp_month": 12,
-            "exp_year": 2034,
-            "cvc": "314",
-        },
-    )
-
+#     visa_payment_method = stripe.PaymentMethod.create(
+#         type="card",
+#         card={
+#             "number": "4242424242424242",
+#             "exp_month": 12,
+#             "exp_year": 2034,
+#             "cvc": "314",
+#         },
+#     )
+    pass
 # ----------TEST FUNCTIONS ----------------
 
 
@@ -281,7 +277,7 @@ def generate_tenants(request):
 
         # attach the payment method to the customer
         stripe.PaymentMethod.attach(
-            visa_payment_method.id,
+            payment_method.id,
             customer=customer.id,
         )
 
@@ -523,7 +519,7 @@ def generate_tenants(request):
                 currency="usd",
                 payment_method_types=["card"],
                 customer=customer.id,
-                payment_method=payment_method.id,
+            payment_method=payment_method.id,
                 transfer_data={
                     "destination": owner.stripe_account_id  # The Stripe Connected Account ID
                 },
@@ -658,8 +654,8 @@ def generate_tenants(request):
                 resource_url=f"/dashboard/owner/transactions/{subscription_transaction.id}",
             )
 
-            print(f"subscription: {subscription}")
-            print(f"lease_agreement: {lease_agreement}")
+
+
 
         # add subscription id to the lease agreement
         lease_agreement.stripe_subscription_id = subscription.id
@@ -865,7 +861,7 @@ def generate_messages(request):
     int_count = int(count)
     message_mode = request.data.get("message_mode")
     conversation_mode = strtobool(request.data.get("conversation_mode"))
-    print("CONVO MODE", conversation_mode)
+
     tenant_id = request.data.get("tenant_id")
     user_id = request.data.get("user_id")
     user = User.objects.get(id=user_id)
@@ -1178,7 +1174,7 @@ def generate_transactions(request):
                 user=user,
                 # Set the amount to a number within the amountRange. Amount range is an array of two numbers
                 amount=amount,
-                payment_method_id=visa_payment_method.id,
+                payment_method_id=payment_method.id,
                 payment_intent_id=payment_intent.id,
                 timestamp=transaction_date,
             )

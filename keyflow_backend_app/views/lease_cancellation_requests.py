@@ -8,10 +8,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
+from keyflow_backend_app.models import account_type
 from keyflow_backend_app.models.account_type import Owner, Tenant
-
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
 from ..models.rental_unit import RentalUnit
@@ -26,12 +27,13 @@ from rest_framework import status
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+from ..permissions.lease_cancellation_request_permissions import IsOwnerOrReadOnly
 
 class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseCancellationRequest.objects.all()
     serializer_class = LeaseCancellationRequestSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -51,10 +53,17 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        owner = Owner.objects.get(user=user)
-        queryset = super().get_queryset().filter(owner=owner)
-        return queryset
 
+        if user.account_type == "tenant":
+            tenant = Tenant.objects.get(user=user)
+            queryset = super().get_queryset().filter(tenant=tenant)
+            return queryset
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            queryset = super().get_queryset().filter(owner=owner)
+            return queryset
+        #Return empty queryset if user is not an owner or tenant
+        return LeaseCancellationRequest.objects.none() 
     # Create a function to override the post method to create a lease cancellation request
     def create(self, request, *args, **kwargs):
         tenant_user_id = request.data.get("tenant")
@@ -159,11 +168,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_cancellation_request_created" is not found
-            print("lease_cancellation_request_created not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_cancellation_request_created"
-            print("values key not found in lease_cancellation_request_created. Notification not sent.")
+
             pass
         # Return a success response containing the lease cancellation request object as well as a message and a 201 stuats code
         serializer = LeaseCancellationRequestSerializer(lease_cancellation_request)
@@ -197,7 +206,7 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
 
         # Retreive tenant from lease Agreement
         tenant_user = User.objects.get(id=lease_agreement.tenant.user.id)
-        print("Tenant User: ", tenant_user)
+
         tenant = Tenant.objects.get(user=tenant_user)
         customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
 
@@ -285,11 +294,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "tenant_lease_agreement_signed" is not found
-            print("tenant_lease_agreement_signed not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "tenant_lease_agreement_signed"
-            print("values key not found in lease_cancellation_request_approved. Notification not sent.")
+
             pass
 
         # Return a success response
@@ -308,7 +317,30 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
         lease_cancellation_request = LeaseCancellationRequest.objects.get(
             id=data["lease_cancellation_request_id"]
         )
-
+        account_type = request.user.account_type
+        if account_type == "tenant":
+            #check that the request user is the tenant that owns the lease cancellation request
+            if lease_cancellation_request.tenant.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease cancellation request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        elif account_type == "owner":
+            #check that the request user is the owner that owns the lease cancellation request
+            if lease_cancellation_request.owner.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease cancellation request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            
         # Delete Lease Cancellation Request
         lease_cancellation_request.status = "denied"
         lease_cancellation_request.save()
@@ -347,11 +379,11 @@ class LeaseCancellationRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_cancellation_request_denied" is not found
-            print("lease_cancellation_request_denied not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_cancellation_request_denied"
-            print("values key not found in lease_cancellation_request_denied. Notification not sent.")
+
             pass
 
         # Return a success response

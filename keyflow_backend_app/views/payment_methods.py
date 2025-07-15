@@ -1,4 +1,3 @@
-from calendar import c
 import os
 from dotenv import load_dotenv
 import stripe
@@ -8,7 +7,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from ..models.user import User
 from ..models.lease_agreement import LeaseAgreement
@@ -155,6 +153,14 @@ class ManagePaymentMethodsView(viewsets.ModelViewSet):
 
         #Retrierve the default payment method from the subscription
         subscriptions = stripe.Subscription.list(customer=stripe_customer_id)
+        if subscriptions == None or len(subscriptions.data) == 0:
+            return Response(
+                {
+                    "payment_methods":payment_methods, 
+                    "default_payment_method":None
+                }, 
+            status=status.HTTP_200_OK
+        )
         subscription = subscriptions.data[0]
         default_payment_method = subscription.default_payment_method
 

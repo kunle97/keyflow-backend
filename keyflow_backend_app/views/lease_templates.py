@@ -1,7 +1,5 @@
-import os
 import json
 import logging
-
 from dotenv import load_dotenv
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -9,11 +7,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from rest_framework.permissions import IsAuthenticated 
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
-from rest_framework.permissions import IsAuthenticated 
-from rest_framework.permissions import IsAuthenticated
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_unit import RentalUnit
@@ -22,13 +19,12 @@ from ..models.portfolio import Portfolio
 from ..models.lease_agreement import LeaseAgreement
 from ..models.lease_template import  LeaseTemplate
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
-from ..permissions import  IsResourceOwner
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from ..permissions.lease_template_permissions import IsOwner
 logger = logging.getLogger(__name__)
 load_dotenv()
 
@@ -47,8 +43,8 @@ class RetrieveLeaseTemplateByUnitView(APIView):
 class LeaseTemplateViewSet(viewsets.ModelViewSet):
     queryset = LeaseTemplate.objects.all()
     serializer_class = LeaseTemplateSerializer
-    permission_classes = [IsAuthenticated] #TODO: Add IsResourceOwner permission
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsOwner] #TODO: Add IsResourceOwner permission
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['term', 'rent', 'security_deposit' ]
     ordering_fields = ['term', 'rent', 'security_deposit','late_fee', 'created_at' ]
@@ -65,7 +61,11 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
             user_id = request.data.get('user_id')
             user = User.objects.get(id=user_id)
             owner = Owner.objects.get(user=user)
+            owner_plan_permissions = OwnerPlanAccessControl(owner)
             
+            if not owner_plan_permissions.can_create_new_lease_template():
+                return Response({'message': 'You have reached the maximum number of lease templates allowed by your plan. Upgrade your plan to create more lease templates.' }, status=status.HTTP_403_FORBIDDEN)
+
             data = request.data.copy()
             additional_charges = data['additional_charges']
             additional_charges_dict = json.loads(additional_charges)
@@ -232,8 +232,8 @@ class LeaseTemplateViewSet(viewsets.ModelViewSet):
         lease_template = LeaseTemplate.objects.get(id=data['lease_template_id'])
         selected_assignments_dict = json.loads(data['selected_assignments'])
         assignment_mode = data['assignment_mode']
-        print(selected_assignments_dict)
-        print(assignment_mode)
+
+
         if selected_assignments_dict and assignment_mode:
             if assignment_mode == 'unit':
                 for assignment in selected_assignments_dict:

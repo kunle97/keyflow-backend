@@ -1,4 +1,5 @@
 import os
+from re import sub
 from dotenv import load_dotenv
 import json
 import stripe
@@ -7,13 +8,15 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
-from keyflow_backend_app.models.account_type import Owner
-from keyflow_backend_app.helpers import unitNameIsValid
+from keyflow_backend_app.models.account_type import Owner, Tenant
+from keyflow_backend_app.helpers.helpers import unitNameIsValid
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_template import LeaseTemplate
 from keyflow_backend_app.models.rental_property import RentalProperty
-from ..models.rental_unit import RentalUnit, default_rental_unit_lease_terms
+from ..models.rental_unit import RentalUnit
 from ..models.lease_agreement import LeaseAgreement
 from ..models.maintenance_request import MaintenanceRequest
 from ..models.rental_application import RentalApplication
@@ -22,14 +25,12 @@ from ..serializers.rental_unit_serializer import  RentalUnitSerializer
 from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer 
 from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.rental_application_serializer import RentalApplicationSerializer
-from ..serializers.uploaded_file_serializer import UploadedFileSerializer
-from ..permissions import  IsResourceOwner, ResourceCreatePermission, UnitDeletePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import filters
-
+from ..permissions.rental_unit_permissions import IsOwner
 load_dotenv()
 
 #Create a class to retrieve a unit by its id using the class name RetrieveUnitByIdView
@@ -45,9 +46,8 @@ class RetrieveUnitByIdView(APIView):
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = RentalUnit.objects.all()
     serializer_class = RentalUnitSerializer
-    permission_classes = [ IsAuthenticated,IsResourceOwner, ResourceCreatePermission,UnitDeletePermission]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
-    # pagination_class = CustomPagination
+    permission_classes = [ IsAuthenticated,IsOwner]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
     search_fields = ['name']
@@ -56,10 +56,24 @@ class UnitViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        owner = Owner.objects.get(user=user)
-        queryset = super().get_queryset().filter(owner=owner)
-        return queryset
-    
+        if user.account_type == 'owner':
+            try:
+                owner = Owner.objects.get(user=user)
+                queryset = super().get_queryset().filter(owner=owner)
+                return queryset
+            except Owner.DoesNotExist:
+                return RentalUnit.objects.none()  # Return an empty queryset if no owner is found
+        elif user.account_type == 'tenant':
+            try:
+                tenant = Tenant.objects.get(user=user)
+                rental_unit = RentalUnit.objects.get(tenant=tenant)
+                queryset = super().get_queryset().filter(rental_property=rental_unit.rental_property)
+                return queryset
+            except (Tenant.DoesNotExist, RentalUnit.DoesNotExist):
+                return RentalUnit.objects.none()  # Return an empty queryset if no tenant or rental unit is found
+        else:
+            return RentalUnit.objects.none()  # Return an empty queryset if the account type doesn't match
+        
     def partial_update(self, request, *args, **kwargs):
         unit = self.get_object()
         serializer = self.get_serializer(unit)
@@ -97,9 +111,7 @@ class UnitViewSet(viewsets.ModelViewSet):
                 return super().partial_update(request, *args, **kwargs)
         if 'template_id' in request.data:
             template_id = request.data.get('template_id')
-            print(template_id)
             if template_id is  None:
-                print("template_id is None")
                 unit.template_id = None
                 unit.save()
                 return super().partial_update(request, *args, **kwargs)
@@ -108,8 +120,6 @@ class UnitViewSet(viewsets.ModelViewSet):
                 unit.save()
                 return super().partial_update(request, *args, **kwargs)
         return super().partial_update(request, *args, **kwargs)
-
-
 
     #Make a create function that creates a unit with all of the expected values as well as a subscription_id to check to see what subscription plan thee user has
     def create(self, request):
@@ -123,14 +133,15 @@ class UnitViewSet(viewsets.ModelViewSet):
         lease_template = None
         if rental_property_instance.lease_template:
             lease_template = rental_property_instance.lease_template
+            
         #Convert defauult lease_terms to dictionary 
-        lease_terms_dict = json.loads(default_lease_terms)
         product_id = data['product_id']
         units = json.loads(data['units']) #Retrieve the javascript object from from the request in the 'units' property and convert it to a python object 
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
-        subscription = stripe.Subscription.retrieve( 
-            subscription_id, #Retrieve the subscription from stripe
-        )
+        if subscription_id is not None:
+            subscription = stripe.Subscription.retrieve( 
+                subscription_id, #Retrieve the subscription from stripe
+            )
         
         #Validate the unit name using the validate_name function
         for unit in units:
@@ -143,10 +154,15 @@ class UnitViewSet(viewsets.ModelViewSet):
         if len(stripe_account_requirements) > 0:
             return Response({'message': 'Please complete your stripe account onboarding before creating units.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        #If user has the premium plan, check to see if they have 10 or less units
-        if product_id == os.getenv('STRIPE_STANDARD_PLAN_PRODUCT_ID'):
-            if RentalUnit.objects.filter(owner=owner).count() >= 10 or len(units) > 10 or len(units) + RentalUnit.objects.filter(owner=owner).count() > 10:
-                return Response({'message': 'You have reached the maximum number of units for your subscription plan. Please upgrade to a higher plan.'}, status=status.HTTP_400_BAD_REQUEST)
+        #Validate if user can create a new unit as per thier subscription plan
+        owner_plan_permissions = OwnerPlanAccessControl(owner)
+        if owner_plan_permissions.can_create_new_rental_unit(len(units)) is False:
+            return Response({
+                    'message': 'You have reached the maximum number of rental units allowed for your plan. Please upgrade your plan to create more rental units.',
+                    "status":status.HTTP_400_BAD_REQUEST
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(units) > 0:
             #Create the unit
             for unit in units:
                 rental_unit = RentalUnit.objects.create(
@@ -159,29 +175,18 @@ class UnitViewSet(viewsets.ModelViewSet):
                     lease_terms=default_lease_terms
                 )
                 rental_unit.apply_lease_template(lease_template)
-            return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
-        
-        #If user has the pro plan, increase the metered usage for the user based on the new number of units
-        if product_id == os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID'):
-            #Create the unit 
-            for unit in units:
-                rental_unit = RentalUnit.objects.create(
-                    rental_property_id=rental_property,
-                    owner=owner,
-                    name=unit['name'],
-                    beds=unit['beds'],
-                    baths=unit['baths'],
-                    size=unit['size'],
-                    lease_terms=data['lease_terms']  
-                )
-                rental_unit.apply_lease_template(lease_template)
+
+        #Check if user is on the professional or enterprise plan. if so update the metered usage for the user
+        if product_id == os.getenv('STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID') or product_id == os.getenv('STRIPE_OWNER_ENTERPRISE_PLAN_PRODUCT_ID'):
             #Update the subscriptions quantity to the new number of units
             subscription_item=stripe.SubscriptionItem.modify(
                 subscription['items']['data'][0].id,
                 quantity=RentalUnit.objects.filter(owner=owner).count(),
             )
             return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
-        return Response({"message","error Creating unit"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({'message': 'Unit(s) created successfully.', 'status':status.HTTP_201_CREATED}, status=status.HTTP_201_CREATED)
+  
 
     #Create a function that override the dlete function to delete the unit and decrease the metered usage for the user
     def destroy(self, request, pk=None):
@@ -192,23 +197,29 @@ class UnitViewSet(viewsets.ModelViewSet):
         product_id = data['product_id']
         subscription_id = data['subscription_id']
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
-        subscription = stripe.Subscription.retrieve( 
-            subscription_id, #Retrieve the subscription from stripe
-        )
+
+        #Check if unit is occupied
+        if unit.is_occupied:
+            return Response({'message': 'Unit is occupied and cannot be deleted.', 'status':status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+
+        if product_id is None:
+            unit.delete()
+            return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_204_NO_CONTENT}, status=status.HTTP_204_NO_CONTENT)
+
+        if subscription_id is not None:
+            subscription = stripe.Subscription.retrieve( 
+                subscription_id, #Retrieve the subscription from stripe
+            )
         
- 
         #If user has the pro plan, decrease the metered usage for the user
-        if product_id == os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID'):
+        if product_id == os.getenv('STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID') or product_id == os.getenv('STRIPE_OWNER_ENTERPRISE_PLAN_PRODUCT_ID'):
             #Retrieve the subscription item from the subscription and Update the subscriptions quantity to the new number of units
             subscription_item = stripe.SubscriptionItem.modify(
                 subscription['items']['data'][0].id,
                 quantity=RentalUnit.objects.filter(owner=owner).count() - 1,
             )
             unit.delete()
-            return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
-        elif product_id == os.getenv('STRIPE_STANDARD_PLAN_PRODUCT_ID'): #If user has the premium plan, delete the unit
-            unit.delete()
-            return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_200_OK}, status=status.HTTP_200_OK)
+            return Response({'message': 'Unit deleted successfully.', 'status':status.HTTP_204_NO_CONTENT}, status=status.HTTP_204_NO_CONTENT)
 
         return Response({"message","error deleting unit"}, status=status.HTTP_400_BAD_REQUEST) 
 

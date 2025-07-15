@@ -1,6 +1,7 @@
+import os
+import csv
 import json
 import stripe
-import os
 from dotenv import load_dotenv
 from django.http import JsonResponse
 from rest_framework import viewsets
@@ -8,38 +9,46 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
+from rest_framework.authentication import SessionAuthentication 
 from rest_framework.permissions import IsAuthenticated 
-import csv
 from rest_framework.parsers import MultiPartParser
 from django.core.exceptions import ValidationError
 from io import TextIOWrapper
 from rest_framework.response import Response
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.models.portfolio import Portfolio
 from keyflow_backend_app.models.account_type import Owner
 from ..models.user import User
 from ..models.rental_property import  RentalProperty
 from ..models.rental_unit import  RentalUnit
 from ..serializers.user_serializer import UserSerializer
-from ..serializers.rental_property_serializer import RentalPropertySerializer
+from ..serializers.rental_property_serializer import RentalPropertySerializer, RentalPropertyDetailSerializer
 from ..serializers.rental_unit_serializer import RentalUnitSerializer
-from keyflow_backend_app.helpers import propertyNameIsValid, unitNameIsValid
+from keyflow_backend_app.helpers.helpers import propertyNameIsValid, unitNameIsValid
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
+from ..permissions.rental_proeprty_permissions import IsOwner
 load_dotenv()
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = RentalProperty.objects.all()
     serializer_class = RentalPropertySerializer
-    permission_classes = [IsAuthenticated] #TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsOwner] #TODO: Add IsResourceOwner, PropertyCreatePermission, PropertyDeletePermission permissions
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     parser_classes = [MultiPartParser]
     # pagination_class = CustomPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     ordering_fields = ['name', 'street','city', 'created_at', 'id', 'state' ]
     search_fields = ['name', 'street', 'city', 'state']
     filterset_fields = ['city', 'state', 'zip_code']
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return RentalPropertyDetailSerializer
+        return RentalPropertySerializer
+
 
     def get_serializer_context(self): #TODO: Delete if not needed
             # Make sure you include the context in the serializer instance
@@ -55,6 +64,16 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         user = request.user
         owner = Owner.objects.get(user=user)
+        owner_plan_permissions = OwnerPlanAccessControl(owner)
+
+        #Validate if the owner has reached the maximum number of rental properties allowed for their plan
+        if owner_plan_permissions.can_create_new_rental_property() is False:
+            return Response({
+                    'error_type':'max_properties_error',
+                    'message': 'You have reached the maximum number of rental properties allowed for your plan. Please upgrade your plan to create more properties.',
+                    "status":status.HTTP_400_BAD_REQUEST
+                }, status=status.HTTP_400_BAD_REQUEST)
+
          #Retrieve the users stripe account
         stripe.api_key = os.getenv('STRIPE_SECRET_API_KEY')
         stripe_account = stripe.Account.retrieve(owner.stripe_account_id)
@@ -69,7 +88,14 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
         return super().create(request, *args, **kwargs)
 
-        
+    #Create a destroy method that checks if the property has units before deleting it
+    def destroy(self, request, *args, **kwargs):
+        property = self.get_object()
+        if property.rental_units.count() > 0:
+            return Response({'message': 'You cannot delete a property with units.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
+    
+
     #Create an endpont that validates the property name using the helper function propertyNameIsValid
     @action(detail=False, methods=['post'], url_path='validate-name')
     def validate_property_name_endpoint(self, request):
@@ -133,7 +159,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
                         **property_data  # Unpack the dictionary into keyword arguments
                     )
                 else:
-                    print(f'Property name already exists {row["name"]}')
+
                     return Response({'error_type':'duplicate_name_error','message': 'One more more of the properties you are trying to import have a name that conflicts with a property name that already exists.',"status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
                 
             return Response({'message': 'Units created successfully.'}, status=status.HTTP_201_CREATED)
@@ -206,7 +232,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     def update_portfolio(self, request, pk=None):
         property_instance = self.get_object()
         data = request.data.copy()
-        print(data)
+
         portfolio_instance = Portfolio.objects.get(id=data["portfolio"])
         portfolio_preferences = json.loads(portfolio_instance.preferences)
 
@@ -239,7 +265,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['patch'], url_path="update-portfolios")
     def update_portfolios(self, request):
         data = request.data.copy()
-        print(data["properties"])
+
         properties = json.loads(data["properties"])
         portfolio_id = data["portfolio"]
         selected_properties = RentalProperty.objects.filter(id__in=properties)

@@ -1,6 +1,6 @@
 from rest_framework import viewsets
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import  SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.response import Response
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
@@ -12,12 +12,14 @@ from ..serializers.maintenance_request_serializer import MaintenanceRequestSeria
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
-
+from ..permissions.maintenance_request_permissions import IsOwnerOrTenant
+from rest_framework.permissions import IsAuthenticated 
 
 class MaintenanceRequestViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
+    permission_classes = [IsOwnerOrTenant, IsAuthenticated]
     serializer_class = MaintenanceRequestSerializer
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -51,7 +53,7 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
         user = self.request.user  # Get the current user
         user = User.objects.get(id=user.id)
         data = request.data.copy()
-        print(data)
+
         rental_unit = RentalUnit.objects.get(id=data["rental_unit"])
         rental_property = RentalProperty.objects.get(id=data["rental_property"])
         description = data["description"]
@@ -111,8 +113,8 @@ class MaintenanceRequestViewSet(viewsets.ModelViewSet):
                     priority = "Urgent"
                 elif data["priority"] == "5":
                     priority = "Emergency"
-                print(data["priority"])
-                print(f"Priorty: {priority}")
+
+
                 description = f"The priority of this maintenance request has been updated to {priority}"
             MaintenanceRequestEvent.objects.create(
                 maintenance_request=maintenance_request,

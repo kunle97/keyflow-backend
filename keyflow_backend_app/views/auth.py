@@ -1,10 +1,10 @@
 from datetime import timedelta
 import os
+import logging
 from postmarker.core import PostmarkClient
-import time
 from dotenv import load_dotenv
-from django.contrib.auth.hashers import make_password
 from django.utils import timezone
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.expiring_token import ExpiringToken
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,36 +13,23 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth import get_user_model, authenticate, login
+from django.contrib.auth import login
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
-from django.db import transaction
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.serializers.account_type_serializer import OwnerSerializer, TenantSerializer
-from ..models.notification import Notification
 from ..models.user import User
 from ..models.account_type import Owner, Tenant
-from ..models.rental_property import RentalProperty
-from ..models.rental_unit import RentalUnit
-from ..models.maintenance_request import MaintenanceRequest
-from ..models.lease_template import LeaseTemplate
 from ..models.transaction import Transaction
-from ..models.rental_application import RentalApplication
 from ..models.account_activation_token import AccountActivationToken
-from ..serializers.notification_serializer import NotificationSerializer
 from ..serializers.user_serializer import UserSerializer
-from ..serializers.rental_property_serializer import RentalPropertySerializer
-from ..serializers.rental_unit_serializer import RentalUnitSerializer
-from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer
-from ..serializers.lease_template_serializer import LeaseTemplateSerializer
 from ..serializers.transaction_serializer import TransactionSerializer
-from ..serializers.rental_application_serializer import RentalApplicationSerializer
-
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Create the login endpoint view
@@ -52,7 +39,7 @@ class UserLoginView(APIView):
         password = request.data.get("password")
         user = User.objects.filter(email=email).first()
         remember_me = request.data.get("remember_me")
-        print("remember_me: ", remember_me)
+
 
         expiration_time_in_days = 1
         if user is None:
@@ -88,6 +75,8 @@ class UserLoginView(APIView):
         if user.account_type == "owner":
             try:
                 owner = Owner.objects.get(user=user)
+                owner_plan_permissions = OwnerPlanAccessControl(owner)
+                plan_data = owner_plan_permissions.plan_data
                 token = self.manage_token(user, expiration_date)
                 user_serializer = UserSerializer(instance=user)
                 owner_serializer = OwnerSerializer(instance=owner)
@@ -98,6 +87,7 @@ class UserLoginView(APIView):
                         "owner": owner_serializer.data,
                         "token": token.key,
                         "token_expiration_date": expiration_date,
+                        "subscription_plan_data": plan_data,
                         "statusCode": status.HTTP_200_OK,
                         "owner_id": owner.pk,
                         "isAuthenticated": True,
@@ -143,52 +133,115 @@ class UserLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+
     def manage_token(self, user, expiration_date):
-        # Check if the user already has an active token
         existing_token = ExpiringToken.objects.filter(user=user).first()
         if existing_token:
-            if existing_token.is_expired():
-                existing_token.delete()
-                token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date)
-                token.key = Token.generate_key()
-                token.save()
-            else:
-                token = existing_token
-        else:
-            token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date, key=Token.generate_key())
+            logger.info(f"Deleting existing token for user {user.id}")
+            existing_token.delete()
 
+        token = ExpiringToken.objects.create(
+            user=user,
+            expiration_date=expiration_date,
+            key=Token.generate_key()
+        )
+        logger.info(f"Created new token for user {user.id}")
         return token
     
-# create a logout endpoint that deletes the token
+
 class UserLogoutView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication]
 
     def post(self, request):
         user = request.user
-        # Check if the user has an expiring token
-        expiring_token = ExpiringToken.objects.filter(user=user).first()
-        if expiring_token:
-            expiring_token.delete()  # Delete the expiring token
-            return Response(
-                {"message": "User logged out successfully.", "status": status.HTTP_200_OK},
-                status=status.HTTP_200_OK,
-            )
+        if user.is_authenticated:
+            # Check if the user has an expiring token
+            expiring_token = ExpiringToken.objects.filter(user=user).first()
+            if expiring_token:
+                expiring_token.delete()  # Delete the expiring token
+                return Response(
+                    {"message": "User logged out successfully."},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"message": "No active token found for the user."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
         else:
             return Response(
-                {"message": "No active token found for the user.", "status": status.HTTP_404_NOT_FOUND},
-                status=status.HTTP_404_NOT_FOUND,
+                {"message": "User is not authenticated."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+ 
+# create an endpoint to activate the account of a new user that will set the  is_active field to true
+class UserActivationView(APIView):
+    def post(self, request):
+        # Verify that the account activation token is valid
+        account_activation_token = AccountActivationToken.objects.get(
+            token=request.data.get("activation_token")
+        )
+        if account_activation_token is None:
+            return Response(
+                {"message": "Invalid token.", "status": status.HTTP_400_BAD_REQUEST},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-# class UserRegistrationView(APIView):
+        # retrieve user via account activation token
+        user = User.objects.get(email=account_activation_token.email)
+
+        if user is None:
+            return Response(
+                {"message": "Error activating user."}, status=status.HTTP_404_NOT_FOUND
+            )
+        user.is_active = True
+        user.save()
+        # Delete the account activation token
+        account_activation_token.delete()
+        return Response(
+            {
+                "account_type": user.account_type,
+                "message": "User activated successfully.",
+                "status": status.HTTP_200_OK,
+            },
+            status=status.HTTP_200_OK,
+        )
+   
+#Create a class that has a post method to check if the email exists in the database
+class UserEmailCheckView(APIView):
+    def post(self, request):
+        email = request.data.get("email")
+        user = User.objects.filter(email=email).exists()
+        if user:
+            return Response(
+                {"message": "Email already exists.", "status": status.HTTP_400_BAD_REQUEST},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {"message": "Email does not exist.", "status": status.HTTP_200_OK},
+            status=status.HTTP_200_OK,
+        )
 
 
-# Create a class that retrieve a price from stripe subscriptions for owners and returns it in the response
-
+#Create a class that has a post method to check if a username exists in the database
+class UsernameCheckView(APIView):
+    def post(self, request):
+        username = request.data.get("username")
+        user = User.objects.filter(username=username).exists()
+        if user:
+            return Response(
+                {"message": "Username already exists.", "status": status.HTTP_400_BAD_REQUEST},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {"message": "Username does not exist.", "status": status.HTTP_200_OK},
+            status=status.HTTP_200_OK,
+        )
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
 
     filter_backends = [
         DjangoFilterBackend,
@@ -248,36 +301,3 @@ class UserViewSet(viewsets.ModelViewSet):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-
-# create an endpoint to activate the account of a new user that will set the  is_active field to true
-class UserActivationView(APIView):
-    def post(self, request):
-        # Verify that the account activation token is valid
-        account_activation_token = AccountActivationToken.objects.get(
-            token=request.data.get("activation_token")
-        )
-        if account_activation_token is None:
-            return Response(
-                {"message": "Invalid token.", "status": status.HTTP_400_BAD_REQUEST},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # retrieve user via account activation token
-        user = User.objects.get(email=account_activation_token.email)
-
-        if user is None:
-            return Response(
-                {"message": "Error activating user."}, status=status.HTTP_404_NOT_FOUND
-            )
-        user.is_active = True
-        user.save()
-        # Delete the account activation token
-        account_activation_token.delete()
-        return Response(
-            {
-                "account_type": user.account_type,
-                "message": "User activated successfully.",
-                "status": status.HTTP_200_OK,
-            },
-            status=status.HTTP_200_OK,
-        )

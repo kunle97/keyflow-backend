@@ -1,22 +1,17 @@
 from rest_framework import viewsets
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication 
-from rest_framework.permissions import IsAuthenticated 
-from rest_framework.response import Response
+from rest_framework.authentication import SessionAuthentication 
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from keyflow_backend_app.models.account_type import Owner, Tenant
-from keyflow_backend_app.models.maintenance_request_event import MaintenanceRequestEvent
 from keyflow_backend_app.models.user import User
-from keyflow_backend_app.serializers.maintenance_request_event_serializer import MaintenanceRequestEventSerializer
 from ..models.maintenance_request import MaintenanceRequest
 from ..serializers.maintenance_request_serializer import MaintenanceRequestSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from rest_framework import status
-from rest_framework.decorators import action
 
 class MaintenanceRequestEventViewSet(viewsets.ModelViewSet):
     queryset = MaintenanceRequest.objects.all()
     serializer_class = MaintenanceRequestSerializer
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

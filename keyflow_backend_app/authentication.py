@@ -1,4 +1,4 @@
-from .models.expiring_token import ExpiringToken 
+from .models.expiring_token import ExpiringToken
 from rest_framework.authentication import TokenAuthentication
 
 class ExpiringTokenAuthentication(TokenAuthentication):

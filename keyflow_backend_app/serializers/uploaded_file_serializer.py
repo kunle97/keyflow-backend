@@ -1,11 +1,9 @@
-import os
-import boto3
 from rest_framework import serializers
 from ..models.uploaded_file import UploadedFile
 from django.core.files.storage import default_storage
 from datetime import datetime
 from dotenv import load_dotenv
-from ..helpers import make_id, generate_presigned_url
+from ..helpers.helpers import make_id, generate_presigned_url
 
 load_dotenv()
 

@@ -1,10 +1,9 @@
 # Standard library imports
 import json
 import os
-from datetime import timedelta, datetime, time
+from datetime import timedelta, datetime
 from dotenv import load_dotenv
 # Third-party library imports
-from pkg_resources import require
 import stripe
 from postmarker.core import PostmarkClient
 from dateutil.relativedelta import relativedelta
@@ -12,16 +11,19 @@ from django.contrib.auth.hashers import make_password
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import viewsets, status
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
 # Model imports
-from keyflow_backend_app.helpers import create_rent_invoices
+from keyflow_backend_app.helpers.helpers import create_autopay_subscription_for_tenant, create_rent_invoices, cancel_existing_rent_subscriptions
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
+from keyflow_backend_app.models.lease_template import LeaseTemplate
 from keyflow_backend_app.models.notification import Notification
+from keyflow_backend_app.models.uploaded_file import UploadedFile
 from keyflow_backend_app.models.user import User
 from keyflow_backend_app.models.account_type import Owner, Staff, Tenant
 from keyflow_backend_app.models.rental_property import RentalProperty
@@ -55,8 +57,16 @@ load_dotenv()
 
 class OwnerViewSet(viewsets.ModelViewSet):
     queryset = Owner.objects.all()
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     serializer_class = OwnerSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.account_type == "owner":
+            owner = Owner.objects.get(user=user)
+            queryset = super().get_queryset().filter(user=owner.user)
+            return queryset
+        return super().get_queryset()
 
     # Replaces the UserREgistrationView(endpoint api/auth/register/)
     @action(
@@ -91,31 +101,35 @@ class OwnerViewSet(viewsets.ModelViewSet):
             # Create a customer id for the user
             customer = stripe.Customer.create(email=user.email)
 
-            # attach payment method to the customer adn make it default
-            payment_method_id = data["payment_method_id"]
-            stripe.PaymentMethod.attach(
-                payment_method_id,
-                customer=customer.id,
-            )
+            payment_method_id = None
+            subscription = None
+            if "payment_method_id" in data and data["payment_method_id"] != None:
+                # attach payment method to the customer adn make it default
+                payment_method_id = data["payment_method_id"]
+                stripe.PaymentMethod.attach(
+                    payment_method_id,
+                    customer=customer.id,
+                )
 
-            # Subscribe owner to thier selected plan using product id and price id
-            product_id = data["product_id"]
-            price_id = data["price_id"]
-            subscription = stripe.Subscription.create(
-                customer=customer.id,
-                items=[
-                    {"price": price_id},
-                ],
-                default_payment_method=payment_method_id,
-                metadata={
-                    "type": "revenue",
-                    "description": f"{user.first_name} {user.last_name} Owner Subscrtiption",
-                    "product_id": product_id,
-                    "user_id": user.id,
-                    "tenant_id": user.id,
-                    "payment_method_id": payment_method_id,
-                },
-            )
+                # Subscribe owner to thier selected plan using product id and price id
+                product_id = data["product_id"]
+                price_id = data["price_id"]
+                subscription = stripe.Subscription.create(
+                    customer=customer.id,
+                    items=[
+                        {"price": price_id},
+                    ],
+                    default_payment_method=payment_method_id,
+                    metadata={
+                        "type": "revenue",
+                        "description": f"{user.first_name} {user.last_name} Owner Subscrtiption",
+                        "product_id": product_id,
+                        "user_id": user.id,
+                        "tenant_id": user.id,
+                        "payment_method_id": payment_method_id,
+                    },
+                    trial_end=int((datetime.now() + timedelta(days=90)).timestamp())
+                )
             client_hostname = os.getenv("CLIENT_HOSTNAME")
             refresh_url = f"{client_hostname}/dashboard/owner/login"
             return_url = f"{client_hostname}/dashboard/activate-account/"
@@ -130,12 +144,16 @@ class OwnerViewSet(viewsets.ModelViewSet):
                 False  # TODO: Remove this for activation flow implementation
             )
             user.save()
-            
+            subscription_id = None
+            if subscription:
+                subscription_id = subscription.id
+            else:
+                subscription_id = None
             Owner.objects.create(
                 user=user,
                 stripe_account_id=stripe_account.id,
                 stripe_customer_id=customer.id,
-                stripe_subscription_id=subscription.id,
+                stripe_subscription_id=subscription_id,
             )
 
             # Create an account activation token for the user
@@ -177,7 +195,7 @@ class OwnerViewSet(viewsets.ModelViewSet):
         refresh_url = f"{client_hostname}/dashboard/owner/login"
         return_url = f"{client_hostname}/dashboard/activate-account/"
         account_link = stripe.Account.create_login_link(
-            id=owner.stripe_account_id,
+            owner.stripe_account_id,
         )
 
         return Response(
@@ -305,8 +323,9 @@ class OwnerViewSet(viewsets.ModelViewSet):
         subscriptions = stripe.Subscription.list(customer=customer_id)
         owner_subscription = None
 
+        #loop through the subscriptions and find the active subscription
         for subscription in subscriptions.auto_paging_iter():
-            if subscription.status == "active":
+            if subscription.status == "active" or subscription.status == "trialing":
                 owner_subscription = subscription
                 break
 
@@ -342,83 +361,113 @@ class OwnerViewSet(viewsets.ModelViewSet):
     # Create a function to chagne a user's stripe susbcription plan
     @action(detail=True, methods=["post"], url_path="change-subscription-plan")
     def change_subscription_plan(self, request, pk=None):
-        user = self.get_object()
+        user = request.user
+        owner =  Owner.objects.get(user=user)
         data = request.data.copy()
+        
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-        # retrieve the customer's subscription
-        subscription = stripe.Subscription.retrieve(data["subscription_id"])
-        current_product_id = subscription["items"]["data"][0]["price"]["product"]
+        stripe_customer = stripe.Customer.retrieve(owner.stripe_customer_id)
+        price_id = data["price_id"]
+        product_id = data["product_id"]
+        subscription_id = data.get('subscription_id')
+        
+        current_subscription = self.get_current_subscription(subscription_id)
+        current_product_id = current_subscription["items"]["data"][0]["price"]["product"] if current_subscription else None
 
-        # Check if the product id from the current subscription matches the product id from the request and return an error that this current plan is already active
-        if current_product_id == data["product_id"]:
-            return Response(
-                {
-                    "message": "This subscription is already active.",
+        # Validation checks
+        error_response = self.validate_subscription_change(current_product_id, product_id, owner)
+        if error_response:
+            return error_response
+
+        # Handle subscription creation or updating
+        if current_subscription is None:
+            new_subscription = self.create_new_subscription(stripe_customer.id, price_id, product_id, user)
+        else:
+            stripe.Subscription.delete(current_subscription.id)
+            new_subscription = self.create_new_subscription(stripe_customer.id, price_id, product_id, user)
+
+        owner.stripe_subscription_id = new_subscription.id
+        owner.save()
+
+        # Update subscription items and metadata for specific plans
+        if product_id in [
+            os.getenv("STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID"), 
+            os.getenv("STRIPE_OWNER_ENTERPRISE_PLAN_PRODUCT_ID")
+        ]:
+            self.update_subscription_items(new_subscription, price_id, owner)
+
+        return Response({
+            "subscription": new_subscription,
+            "message": "Subscription plan changed successfully.",
+            "status": status.HTTP_200_OK,
+        }, status=status.HTTP_200_OK)
+
+    def get_current_subscription(self, subscription_id):
+        if subscription_id:
+            return stripe.Subscription.retrieve(subscription_id)
+        return None
+
+    def validate_subscription_change(self, current_product_id, new_product_id, owner):
+        if current_product_id and current_product_id == new_product_id:
+            return Response({
+                "message": "This subscription is already active.",
+                "status": status.HTTP_400_BAD_REQUEST,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if current_product_id == os.getenv("STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID"):
+            if new_product_id == os.getenv("STRIPE_OWNER_STANDARD_PLAN_PRODUCT_ID") and self.get_units_count(owner) > 15:
+                return Response({
+                    "message": "You cannot downgrade to the standard plan with more than 15 units.",
                     "status": status.HTTP_400_BAD_REQUEST,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if the product id from the current subscription is equal to os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID') then check if the user has 10 or more units. If they do return an error that they cannot downgrade to the standard plan
-        if current_product_id == os.getenv("STRIPE_PRO_PLAN_PRODUCT_ID") and data[
-            "product_id"
-        ] == os.getenv("STRIPE_STANDARD_PLAN_PRODUCT_ID"):
-            # Retrieve the user's units
-            units = RentalUnit.objects.filter(user=user)
-            if units.count() > 10:
-                return Response(
-                    {
-                        "message": "You cannot downgrade to the standard plan with more than 10 units.",
-                        "status": status.HTTP_400_BAD_REQUEST,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        if new_product_id == os.getenv("STRIPE_OWNER_PROFESSIONAL_PLAN_PRODUCT_ID") and self.get_units_count(owner) < 15:
+            return Response({
+                "message": "You cannot upgrade to the professional plan with less than 15 units.",
+                "status": status.HTTP_400_BAD_REQUEST,
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        # check if the product id from the request is equal to os.getenv('STRIPE_PRO_PLAN_PRODUCT_ID') and update the subscription item to the new price id and quantity of units
-        if data["product_id"] == os.getenv("STRIPE_PRO_PLAN_PRODUCT_ID"):
-            # Retrieve the user's units
-            units = RentalUnit.objects.filter(user=user)
-            # Update the subscription item to the new price id and quantity of units
-            stripe.SubscriptionItem.modify(
-                subscription["items"]["data"][0].id,
-                price=data["price_id"],
-                quantity=units.count(),
-            )
-            # modify the subscription metadata field product_id
-            stripe.Subscription.modify(
-                subscription.id,
-                metadata={"product_id": data["product_id"]},
-            )
-            # Return a success message
-            return Response(
-                {
-                    "subscription": subscription,
-                    "message": "Subscription plan changed successfully.",
-                    "status": status.HTTP_200_OK,
-                },
-                status=status.HTTP_200_OK,
-            )
+        if new_product_id is None and self.get_units_count(owner) > 4:
+            return Response({
+                "message": "You cannot downgrade to the free plan with more than 4 units.",
+                "status": status.HTTP_400_BAD_REQUEST,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return None
 
+    def get_units_count(self, owner):
+        return RentalUnit.objects.filter(owner=owner).count()
+
+    def create_new_subscription(self, customer_id, price_id, product_id, user):
+        payment_methods = stripe.PaymentMethod.list(customer=customer_id, type="card")
+        payment_method_id = payment_methods["data"][0].id
+
+        new_subscription = stripe.Subscription.create(
+            customer=customer_id,
+            items=[{"price": price_id}],
+            default_payment_method=payment_method_id,
+            metadata={
+                "type": "revenue",
+                "description": f"{user.first_name} {user.last_name} Owner Subscription",
+                "product_id": product_id,
+                "user_id": user.id,
+                "owner_id": user.id,
+                "payment_method_id": payment_method_id,
+            },
+        )
+        return new_subscription
+
+    def update_subscription_items(self, subscription, price_id, owner):
+        units_count = self.get_units_count(owner)
         stripe.SubscriptionItem.modify(
             subscription["items"]["data"][0].id,
-            price=data["price_id"],
+            price=price_id,
+            quantity=units_count,
         )
-
-        # modify the subscription metadata field product_id
         stripe.Subscription.modify(
             subscription.id,
-            metadata={"product_id": data["product_id"]},
+            metadata={"product_id": subscription["metadata"]["product_id"]},
         )
-
-        return Response(
-            {
-                "subscription": subscription,
-                "message": "Subscription plan changed successfully.",
-                "status": status.HTTP_200_OK,
-            },
-            status=status.HTTP_200_OK,
-        )
-
     #Create a function that retireves the owner's preferences
     @action(detail=True, methods=["get"], url_path="preferences") #GET: api/owners/{id}/preferences
     def preferences(self, request, pk=None):
@@ -435,9 +484,50 @@ class OwnerViewSet(viewsets.ModelViewSet):
         owner.save()
         return Response({"preferences":preferences},status=status.HTTP_200_OK)
     
+    #Create a function that retrieves the owner's plan data
+    @action(detail=True, methods=["get"], url_path="subscription-plan-data") #GET: api/owners/{id}/subscription-plan-data
+    def subscription_plan_data(self, request, pk=None):
+        owner = self.get_object()
+        owner_plan_access_control = OwnerPlanAccessControl(owner)
+        plan_data = owner_plan_access_control.get_owner_plan_permission_data()
+        return Response({
+            "can_create_new_rental_property":owner_plan_access_control.can_create_new_rental_property(),
+            "can_create_new_rental_unit":owner_plan_access_control.can_create_new_rental_unit(),
+            "can_create_new_lease_template":owner_plan_access_control.can_create_new_lease_template(),
+            "can_create_new_lease_agreement":owner_plan_access_control.can_create_new_lease_agreement(),
+            "max_file_size":owner_plan_access_control.get_max_file_size(),
+            "can_use_announcements":owner_plan_access_control.can_use_announcements(),
+            "can_use_maintenance_requests":owner_plan_access_control.can_use_maintenance_requests(),
+            "can_use_portfolios":owner_plan_access_control.can_use_portfolios(),
+            "can_use_messaging":owner_plan_access_control.can_use_messaging(),
+            "can_use_rental_applications":owner_plan_access_control.can_use_rental_applications(),
+            "plan_data":plan_data
+        },
+            status=status.HTTP_200_OK
+        )
+    
+    #Create a function that retrieves the owner's usage stats on how many rental properties, file uploads, units, lease templates, lease agreements, and tenants they have
+    @action(detail=True, methods=["get"], url_path="usage-stats") #GET: api/owners/{id}/usage-stats
+    def usage_stats(self, request, pk=None):
+        owner = self.get_object()
+        rental_properties = RentalProperty.objects.filter(owner=owner)
+        rental_units = RentalUnit.objects.filter(owner=owner)
+        lease_templates = LeaseTemplate.objects.filter(owner=owner)
+        lease_agreements = LeaseAgreement.objects.filter(owner=owner)
+        tenants = Tenant.objects.filter(owner=owner)
+        file_uploads = UploadedFile.objects.filter(user=request.user)
+        return Response({
+            "rental_properties":rental_properties.count(),
+            "rental_units":rental_units.count(),
+            "tenants":tenants.count(),
+            "lease_templates":lease_templates.count(),
+            "lease_agreements":lease_agreements.count(),
+            "file_uploads":file_uploads.count()
+        },status=status.HTTP_200_OK)
+    
 class StaffViewSet(viewsets.ModelViewSet):
     queryset = Staff.objects.all()
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     serializer_class = StaffSerializer
     filter_backends = [
         DjangoFilterBackend,
@@ -455,7 +545,7 @@ class StaffViewSet(viewsets.ModelViewSet):
 
 class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     serializer_class = TenantSerializer
     filter_backends = [
         DjangoFilterBackend,
@@ -543,11 +633,11 @@ class TenantViewSet(viewsets.ModelViewSet):
                         )
             except StopIteration:
                 # Handle case where "new_tenant_registration_complete" is not found
-                print("new_tenant_registration_complete not found. Notification not sent")
+
                 pass
             except KeyError:
                 # Handle case where "values" key is missing in "new_tenant_registration_complete"
-                print("values key not found in new_tenant_registration_complete. Notification not sent")
+
                 pass
             unit.tenant = tenant
             unit.is_occupied = True
@@ -583,6 +673,11 @@ class TenantViewSet(viewsets.ModelViewSet):
             stripe.PaymentMethod.attach(
                 payment_method_id,
                 customer=customer.id,
+            )
+            #Set payment method as default for the customer
+            stripe.Customer.modify(
+                customer.id,
+                invoice_settings={"default_payment_method": payment_method_id},
             )
 
             owner_user = owner.user
@@ -623,42 +718,6 @@ class TenantViewSet(viewsets.ModelViewSet):
             )
             term_value = int(term["value"])
 
-            if security_deposit_value > 0:
-                security_deposit_invoice = stripe.Invoice.create(
-                    customer=customer.id,
-                    auto_advance=True,
-                    collection_method="send_invoice",
-                    # Set duedate for today
-                    due_date=int(datetime.now().timestamp())+1000,
-                    metadata={
-                        "type": "security_deposit",
-                        "description": "Security Deposit Payment",
-                        "tenant_id": tenant.id,
-                        "owner_id": owner.id,
-                        "rental_property_id": unit.rental_property.id,
-                        "rental_unit_id": unit.id,
-                        "lease_agreement_id": lease_agreement.id,
-                    },
-                    transfer_data={"destination": unit.owner.stripe_account_id},
-                )
-                # Create stripe price for security deposit
-                price = stripe.Price.create(
-                    unit_amount=int(security_deposit_value * 100),
-                    currency="usd",
-                    product_data={
-                        "name": str(
-                            f"Security Deposit for unit {unit.name} at {unit.rental_property.name}"
-                        )
-                    },
-                )
-                stripe.InvoiceItem.create(
-                    customer=customer.id,
-                    price=price.id,
-                    currency="usd",
-                    description=f"{tenant.user.first_name} {tenant.user.last_name} Security Deposit Payment for unit {unit.name} at {unit.rental_property.name}",
-                    invoice=security_deposit_invoice.id,
-                )
-                stripe.Invoice.finalize_invoice(security_deposit_invoice.id)
 
             if grace_period_value != 0:
                 start_date = datetime.fromisoformat(str(lease_agreement.start_date))
@@ -673,41 +732,41 @@ class TenantViewSet(viewsets.ModelViewSet):
                 elif rent_frequency_value == "year":
                     end_date = start_date + relativedelta(years=time_to_add)
 
-                lease_agreement_product_name = (
-                    f"Rent for unit {unit.name} at {unit.rental_property.name}"
-                )
-                lease_agreement_product = stripe.Product.create(
-                    name=lease_agreement_product_name,
-                    type="service",
-                )
-                lease_agreement_price = stripe.Price.create(
-                    unit_amount=int(rent_value * 100),
-                    currency="usd",
-                    recurring={"interval": rent_frequency_value},
-                    product=lease_agreement_product.id,
-                    metadata={
-                        "type": "rent_payment",
-                        "lease_agreement_id": lease_agreement.id,
-                        "owner_id": owner.id,
-                        "tenant_id": tenant.id,
-                    },
-                )
+                # lease_agreement_product_name = (
+                #     f"Rent for unit {unit.name} at {unit.rental_property.name}"
+                # )
+                # lease_agreement_product = stripe.Product.create(
+                #     name=lease_agreement_product_name,
+                #     type="service",
+                # )
+                # lease_agreement_price = stripe.Price.create(
+                #     unit_amount=int(rent_value * 100),
+                #     currency="usd",
+                #     recurring={"interval": rent_frequency_value},
+                #     product=lease_agreement_product.id,
+                #     metadata={
+                #         "type": "rent_payment",
+                #         "lease_agreement_id": lease_agreement.id,
+                #         "owner_id": owner.id,
+                #         "tenant_id": tenant.id,
+                #     },
+                # )
 
-                items = [{"price": lease_agreement_price.id}]
+                # items = [{"price": lease_agreement_price.id}]
                 additional_charges_dict = json.loads(unit.additional_charges)
-                for charge in additional_charges_dict:
-                    charge_product_name = f"{charge['name']} for unit {unit.name} at {unit.rental_property.name}"
-                    charge_product = stripe.Product.create(
-                        name=charge_product_name,
-                        type="service",
-                    )
-                    additional_charge_price = stripe.Price.create(
-                        unit_amount=int(charge["amount"]) * 100,
-                        currency="usd",
-                        recurring={"interval": charge["frequency"]},
-                        product=charge_product.id,
-                    )
-                    items.append({"price": additional_charge_price.id})
+                # for charge in additional_charges_dict:
+                #     charge_product_name = f"{charge['name']} for unit {unit.name} at {unit.rental_property.name}"
+                #     charge_product = stripe.Product.create(
+                #         name=charge_product_name,
+                #         type="service",
+                #     )
+                #     additional_charge_price = stripe.Price.create(
+                #         unit_amount=int(charge["amount"]) * 100,
+                #         currency="usd",
+                #         recurring={"interval": charge["frequency"]},
+                #         product=charge_product.id,
+                #     )
+                #     items.append({"price": additional_charge_price.id})
 
                 grace_period_end = int(end_date.timestamp())
 
@@ -892,37 +951,69 @@ class TenantViewSet(viewsets.ModelViewSet):
         )
 
     # ------------Tenant Subscription Methods (Should replace the Function in the ManageTenantSubscriptionView in manage_subscriptions.py)-----------------
-    @action(
-        detail=False, methods=["post"], url_path="turn-off-autopay"
-    )  # POST: api/tenants/turn-off-autopay
+    @action(detail=False, methods=["post"], url_path="turn-off-autopay")
     def turn_off_autopay(self, request, pk=None):
         # Retrieve user id from request body
         user_id = request.data.get("user_id")
         # Retrieve the user object from the database by id
         user = User.objects.get(id=user_id)
         tenant = Tenant.objects.get(user=user)
+        customer = stripe.Customer.retrieve(tenant.stripe_customer_id)
         # Retrieve the unit object from the user object
         unit = RentalUnit.objects.get(tenant=tenant)
+        owner = unit.owner
         # Retrieve the lease agreement object from the unit object
         lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
+
+        # Cancel existing rent subscriptions for the tenant
+        cancel_existing_rent_subscriptions(tenant.stripe_customer_id)
+        
         # Retrieve the subscription id from the lease agreement object
-        subscription_id = lease_agreement.stripe_subscription_id
-        stripe.Subscription.modify(
-            subscription_id,
-            pause_collection={"behavior": "void"},
-        )
         lease_agreement.auto_pay_is_enabled = False
         lease_agreement.save()
+
+        lease_terms = json.loads(unit.lease_terms)
+        start_date = datetime.fromisoformat(str(lease_agreement.start_date))
+        rent = next(
+            (item for item in lease_terms if item["name"] == "rent"),
+            None,
+        )
+        rent_value = float(rent["value"])
+        term = next(
+            (item for item in lease_terms if item["name"] == "term"),
+            None,
+        )
+        term_value = int(term["value"])
+        rent_frequency = next(
+            (item for item in lease_terms if item["name"] == "rent_frequency"),
+            None,
+        )
+        rent_frequency_value = rent_frequency["value"]
+        
+
+        additional_charges_dict = json.loads(unit.additional_charges)
+        # Call the create_rent_invoices function
+        create_rent_invoices(
+            start_date,
+            rent_value,
+            rent_frequency_value,
+            term_value,
+            customer.id,
+            unit,
+            additional_charges_dict,
+            lease_agreement
+        )
         # Return a response
         return Response(
             {
-                "message": "Subscription paused successfully.",
+                "message": "Subscription paused and rent invoices created successfully.",
                 "status": status.HTTP_200_OK,
             },
             status=status.HTTP_200_OK,
         )
 
-    # Create a method to create a subscription called turn_on_autopay
+
+        # Create a method to create a subscription called turn_on_autopay
     @action(detail=False, methods=["post"], url_path="turn-on-autopay")
     def turn_on_autopay(self, request, pk=None):
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
@@ -933,21 +1024,43 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant = Tenant.objects.get(user=user)
         # Retrieve the unit object from the user object
         unit = RentalUnit.objects.get(tenant=tenant)
-        # Retrieve the lease agreement object from the unit object
-        lease_agreement = LeaseAgreement.objects.get(rental_unit=unit)
-        subscription_id = lease_agreement.stripe_subscription_id
 
-        stripe.Subscription.modify(
-            subscription_id,
-            pause_collection="",
+        lease_terms = json.loads(unit.lease_terms)
+        combined_payments = next(
+            (item for item in lease_terms if item["name"] == "combine_payments"),
+            None,
         )
+
+        if combined_payments and combined_payments["value"] == "combined":
+            return Response(
+                {
+                    "message": "You cannot enable auto pay for combined payments.",
+                    "status": status.HTTP_400_BAD_REQUEST,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Retrieve the lease agreement object from the unit object
+        lease_agreement = LeaseAgreement.objects.filter(rental_unit=unit,is_active=True).first()
+
+        # Cancel existing rent subscriptions before creating a new one
+        cancel_existing_rent_subscriptions(tenant.stripe_customer_id)
+
+        # Create a new subscription
+        subscription = create_autopay_subscription_for_tenant(
+            tenant.stripe_customer_id, unit, lease_agreement
+        )
+        # tenant.auto_pay_is_enabled = False
+        tenant.save()
+        lease_agreement.stripe_subscription_id = subscription.id
         lease_agreement.auto_pay_is_enabled = True
         lease_agreement.save()
         # Return a response
         return Response(
             {
-                "message": "Subscription resumed successfully.",
+                "message": "Auto pay enabled successfully.",
                 "status": status.HTTP_200_OK,
+                "subscription": subscription,
             },
             status=status.HTTP_200_OK,
         )
@@ -1092,7 +1205,13 @@ class TenantViewSet(viewsets.ModelViewSet):
     def invoices(self, request, pk=None):
         tenant = self.get_object()
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-        invoices = stripe.Invoice.list(limit=25, customer=tenant.stripe_customer_id)
+        invoices = stripe.Invoice.list(
+            limit=25,
+            customer=tenant.stripe_customer_id,
+            status="open"
+        )
+        #Filter all invoices so that only invoices with the subtype of stripe_invoice are returned
+        invoices = list(filter(lambda invoice: invoice.metadata.get('subtype') == 'stripe_invoice', invoices.data))
         return Response({"invoices": invoices}, status=status.HTTP_200_OK)
 
     # Create A method to pay an invoice
@@ -1112,35 +1231,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         invoice = stripe.Invoice.retrieve(invoice_id)
         payment_method_id = request.data.get("payment_method_id")
         stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-
-        #Check if the invoice is past due and charge the late fee if it is
-        # if invoice.status == "open" and invoice.due_date < int(datetime.now().timestamp()):
-        #     #retrieve the late fee from the unit's lease terms
-        #     lease_terms = json.loads(unit.lease_terms)
-        #     late_fee = next(
-        #         (item for item in lease_terms if item["name"] == "late_fee"),
-        #         None,
-        #     )
-        #     late_fee_value = float(late_fee["value"])
-        #     #Charge the late fee by creating payment intent
-        #     stripe.PaymentIntent.create(
-        #         amount=int(late_fee_value * 100),
-        #         currency="usd",
-        #         customer=invoice.customer,
-        #         payment_method=payment_method_id,
-        #         off_session=True,
-        #         confirm=True,
-        #         metadata={
-        #             "type": "late_fee",
-        #             "description": "Late Fee Payment",
-        #             "tenant_id": invoice.metadata["tenant_id"],
-        #             "owner_id": invoice.metadata["owner_id"],
-        #             "rental_property_id": invoice.metadata["rental_property_id"],
-        #             "rental_unit_id": invoice.metadata["rental_unit_id"],
-        #             "payment_method_id": payment_method_id,
-        #         },
-        #     )
-
+        
         # Pay the invoice
         stripe.Invoice.pay(invoice_id, payment_method=payment_method_id)
 
@@ -1173,7 +1264,7 @@ class TenantViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="preferences") #GET: api/tenants/{id}/preferences
     def preferences(self, request, pk=None):
         tenant = self.get_object()
-        print(tenant.preferences)
+
         preferences = json.loads(tenant.preferences)
         return Response({"preferences":preferences},status=status.HTTP_200_OK)
    
@@ -1194,3 +1285,14 @@ class TenantViewSet(viewsets.ModelViewSet):
         tenant.auto_renew_lease_is_enabled = auto_renew_lease_is_enabled
         tenant.save()
         return Response({"auto_renew_lease_is_enabled":auto_renew_lease_is_enabled},status=status.HTTP_200_OK)
+    
+    #Create a function that allows an owner to update the tenant's ability to auto pay using the endpoint /tenants/{tenant_id}/update-auto-pay-status/
+    @action(detail=True, methods=["post"], url_path="update-auto-pay-status") #POST: api/tenants/{id}/update-auto-pay-status
+    def update_auto_pay_status(self, request, pk=None):
+        tenant = self.get_object()
+        auto_pay_is_enabled = request.data.get("auto_pay_is_enabled")
+        tenant.auto_pay_is_enabled = auto_pay_is_enabled
+        tenant.save()
+        return Response({"auto_pay_is_enabled":auto_pay_is_enabled},status=status.HTTP_200_OK)
+
+    

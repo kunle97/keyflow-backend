@@ -51,30 +51,26 @@ ALLOWED_HOSTS = [
 ]
 
 # Application definition
-
 INSTALLED_APPS = [
-    "corsheaders",
-    # "rest_framework_simplejwt",
-    # "rest_framework_simplejwt.token_blacklist",
-    "rest_framework",
-    "rest_framework.authtoken",
-    "django_extensions",
-    "keyflow_backend_app.apps.KeyflowBackendAppConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
+    "rest_framework",
+    "rest_framework.authtoken",
+    "django_extensions",
     "django_filters",
     "storages",
-    'django_celery_beat',
+    "django_celery_beat",
+    "keyflow_backend_app.apps.KeyflowBackendAppConfig",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    # "whitenose.middleware.WhiteNoiseMiddleware",  # whitenoise
     "django.middleware.common.CommonMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # CORS
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -203,7 +199,6 @@ CORS_ALLOWED_ORIGINS = [  # JWT Config
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        # "rest_framework.authentication.TokenAuthentication",
         "keyflow_backend_app.authentication.ExpiringTokenAuthentication",
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",

@@ -1,4 +1,3 @@
-from email.policy import default
 from django.db import models
 from datetime import datetime
 from keyflow_backend_app.models.account_type import Owner

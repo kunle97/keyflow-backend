@@ -66,4 +66,3 @@ class RetrieveOwnerSubscriptionPriceView(APIView):
 class ManageTenantSubscriptionView(viewsets.ModelViewSet):
     # TODO: Investigate why authentication CLasses not working
     queryset = User.objects.all()
-    

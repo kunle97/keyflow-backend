@@ -10,29 +10,23 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
-
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
+from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_agreement import LeaseAgreement
-from keyflow_backend_app.views import boldsign
-from ..helpers import make_id
+from ..helpers.helpers import make_id
 from keyflow_backend_app.models.account_type import Owner
-from ..models.user import User
 from ..models.notification import Notification
 from ..models.rental_application import RentalApplication
 from ..models.rental_unit import RentalUnit
 from ..serializers.rental_application_serializer import RentalApplicationSerializer
-from ..permissions import RentalApplicationCreatePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from ..helpers import strtobool
-from keyflow_backend_app.models import rental_unit
-
-from keyflow_backend_app.models import rental_application
-
+from ..helpers.helpers import strtobool
 
 class RetrieveRentalApplicationByApprovalHash(APIView):
     def post(self, request):
@@ -47,9 +41,8 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = RentalApplicationSerializer
     permission_classes = [
         IsAuthenticated,
-        RentalApplicationCreatePermission,
     ]  # TODO: Investigate why IsResourceOwner is not working
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -78,6 +71,14 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
         unit = RentalUnit.objects.get(id=data["unit_id"])
         user = unit.owner.user
         owner = unit.owner
+        owner_plan_permission = OwnerPlanAccessControl(owner)
+        if not owner_plan_permission.can_use_rental_applications():
+            return Response(
+                {
+                    "message": "This rental application is unable to be created. Please contact the owner to resolve this issue."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         pets = data["pets"]
         vehicles = data["vehicles"]
         convicted = data["convicted"]
@@ -153,14 +154,20 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                     )   
         except StopIteration:
             # Handle case where "rental_application_created" is not found
-            print("rental_application_created not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "rental_application_created"
-            print("values key not found in rental_application_created. Notification not sent.")
+
             pass
 
-        return Response({"message": "Rental application created successfully."})
+        serializer = RentalApplicationSerializer(rental_application)
+        return Response(
+            {
+                "message": "Rental application created successfully.",
+                "data": serializer.data,
+                "status": status.HTTP_201_CREATED,
+            }, status=status.HTTP_201_CREATED)
 
     # Create method to delete all rental applications for a specific unit
     @action(
@@ -179,6 +186,8 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     def approve_rental_application(self, request, pk=None):
         rental_application = self.get_object()
         unit = rental_application.unit
+        unit = RentalUnit.objects.get(id=unit.id)
+        unit_lease_terms = unit.lease_terms
         user = request.user
         owner = Owner.objects.get(user=user)
         sign_link = ""
@@ -205,6 +214,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                 data=payload_data,
             )
             boldsign_document_id = response.json()["documentId"]
+
             #Create a lease agreement
             lease_agreement = LeaseAgreement.objects.create(
                 rental_application=rental_application,
@@ -212,7 +222,9 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                 rental_unit=unit,
                 owner=owner,
                 approval_hash=approval_hash,
-            )   
+                lease_terms=unit_lease_terms,
+            )
+
             client_hostname = os.getenv("CLIENT_HOSTNAME")
             sign_link = f"{client_hostname}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}/"
             try:
@@ -232,7 +244,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                         HtmlBody=f"Your rental application for unit {rental_application.unit.name} at {rental_application.unit.rental_property.name} has been approved. <a href='{sign_link}'>Sign Lease Agreement</a>",
                     )
             except Exception as e:
-                print(e)
+
                 pass
         
             #Delete remaining rental applications for the unit

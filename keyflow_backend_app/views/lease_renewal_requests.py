@@ -1,8 +1,7 @@
-from datetime import timedelta, datetime,time
+from datetime import datetime
 import json
 import os
 from postmarker.core import PostmarkClient
-from tracemalloc import start
 import stripe
 from django.http import JsonResponse
 from django.utils import timezone as dj_timezone
@@ -12,9 +11,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.authentication import SessionAuthentication
+from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-from keyflow_backend_app.models import account_type
 from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.models.user import User
 from ..models.notification import Notification
@@ -27,19 +26,18 @@ from ..models.notification import Notification
 from ..serializers.lease_renewal_request_serializer import (
     LeaseRenewalRequestSerializer,
 )
-from keyflow_backend_app.helpers import calculate_final_price_in_cents, create_rent_invoices
-from ..models.lease_template import LeaseTemplate
+from keyflow_backend_app.helpers.helpers import calculate_final_price_in_cents, create_rent_invoices
 from rest_framework import status
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-
+from ..permissions.lease_renewal_request_permissions import IsOwnerOrReadOnly
 
 class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaseRenewalRequest.objects.all()
     serializer_class = LeaseRenewalRequestSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    authentication_classes = [ExpiringTokenAuthentication, SessionAuthentication]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
@@ -136,11 +134,11 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_cancellation_request_created" is not found
-            print("lease_cancellation_request_created not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_cancellation_request_created"
-            print("values key not found in lease_cancellation_request_created. Notification not sent.")
+
             pass
         # Return a success response containing the lease renewal request object as well as a message and a 201 stuats code
         serializer = LeaseRenewalRequestSerializer(lease_renewal_request)
@@ -207,11 +205,11 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_renewal_request_approved" is not found
-            print("lease_renewal_request_approved not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_renewal_request_approved"
-            print("values key not found in lease_renewal_request_approved. Notification not sent.")
+
             pass
 
         return Response(
@@ -230,6 +228,30 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
         lease_renewal_request = LeaseRenewalRequest.objects.get(
             id=data["lease_renewal_request_id"]
         )
+
+        account_type = request.user.account_type
+        if account_type == "tenant":
+            #check that the request user is the tenant that owns the lease renewal request
+            if lease_renewal_request.tenant.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease renewal request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        elif account_type == "owner":
+            #check that the request user is the owner that owns the lease renewal request
+            if lease_renewal_request.owner.user != request.user:
+                return JsonResponse(
+                    {
+                        "message": "You are not authorized to deny this lease renewal request.",
+                        "data": None,
+                        "status": 403,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         # Delete Lease Renewal Request
         lease_renewal_request.delete()
@@ -268,11 +290,11 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_renewal_request_rejected" is not found
-            print("lease_renewal_request_rejected not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_renewal_request_rejected"
-            print("values key not found in lease_renewal_request_rejected. Notification not sent.")
+
             pass
 
         return Response(
@@ -504,11 +526,11 @@ class LeaseRenewalRequestViewSet(viewsets.ModelViewSet):
                     )
         except StopIteration:
             # Handle case where "lease_renewal_agreement_signed" is not found
-            print("lease_renewal_agreement_signed not found. Notification not sent.")
+
             pass
         except KeyError:
             # Handle case where "values" key is missing in "lease_renewal_agreement_signed"
-            print("values key not found in lease_renewal_agreement_signed. Notification not sent.")
+
             pass
 
         # Return a success response

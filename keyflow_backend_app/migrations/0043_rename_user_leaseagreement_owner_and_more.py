@@ -32,16 +32,16 @@ class Migration(migrations.Migration):
             old_name='user',
             new_name='owner',
         ),
-        migrations.RenameField(
-            model_name='maintenancerequest',
-            old_name='user',
-            new_name='owner',
-        ),
-        migrations.RenameField(
-            model_name='rentalapplication',
-            old_name='user',
-            new_name='owner',
-        ),
+        # migrations.RenameField(
+        #     model_name='maintenancerequest',
+        #     old_name='user',
+        #     new_name='owner',
+        # ),
+        # migrations.RenameField(
+        #     model_name='rentalapplication',
+        #     old_name='user',
+        #     new_name='owner',
+        # ),
         migrations.RenameField(
             model_name='rentalproperty',
             old_name='user',

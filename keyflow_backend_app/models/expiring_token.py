@@ -7,7 +7,7 @@ class ExpiringToken(Token):
 
     class Meta:
         db_table = 'expiring_tokens'
-        
+
     def is_expired(self):
         return timezone.now() > self.expiration_date
 
