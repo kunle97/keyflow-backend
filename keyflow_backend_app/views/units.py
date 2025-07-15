@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
 from keyflow_backend_app.authentication import ExpiringTokenAuthentication
 from rest_framework.permissions import IsAuthenticated 
-from keyflow_backend_app.models.account_type import Owner
+from keyflow_backend_app.models.account_type import Owner, Tenant
 from keyflow_backend_app.helpers.helpers import unitNameIsValid
 from keyflow_backend_app.helpers.owner_plan_access_control import OwnerPlanAccessControl
 from keyflow_backend_app.models.lease_template import LeaseTemplate
@@ -56,10 +56,24 @@ class UnitViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        owner = Owner.objects.get(user=user)
-        queryset = super().get_queryset().filter(owner=owner)
-        return queryset
-    
+        if user.account_type == 'owner':
+            try:
+                owner = Owner.objects.get(user=user)
+                queryset = super().get_queryset().filter(owner=owner)
+                return queryset
+            except Owner.DoesNotExist:
+                return RentalUnit.objects.none()  # Return an empty queryset if no owner is found
+        elif user.account_type == 'tenant':
+            try:
+                tenant = Tenant.objects.get(user=user)
+                rental_unit = RentalUnit.objects.get(tenant=tenant)
+                queryset = super().get_queryset().filter(rental_property=rental_unit.rental_property)
+                return queryset
+            except (Tenant.DoesNotExist, RentalUnit.DoesNotExist):
+                return RentalUnit.objects.none()  # Return an empty queryset if no tenant or rental unit is found
+        else:
+            return RentalUnit.objects.none()  # Return an empty queryset if the account type doesn't match
+        
     def partial_update(self, request, *args, **kwargs):
         unit = self.get_object()
         serializer = self.get_serializer(unit)

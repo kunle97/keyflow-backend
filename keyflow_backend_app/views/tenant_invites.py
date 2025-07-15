@@ -80,6 +80,7 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
                 is_tenant_invite=True,
                 is_active=True,
                 tenant_invite=tenant_invite,
+                lease_terms=rental_unit.lease_terms
             )
             redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/dashboard/tenant/register/{lease_agreement.id}/{rental_unit.id}/{approval_hash}/"
             email_content = f"Hi {serializer.data['first_name']},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to register and manage your lease.<br><br>Thanks,<br>Keyflow Team"
@@ -93,7 +94,8 @@ class TenantInviteViewSet(viewsets.ModelViewSet):
                 approval_hash=approval_hash,
                 is_tenant_invite=True,
                 tenant_invite=tenant_invite,
-                document_id=document_id
+                document_id=document_id,
+                lease_terms=rental_unit.lease_terms
             )
             redirect_url = f"{os.getenv('CLIENT_HOSTNAME')}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}"  # TODO: CHANGE THIS TO THE ACTUAL LINK
             email_content = f"Hi {serializer.data['first_name']},<br><br> You have been invited to join Keyflow and manage your rental in {rental_unit.name} at {rental_unit.rental_property.name}.<br><br> Please click <a href='{redirect_url}'>here</a> to sign your lease.<br><br>Thanks,<br>Keyflow Team"

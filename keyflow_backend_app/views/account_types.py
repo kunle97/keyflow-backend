@@ -1050,7 +1050,7 @@ class TenantViewSet(viewsets.ModelViewSet):
         subscription = create_autopay_subscription_for_tenant(
             tenant.stripe_customer_id, unit, lease_agreement
         )
-        tenant.auto_pay_is_enabled = False
+        # tenant.auto_pay_is_enabled = False
         tenant.save()
         lease_agreement.stripe_subscription_id = subscription.id
         lease_agreement.auto_pay_is_enabled = True

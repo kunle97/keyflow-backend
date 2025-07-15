@@ -291,7 +291,8 @@ class RetrieveTenantDashboardData(APIView):
             document_id=document_id,
             approval_hash=make_id(64),
             is_active=False,
-            lease_renewal_request=lease_renewal_request
+            lease_renewal_request=lease_renewal_request,
+            lease_terms=rental_unit.lease_terms
         )
         tenant_email = tenant.user.email
         if os.getenv("ENVIRONMENT") == "development":

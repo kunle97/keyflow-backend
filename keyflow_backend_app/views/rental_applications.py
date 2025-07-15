@@ -161,7 +161,13 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
 
             pass
 
-        return Response({"message": "Rental application created successfully."})
+        serializer = RentalApplicationSerializer(rental_application)
+        return Response(
+            {
+                "message": "Rental application created successfully.",
+                "data": serializer.data,
+                "status": status.HTTP_201_CREATED,
+            }, status=status.HTTP_201_CREATED)
 
     # Create method to delete all rental applications for a specific unit
     @action(
@@ -180,6 +186,8 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
     def approve_rental_application(self, request, pk=None):
         rental_application = self.get_object()
         unit = rental_application.unit
+        unit = RentalUnit.objects.get(id=unit.id)
+        unit_lease_terms = unit.lease_terms
         user = request.user
         owner = Owner.objects.get(user=user)
         sign_link = ""
@@ -206,6 +214,7 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                 data=payload_data,
             )
             boldsign_document_id = response.json()["documentId"]
+
             #Create a lease agreement
             lease_agreement = LeaseAgreement.objects.create(
                 rental_application=rental_application,
@@ -213,7 +222,9 @@ class RentalApplicationViewSet(viewsets.ModelViewSet):
                 rental_unit=unit,
                 owner=owner,
                 approval_hash=approval_hash,
-            )   
+                lease_terms=unit_lease_terms,
+            )
+
             client_hostname = os.getenv("CLIENT_HOSTNAME")
             sign_link = f"{client_hostname}/sign-lease-agreement/{lease_agreement.id}/{approval_hash}/"
             try:

@@ -1,5 +1,6 @@
 from calendar import c
 import os
+import logging
 import stripe
 from keyflow_backend_app.models.rental_unit import RentalUnit
 from keyflow_backend_app.models.rental_property import RentalProperty
@@ -9,6 +10,8 @@ from keyflow_backend_app.models.uploaded_file import UploadedFile
 from keyflow_backend_app.models.account_type import Owner
 unlimited = 99999
 unlimited_file_size = 99999999999
+
+logger = logging.getLogger(__name__)
 
 class OwnerPlanAccessControl:
     stripe_plan_permission_data = [
@@ -87,19 +90,24 @@ class OwnerPlanAccessControl:
         self.plan_data = self.get_owner_plan_permission_data()
 
     def get_owner_plan_permission_data(self):
-        stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
-        if self.owner.stripe_subscription_id is None:
-            return self.stripe_plan_permission_data[0]
-        
-        subscription = stripe.Subscription.retrieve(self.owner.stripe_subscription_id)
-        stripe_product_id = subscription["items"]["data"][0]["plan"]["product"]
+        try:
+            stripe.api_key = os.getenv("STRIPE_SECRET_API_KEY")
 
+            if self.owner.stripe_subscription_id is None:
+                return self.stripe_plan_permission_data[0]
 
-        for plan_data in self.stripe_plan_permission_data:
-            if plan_data["stripe_product_id"] == stripe_product_id:
-                return plan_data
+            subscription = stripe.Subscription.retrieve(self.owner.stripe_subscription_id)
+            stripe_product_id = subscription["items"]["data"][0]["plan"]["product"]
 
-        return self.stripe_plan_permission_data[0]  # Return the free plan data if the stripe product id is not found
+            for plan_data in self.stripe_plan_permission_data:
+                if plan_data["stripe_product_id"] == stripe_product_id:
+                    return plan_data
+
+        except Exception as e:
+            logger.error(f"Stripe subscription fetch failed: {e}")
+            pass
+
+        return self.stripe_plan_permission_data[0]  # Fallback to free plan
 
     #Create a method called can_create_new_rental_property
     def can_create_new_rental_property(self):
