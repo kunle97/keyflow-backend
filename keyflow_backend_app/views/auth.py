@@ -1,5 +1,6 @@
 from datetime import timedelta
 import os
+import logging
 from postmarker.core import PostmarkClient
 from dotenv import load_dotenv
 from django.utils import timezone
@@ -28,6 +29,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Create the login endpoint view
@@ -131,20 +133,19 @@ class UserLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+
     def manage_token(self, user, expiration_date):
-        # Check if the user already has an active token
         existing_token = ExpiringToken.objects.filter(user=user).first()
         if existing_token:
-            if existing_token.is_expired():
-                existing_token.delete()
-                token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date)
-                token.key = Token.generate_key()
-                token.save()
-            else:
-                token = existing_token
-        else:
-            token = ExpiringToken.objects.create(user=user, expiration_date=expiration_date, key=Token.generate_key())
+            logger.info(f"Deleting existing token for user {user.id}")
+            existing_token.delete()
 
+        token = ExpiringToken.objects.create(
+            user=user,
+            expiration_date=expiration_date,
+            key=Token.generate_key()
+        )
+        logger.info(f"Created new token for user {user.id}")
         return token
     
 
