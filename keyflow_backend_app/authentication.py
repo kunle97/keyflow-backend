@@ -1,20 +1,32 @@
-from .models.expiring_token import ExpiringToken
+# views/authentication.py
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.authtoken.models import Token
+from token_extension.models import ExpiringToken
+from django.utils import timezone
+
+from rest_framework.authtoken.models import Token
+from token_extension.models import ExpiringToken
 
 class ExpiringTokenAuthentication(TokenAuthentication):
-    model = ExpiringToken
-
     def authenticate_credentials(self, key):
         try:
-            token = self.model.objects.get(key=key)
-        except self.model.DoesNotExist:
-            return None
+            token = Token.objects.select_related('user').get(key=key)
+        except Token.DoesNotExist:
+            raise AuthenticationFailed("Invalid token")
 
-        if token.is_expired():
+        try:
+            exp_token = ExpiringToken.objects.get(token=token)
+        except ExpiringToken.DoesNotExist:
             token.delete()
-            return None
+            raise AuthenticationFailed("Token expired or invalid")
+
+        if exp_token.expiration_date < timezone.now():
+            exp_token.delete()
+            token.delete()
+            raise AuthenticationFailed("Token has expired")
 
         if not token.user.is_active:
-            return None
+            raise AuthenticationFailed("User inactive or deleted")
 
         return (token.user, token)

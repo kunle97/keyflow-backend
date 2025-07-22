@@ -1,15 +1,15 @@
-from django.db import models
-from django.utils import timezone
-from rest_framework.authtoken.models import Token
+# from django.db import models
+# from django.utils import timezone
+# from rest_framework.authtoken.models import Token
 
-class ExpiringToken(Token):
-    expiration_date = models.DateTimeField()
+# class ExpiringToken(Token):
+#     expiration_date = models.DateTimeField()
 
-    class Meta:
-        db_table = 'expiring_tokens'
+#     class Meta:
+#         db_table = 'expiring_tokens'
 
-    def is_expired(self):
-        return timezone.now() > self.expiration_date
+#     def is_expired(self):
+#         return timezone.now() > self.expiration_date
 
-    def __str__(self):
-        return super().__str__()
+#     def __str__(self):
+#         return super().__str__()

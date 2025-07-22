@@ -1,4 +1,5 @@
 import json
+import logging
 from django.http import JsonResponse
 from rest_framework import viewsets
 from rest_framework.authentication import SessionAuthentication 
@@ -13,6 +14,7 @@ from rest_framework.decorators import action
 from rest_framework import status
 from keyflow_backend_app.helpers.helpers import portfolioNameIsValid
 from ..permissions.portfolio_permissions import IsOwner
+logger = logging.getLogger(__name__)
 class PortfolioViewSet(viewsets.ModelViewSet):
     queryset = Portfolio.objects.all()
     serializer_class = PortfolioSerializer

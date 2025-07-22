@@ -1,6 +1,7 @@
 # Standard library imports
 import json
 import os
+import logging
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 # Third-party library imports
@@ -52,6 +53,7 @@ from keyflow_backend_app.serializers.account_type_serializer import (
     TenantSerializer,
 )
 
+logger = logging.getLogger(__name__)
 load_dotenv()
 
 

@@ -170,12 +170,3 @@ class OwnerPlanAccessControl:
     def can_use_messaging(self):
         return self.plan_data["messaging_enabled"]
     
-    
-    
-
-#   Usage:
-#   owner = some_owner_instance
-#   joes_permissions = OwnerPlanAccessControl(owner)
-
-#   if joes_permissions.can_create_new_rental_unit():
-#     RentalUnit.objects.create(...)
