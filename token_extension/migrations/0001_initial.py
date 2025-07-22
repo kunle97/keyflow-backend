@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('authtoken', '0004_alter_tokenproxy_options'),
+        ('authtoken', '__latest__'),
     ]
 
     operations = [
